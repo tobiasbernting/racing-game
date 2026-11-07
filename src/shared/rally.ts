@@ -42,6 +42,8 @@ export interface Feel {
   rough: number;
   /** Landings and bumps hurt by this much. */
   landing: number;
+  /** Rolling resistance on grass, sand and snow, as a multiplier (below 1 the rough does not slow it: the buggy). */
+  roll: number;
   /** Banana peels and hay bales: 1 spins you fully, below 1 you barely notice. */
   slip: number;
   /** How far the body leans into bends (1 = a motorbike), as the visual roll of the whole vehicle. */
@@ -59,21 +61,23 @@ export interface Feel {
   bumpAt: number;
 }
 
-const CAR_FEEL: Feel = { mass: 1, steer: 1, yaw: 1, top: 0, rough: 1, landing: 1, slip: 1, lean: 0, punch: 1, drag: 1, two: false, halfW: 0.95, halfL: 1.05, bumpR: 1.0, bumpAt: 1.05 };
+const CAR_FEEL: Feel = { mass: 1, steer: 1, yaw: 1, top: 0, rough: 1, landing: 1, roll: 1, slip: 1, lean: 0, punch: 1, drag: 1, two: false, halfW: 0.95, halfL: 1.05, bumpR: 1.0, bumpAt: 1.05 };
 const feel = (o: Partial<Feel>): Feel => ({ ...CAR_FEEL, ...o });
 
 export const CAR_BODY_DEFS: Record<CarBody, CarBodyDef> = {
   hatch: { id: 'hatch', price: 0, power: 1.0, grip: 1.0, tough: 1.0, size: 1.0, feel: feel({}) },
-  buggy: { id: 'buggy', price: 900, power: 0.95, grip: 1.1, tough: 0.9, size: 0.95, feel: feel({}) },
-  pickup: { id: 'pickup', price: 1500, power: 1.05, grip: 0.95, tough: 1.3, size: 1.1, feel: feel({}) },
-  coupe: { id: 'coupe', price: 2500, power: 1.2, grip: 1.05, tough: 0.85, size: 1.0, feel: feel({}) },
-  monster: { id: 'monster', price: 4000, power: 1.1, grip: 0.9, tough: 1.5, size: 1.3, feel: feel({}) },
+  // the sandbuggy: sand and grass do not slow it down (its passive)
+  buggy: { id: 'buggy', price: 900, power: 0.95, grip: 1.1, tough: 0.9, size: 0.95, feel: feel({ rough: 1.5, roll: 0.25 }) },
+  pickup: { id: 'pickup', price: 1500, power: 1.05, grip: 0.95, tough: 1.3, size: 1.1, feel: feel({ mass: 1.4, yaw: 1.1 }) },
+  // the sportbil: slips through the air (its passive: a higher top speed)
+  coupe: { id: 'coupe', price: 2500, power: 1.2, grip: 1.05, tough: 0.85, size: 1.0, feel: feel({ drag: 0.78 }) },
+  monster: { id: 'monster', price: 4000, power: 1.1, grip: 0.9, tough: 1.5, size: 1.3, feel: feel({ mass: 2.2, yaw: 1.2, landing: 0.6, rough: 1.25 }) },
   // the fyrhjuling: light and twitchy, loves the rough and the jumps
   atv: { id: 'atv', price: 1800, power: 1.0, grip: 1.04, tough: 0.9, size: 0.9, feel: feel({ mass: 0.6, steer: 1.3, yaw: 0.6, rough: 1.6, landing: 0.5, lean: 0.25, halfW: 0.7, halfL: 0.95, bumpR: 0.75, bumpAt: 0.85 }) },
   // the motorcykel: very quick in a straight line, leans into bends and has less grip
   moto: { id: 'moto', price: 3200, power: 1.35, grip: 0.84, tough: 0.7, size: 0.9, feel: feel({ mass: 0.45, steer: 1.15, yaw: 0.75, lean: 1, punch: 1.25, drag: 0.72, two: true, landing: 1.2, halfW: 0.4, halfL: 0.95, bumpR: 0.5, bumpAt: 0.8 }) },
   // the moppe: slow, super nimble and a bit silly
-  moped: { id: 'moped', price: 600, power: 0.62, grip: 1.0, tough: 0.75, size: 0.85, feel: feel({ mass: 0.35, steer: 1.45, yaw: 0.5, top: 24, lean: 0.7, punch: 0.85, drag: 0.9, two: true, halfW: 0.38, halfL: 0.85, bumpR: 0.48, bumpAt: 0.7 }) },
+  moped: { id: 'moped', price: 600, power: 0.62, grip: 1.0, tough: 0.75, size: 0.85, feel: feel({ mass: 0.35, steer: 1.45, yaw: 0.5, top: 24, lean: 0.7, punch: 0.85, drag: 0.9, two: true, slip: 0.5, halfW: 0.38, halfL: 0.85, bumpR: 0.48, bumpAt: 0.7 }) },
   // the traktor: slow, heavy and unstoppable
   tractor: { id: 'tractor', price: 2200, power: 0.7, grip: 0.95, tough: 2.2, size: 1.2, feel: feel({ mass: 3.6, steer: 0.85, yaw: 1.7, top: 21, rough: 1.5, punch: 0.85, landing: 0.4, slip: 0.2, halfW: 1.25, halfL: 1.5, bumpR: 1.25, bumpAt: 1.1 }) },
   // the soffbil: a sofa on wheels. Average stats, maximum silliness

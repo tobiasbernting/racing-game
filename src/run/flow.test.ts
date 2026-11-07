@@ -8,7 +8,13 @@ import { goalMet, planRace, targetTimeMs } from './plan.ts';
 import { Rng } from './rng.ts';
 import { CALM_HEARTS, START_HEARTS, costsHeart, heartsLost, mapOf, newRun, ownedN, reachable, type RunState } from './state.ts';
 
-const fresh = (o: Partial<{ seed: number; calm: boolean; trophies: number }> = {}): RunState => newRun({ seed: o.seed ?? 42, calm: o.calm ?? false, body: 'hatch', driver: 'cow', paint: '#e8412c', trophies: o.trophies ?? 0 });
+/** A run with nothing in the bag (the starting trinket of the vehicle is taken out, so the tests count only what they add). */
+const fresh = (o: Partial<{ seed: number; calm: boolean; trophies: number }> = {}): RunState => {
+  const r = newRun({ seed: o.seed ?? 42, calm: o.calm ?? false, body: 'hatch', driver: 'cow', paint: '#e8412c', trophies: o.trophies ?? 0 });
+  r.trinkets = [];
+  r.got = [];
+  return r;
+};
 
 const result = (o: Partial<RallyResult> = {}): RallyResult => ({ place: 1, n: 4, finished: true, time: 90000, laps: 2, kronor: 100, coins: 0, medal: null, damage: 0, ...o });
 

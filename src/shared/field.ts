@@ -142,7 +142,7 @@ export function partLevel(t: number, role: RivalRole, calm: boolean): number {
 export function rivalSkill(t: number, role: RivalRole, calm: boolean): number {
   const bump = role === 'boss' ? -0.015 : role === 'elite' ? 0.006 : 0;
   if (calm) return 0.8 + 0.07 * t + bump * 0.5;
-  return 0.85 + 0.21 * Math.pow(t, 2.0) + bump;
+  return 0.87 + 0.19 * Math.pow(t, 1.5) + bump;
 }
 export const SKILL_CEILING = 1.06;
 

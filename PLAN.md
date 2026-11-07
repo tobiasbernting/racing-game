@@ -131,6 +131,10 @@ run strong, which is right; the rivals and courses must keep up. Design directio
    haptics, and a reserved ability slot.
 8. **Vehicles with abilities**: passives, active ability button, starting trinkets, ram/race lean, 5 starters
    (rallybil, sandbuggy, pickup, moppe, traktor), 15 to unlock by a mix of wins and challenges.
+   Built (see README): a kit per vehicle (lean, passive, active with cooldown and a charge ring on its button, starting trinket), F / gamepad Y /
+   the touch button in every scheme, computer drivers using their actives, a data-driven challenge system (`src/run/unlocks.ts`) with progress in
+   the meta save, an "UPPLÅST!" ribbon, old saves keep every vehicle, the pick screen and result screen show it all. 5 starters and 5 challenges now;
+   phase 10 adds ten more entries.
 9. **Art direction**: grittier, Tape to Tape-inspired: stronger contrast and colour grade, light outlines,
    dirt/scratches/damage on cars, drivers with helmets and race gear, courses with attitude (scrapyards, tyre
    walls, rowdy crowds, made-up sponsor boards), sparks and explosions, sticker/poster menus, rival collector cards.

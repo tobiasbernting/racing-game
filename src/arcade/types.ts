@@ -31,6 +31,8 @@ export interface GameContext {
   requestPause(): void;
   /** The player's controls, live (the settings panel may change them between races). */
   controls?: ControlsState;
+  /** The race reports how charged the vehicle's ability is (0..1) and whether it is ready, for the ring on the touch button. */
+  abilityHud?: (charge: number, ready: boolean) => void;
   /** Game-specific options from whoever starts the game (a RallyOptions for the rally). */
   options?: unknown;
 }
@@ -58,7 +60,7 @@ export type GameFactory = (ctx: GameContext) => GameInstance;
 
 /**
  * A controller button. Keyboard: arrows/WASD, A = Space/Z/J, B = X/K/Shift, C = C/L, Start = Enter. `sd` / `su` shift
- * down and up (Q / E, LB / RB, the − and + buttons) and `x` is the vehicle's ability (a touch button for now).
+ * down and up (Q / E, LB / RB, the − and + buttons) and `x` is the vehicle's ability (F, gamepad Y, the ability button).
  */
 export type Button = 'left' | 'right' | 'up' | 'down' | 'a' | 'b' | 'c' | 'x' | 'sd' | 'su' | 'start';
 

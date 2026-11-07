@@ -4,7 +4,7 @@
 import { CAR_BODY_NAMES, CAR_DRIVER_EMOJI, CAR_DRIVER_NAMES } from '../shared/names.ts';
 import { trinketById } from '../run/trinkets.ts';
 import type { RunEnd, RunState } from '../run/state.ts';
-import { PATH_EMOJI, PATH_NAMES, buildTimeline, buildView, fmtMs, nextUnlock, statView, trophyReasons, verdictOf, type StatCard, type TimelineItem } from '../run/summary.ts';
+import { PATH_EMOJI, PATH_NAMES, buildTimeline, buildView, challengesOf, fmtMs, nextUnlock, statView, trophyReasons, verdictOf, type StatCard, type TimelineItem } from '../run/summary.ts';
 import { btn, el } from './dom.ts';
 import { seedLabel } from './parts.ts';
 
@@ -56,11 +56,16 @@ function buildSection(run: RunState): HTMLElement {
     bar.setAttribute('aria-label', b.mix.map((m) => `${m.pct} % ${m.name}`).join(', '));
     box.append(bar, el('p', 'rs-mixtxt', b.mix.map((m) => `${m.pct} % ${m.name}`).join(' · ')));
   } else box.append(el('p', 'rs-empty', 'Ingenting i bygget. Ren talang, inga prylar.'));
-  // the vehicle's own ability (phase 8 fills it in)
+  // the vehicle's own kit: the active ability with how often it was used, and the passive
+  const ab = b.ability;
+  const uses = ab.uses === 0 ? 'Aldrig använd. Den är kränkt.' : `Använd ${ab.uses} ${ab.uses === 1 ? 'gång' : 'gånger'} på rundan.`;
   box.append(
-    b.ability
-      ? el('div', 'rs-ability', el('span', 'rs-ab-i', b.ability.emoji), el('div', null, el('b', null, b.ability.name), el('small', null, b.ability.text)))
-      : el('div', 'rs-ability empty', el('span', 'rs-ab-i', '⚡'), el('div', null, el('b', null, 'Fordonets förmåga'), el('small', null, 'Den här bilen har ingen än. Kommer med fler fordon.'))),
+    el(
+      'div',
+      'rs-ability',
+      el('span', 'rs-ab-i', ab.emoji),
+      el('div', null, el('small', 'rs-ab-k', `Fordonets förmåga · ${ab.vehicle} · ${ab.lean}`), el('b', null, ab.name), el('small', null, `${ab.text} ${uses}`), el('small', 'rs-ab-pass', `Passiv, ${ab.passive.name}: ${ab.passive.text}`)),
+    ),
   );
   if (b.parts.length) {
     box.append(el('div', 'rs-parts', ...b.parts.map((p) => {
@@ -90,6 +95,18 @@ function unlockSection(run: RunState, info: RunEnd): HTMLElement {
     }),
   ];
   if (unl.length) box.append(el('ul', 'rs-new', ...unl.slice(0, 6).map((u) => el('li', null, u)), unl.length > 6 ? el('li', null, `…och ${unl.length - 6} till`) : null));
+  // the challenges this run moved: vehicles to open
+  const chal = challengesOf(run, info.progress ?? {});
+  if (chal.length) {
+    box.append(
+      el('div', 'rs-chal-h', 'Utmaningar'),
+      el('ul', 'rs-chal', ...chal.map((c) => {
+        const bar = el('i');
+        bar.style.width = `${Math.round((c.after / c.goal) * 100)}%`;
+        return el('li', c.done ? 'done' : null, el('div', 'rs-chal-t', el('b', null, c.done ? `✅ ${CAR_BODY_NAMES[c.body]} upplåst!` : `🔓 ${CAR_BODY_NAMES[c.body]}`), el('span', null, c.title)), el('div', 'rs-prog', bar), el('small', null, c.text));
+      })),
+    );
+  }
   const nx = nextUnlock(info.total);
   if (nx) {
     const pct = Math.max(0, Math.min(100, ((nx.have - nx.from) / Math.max(1, nx.need - nx.from)) * 100));
@@ -98,7 +115,7 @@ function unlockSection(run: RunState, info: RunEnd): HTMLElement {
     fill.style.width = `${pct}%`;
     bar.append(fill);
     box.append(el('div', 'rs-next', el('span', null, `Nästa: ${nx.what}`), bar, el('small', null, `${nx.have} av ${nx.need} 🏆 · ${nx.need - nx.have} kvar`)));
-  } else box.append(el('p', 'rs-empty', 'Allt är upplåst. Du är en legend.'));
+  } else box.append(el('p', 'rs-empty', 'Alla prylar är upplåsta. Fordon låser du upp med utmaningar.'));
   return box;
 }
 

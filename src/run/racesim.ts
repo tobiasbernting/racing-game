@@ -9,6 +9,7 @@ import { LASTLAP_BOOST, catchUpBoost, easeOff, type RivalSpec } from '../shared/
 import { pointsTable } from '../shared/kinds.ts';
 import { HOOK_SAVE, HUMAN_FACTOR, NITRO_SAVE, baseLap, carGain, driftSaving, rivalLap, type HumanSkill } from '../shared/pace.ts';
 import { CAR_BODY_DEFS, NITRO_SECONDS, PART_EFFECTS } from '../shared/rally.ts';
+import { PASSIVE_LAP, PASSIVE_RAM, activeLapSave } from '../shared/abilities.ts';
 import type { RallyResult } from '../rally/options.ts';
 import type { RacePlan } from './plan.ts';
 import { Rng } from './rng.ts';
@@ -50,12 +51,15 @@ export function playerStats(run: RunState, m: PlayerModel): PlayerStats {
   const human = HUMAN_FACTOR[m.skill];
   // a vehicle with a top speed (moped, tractor) loses on the straights
   const top = body.feel.top > 0 ? 1 + 0.55 * Math.max(0, 1 - (body.feel.top * t.top) / 50) : 1;
+  // the vehicle's own kit: a passive that is a little faster, and an active used a few times a lap by a driver who knows it
+  const skillK = 0.5 + 0.5 * Math.min(1, (1.08 - human) * 8);
+  const passive = PASSIVE_LAP[run.car.body] ?? 1;
   return {
-    lap: (course) => baseLap(course) * carGain(grip, power) * human * top,
+    lap: (course) => baseLap(course) * carGain(grip, power) * human * top * passive,
     nitroSaved: charges * len * NITRO_SAVE * (0.6 + 0.4 * Math.min(1, (1.08 - human) * 8)),
     // mini-turbos and the speed hooks together never save more than 2.2 s a lap
-    driftSaved: Math.min(1.6, driftSaving(human, t.driftRate) + run.trinkets.reduce((a, o) => a + (HOOK_SAVE[o.id] ?? 0) * Math.min(o.n, 3), 0) * (0.5 + 0.5 * Math.min(1, (1.08 - human) * 8))),
-    ram: ramPowerOf(t.shove),
+    driftSaved: Math.min(1.6, driftSaving(human, t.driftRate) + run.trinkets.reduce((a, o) => a + (HOOK_SAVE[o.id] ?? 0) * Math.min(o.n, 3), 0) * skillK) + activeLapSave(run.car.body, 50, skillK),
+    ram: Math.max(ramPowerOf(t.shove), PASSIVE_RAM[run.car.body] ?? 1),
     mass: body.feel.mass,
     tough: Math.max(0.2, (1 - PART_EFFECTS.armourShield * (p.armour ?? 0)) * t.tough) / body.tough,
     grip,

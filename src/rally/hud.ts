@@ -81,12 +81,20 @@ const CSS = `
 .rl-nitro span { filter: grayscale(1) opacity(0.35); }
 .rl-nitro span.on { filter: none; }
 .rl-nitro span.burn { filter: drop-shadow(0 0 6px #ffb040); animation: rl-blink 0.3s steps(2) infinite; }
+.rl-abil { gap: calc(8px * var(--s)); }
+.rl-abil .rl-ai { font-size: calc(20px * var(--s)); }
+.rl-abil kbd { font: inherit; font-size: calc(12px * var(--s)); padding: 0 calc(6px * var(--s)); border-radius: calc(5px * var(--s)); background: rgba(255,255,255,0.22); }
+.rl-abil .rl-meter i { background: #b78cff; transition: width 0.12s linear; }
+.rl-abil.ready .rl-meter i { background: #ffd23f; animation: rl-blink 0.6s steps(2) infinite; }
+.rl-abil .rl-an { font-size: calc(13px * var(--s)); opacity: 0.9; }
+.rl-hud.touch .rl-abil { display: none !important; }
 .rl-style b { color: #ffd23f; font-variant-numeric: tabular-nums; }
 .rl-drift .rl-meter i { transition: background 0.2s; }
 .rl-pop { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); font-size: calc(30px * var(--s)); font-weight: 900; white-space: nowrap;
   color: #ffd23f; text-shadow: 0 3px 0 rgba(0,0,0,0.45); animation: rl-rise 1.4s ease-out both; }
 .rl-pop.coin { color: #ffe27a; }
 .rl-pop.blue { color: #7fd6ff; }
+.rl-pop.abil { color: #d6b8ff; }
 @keyframes rl-rise { from { opacity: 0; transform: translate(-50%, 10px) scale(0.6); } 15% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
   to { opacity: 0; transform: translate(-50%, -70px) scale(1); } }
 .rl-tags { position: absolute; inset: 0; overflow: hidden; }
@@ -207,6 +215,9 @@ export class Hud {
   private dmgChip: HTMLElement;
   private dmgBar: HTMLElement;
   private nitroChip: HTMLElement;
+  private abilChip: HTMLElement;
+  private abilBar: HTMLElement;
+  private abilName: HTMLElement;
   private nitroKey = '';
   private driftChip: HTMLElement;
   private driftBar: HTMLElement;
@@ -273,6 +284,10 @@ export class Hud {
     el('span', '', this.driftChip).textContent = '🌀';
     this.driftBar = el('i', '', el('div', 'rl-meter', this.driftChip));
     this.nitroChip = el('div', 'rl-panel rl-chip rl-nitro', this.br);
+    this.abilChip = el('div', 'rl-panel rl-chip rl-abil', this.br);
+    this.abilName = el('span', 'rl-an', this.abilChip);
+    this.abilBar = el('i', '', el('div', 'rl-meter', this.abilChip));
+    el('kbd', '', this.abilChip).textContent = 'F';
     this.hpChip = el('div', 'rl-panel rl-chip rl-hp', this.br);
     el('span', '', this.hpChip).textContent = '❤️';
     this.hpBar = el('i', '', el('div', 'rl-meter', this.hpChip));
@@ -392,6 +407,14 @@ export class Hud {
     let html = '';
     for (let k = 0; k < total; k++) html += `<span class="${k < left ? 'on' : burning && k === left ? 'burn' : ''}">🔥</span>`;
     this.nitroChip.innerHTML = html;
+  }
+
+  /** The vehicle's ability: its icon and name, how charged it is (0..1) and whether it can be used now. */
+  setAbility(emoji: string, name: string, charge: number, ready: boolean): void {
+    this.abilChip.classList.add('show');
+    this.abilChip.classList.toggle('ready', ready);
+    this.abilName.textContent = `${emoji} ${name}`;
+    this.abilBar.style.width = `${Math.round(clamp(charge, 0, 1) * 100)}%`;
   }
 
   /** The drift meter: 0..1 charge and the tier colour (0 hides it). */

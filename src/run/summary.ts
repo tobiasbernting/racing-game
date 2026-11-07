@@ -5,7 +5,8 @@ import { CAR_BODY_NAMES, CAR_PART_EMOJI, CAR_PART_NAMES } from '../shared/names.
 import { KIND_EMOJI, KIND_NAMES, type RaceKind } from '../shared/kinds.ts';
 import { fmtTime, ordinal } from '../rally/util.ts';
 import { ACTS, NODE_EMOJI, NODE_NAMES } from './map.ts';
-import { BODY_UNLOCK } from './meta.ts';
+import { kitOf, LEAN_EMOJI, LEAN_NAMES } from '../shared/abilities.ts';
+import { challengeReport, type ChallengeLine } from './unlocks.ts';
 import type { NodeLog, RunState, RunStats } from './state.ts';
 import { TRINKETS, trinketById, type TrinketPath } from './trinkets.ts';
 
@@ -274,20 +275,32 @@ const sources = (list: { from: string }[]): string[] => {
   return [...m.entries()].map(([f, n]) => (n > 1 ? `${f} ×${n}` : f));
 };
 
-/** The vehicle's active ability, when it has one (phase 8 adds them); the result screen has a slot for it. */
+/** The vehicle's own kit for the result screen: the active ability with how often it was used, and the passive. */
 export interface AbilityInfo {
   emoji: string;
   name: string;
   text: string;
-  uses?: number;
+  /** Times the active was used over the whole run. */
+  uses: number;
+  passive: { name: string; text: string };
+  lean: string;
+  vehicle: string;
 }
-export const abilityOf = (_run: RunState): AbilityInfo | null => null;
+export function abilityOf(run: RunState): AbilityInfo {
+  const k = kitOf(run.car.body);
+  return { emoji: k.active.emoji, name: k.active.name, text: k.active.text, uses: Math.round(run.stats.abilityUses), passive: { name: k.passive.name, text: k.passive.text }, lean: `${LEAN_EMOJI[k.lean]} ${LEAN_NAMES[k.lean]}`, vehicle: CAR_BODY_NAMES[run.car.body] };
+}
+
+/** The challenges this run moved or completed, for the result screen. */
+export function challengesOf(run: RunState, progressNow: Record<string, number>): ChallengeLine[] {
+  return challengeReport(run.chal0, progressNow, run.end?.unlockedBodies ?? run.opened);
+}
 
 export interface BuildView {
   trinkets: BuildTrinket[];
   parts: BuildPart[];
   mix: MixPart[];
-  ability: AbilityInfo | null;
+  ability: AbilityInfo;
 }
 
 export function buildView(run: RunState): BuildView {
@@ -330,13 +343,12 @@ export interface NextUnlock {
   from: number;
 }
 
-/** The next thing to unlock above `total` trophies (a vehicle or a batch of new trinkets), or null when everything is open. */
+/** The next batch of new trinkets above `total` trophies (vehicles open through challenges now), or null when everything is open. */
 export function nextUnlock(total: number): NextUnlock | null {
   const steps = new Map<number, string[]>();
   const add = (t: number, what: string): void => {
     if (t > 0) steps.set(t, [...(steps.get(t) ?? []), what]);
   };
-  for (const [b, t] of Object.entries(BODY_UNLOCK)) add(t, `🚗 ${CAR_BODY_NAMES[b as keyof typeof CAR_BODY_NAMES]}`);
   const byT = new Map<number, number>();
   for (const t of TRINKETS) if (t.unlock > 0) byT.set(t.unlock, (byT.get(t.unlock) ?? 0) + 1);
   for (const [t, n] of byT) add(t, `🎁 ${n} ${n === 1 ? 'ny pryl' : 'nya prylar'}`);

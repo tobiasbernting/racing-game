@@ -6,7 +6,7 @@ Fas 1 var porten (ett lopp på dator, surfplatta och mobil), fas 2 gjorde det ti
 akter med varsin förgrenad karta och en boss, och på vägen samlar man galna prylar. Fas 3 (den här) lägger till
 fem nya fordon, fem nya banor, banor som ser olika ut varje gång, fler prylar, händelser och en ny boss.
 
-Styrning: piltangenter/WASD, mellanslag = handbroms, L = nitro, C = kamera, R = tillbaka på vägen,
+Styrning: piltangenter/WASD, mellanslag = handbroms, L = nitro, **F = fordonets förmåga** (handkontroll Y), C = kamera, R = tillbaka på vägen,
 Escape = paus, E / Q = växla upp / ned (om du slagit på Manuell växling). Handkontroll (RB / LB växlar) och pekknappar på skärmen
 fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar" nedan.
 
@@ -25,8 +25,8 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
   data: `tune` ändrar siffror när loppet startar, `hooks` reagerar på tick/boost/sladd/stöt/varv/pickup/mål, `perk` ändrar
   rundan (rabatt, hjärtan, fler val). Loppet får dem som `RallyOptions.mods` (`src/rally/mods.ts`); bossarnas trick går via
   `RallyOptions.twist`. Lägg till en pryl genom att lägga till en rad i listan.
-- **Troféer** 🏆 efter varje runda (2 per besegrad boss, 3 för seger) låser upp fordon (pickup 3, moppe 4, fyrhjuling 6,
-  sportbil 8, traktor 11, motorcykel 13, monstertruck 15, soffbil 20) och lägger fler prylar i potten.
+- **Troféer** 🏆 efter varje runda (2 per besegrad boss, 3 för seger) lägger fler prylar i potten. Fordon låses upp med
+  utmaningar, se "Fordon med förmågor" nedan.
 - Rundan är deterministisk från ett frö: kartor, kioskens varor och händelsernas utfall räknas ut från fröet och behöver
   aldrig sparas.
 
@@ -121,8 +121,8 @@ Efter en seger, efter sista hjärtat och efter en omladdning på sista kortet vi
 - **Tidslinje**: varje besökt plats i ordning (`RunState.log`) med typ, sort (Rally/Blandat/Blodbad), bana, placering eller poäng, belöning och
   förlorade hjärtan, med aktavskiljare. En horisontell remsa på dator och surfplatta, en lista på mobil.
 - **Bygget**: varje pryl med antal och varifrån den kom ("Vann Sura Bengt", "Köpt i kiosken", "Händelse: …", `RunState.got`), delar med nivå,
-  byggets mix per väg som en stapel ("55 % Ram · 30 % Fuffens · 15 % Race") och en plats för fordonets förmåga (`abilityOf`, tom tills fas 8).
-- **Troféer och upplåst**: varför troféerna blev så många, nya bilar och prylar och hur långt det är till nästa upplåsning.
+  byggets mix per väg som en stapel ("55 % Ram · 30 % Fuffens · 15 % Race") och fordonets förmåga (`abilityOf`: aktiv förmåga med hur många gånger du använde den, och passiven).
+- **Troféer och upplåst**: varför troféerna blev så många, nya bilar och prylar, hur långt det är till nästa pryl-upplåsning och de **utmaningar** rundan flyttade ("Takedowns i en runda: 6/10", eller "✅ Monstertruck upplåst!").
 - **Svårighet**: på pekskärmar får rivalerna inte längre någon extra lättnad i normalt läge, bara i Söndagsåkare.
 
 ## Kontroller och växlar (fas 7)
@@ -138,7 +138,7 @@ Efter en seger, efter sista hjärtat och efter en omladdning på sista kortet vi
   menytryck läcker aldrig in i racet. **Knappstorlek** S/M/L, **synlighet**, **vänsterhänt** (hela layouten speglas, ◀ ligger kvar till vänster om ▶),
   **Flytta knappar** (dra knapparna, Återställ; sparas per skärmtyp mobil/surfplatta och per sort). Surfplattor får klustren ca 10 % in från kanten och en övre gräns för knappstorleken;
   safe-area respekteras och knapparna hålls borta från minikartan och hastighetsmätaren (`controls.test.ts` testar layouten på fem skärmar, alla storlekar, höger- och vänsterhänt).
-- En plats för **förmågeknappen** (fas 8) finns i varje layout men syns inte förrän ett fordon har en förmåga. Hjälptexten i Snabbrace följer vald sort.
+- **Förmågeknappen** (fas 8) har fordonets egen symbol (✨ bytt mot 💥, 🚀 …) i alla tre sorterna, även Lätt. En ring runt den fylls medan förmågan laddar och knappen lyser gult när den är redo. Hjälptexten i Snabbrace följer vald sort.
 - **Vibration** (`src/haptics.ts`): en kort knack vid manuellt skifte, ett mönster vid perfekt skifte och vid stora smällar, där webbläsaren har `navigator.vibrate`
   (Android). iPhone och iPad kan inte, där sköter ljud och ljus jobbet. Går att stänga av.
 
@@ -192,3 +192,43 @@ privat (inställning på GitHub). Containern kör som `node`, lyssnar på 8080 o
 docker build -t racing-game .
 docker run --rm -p 8080:8080 racing-game
 ```
+
+## Fordon med förmågor (fas 8)
+
+Varje fordon är en egen figur, som i Tape to Tape (`src/shared/abilities.ts`, testat i `abilities.test.ts` och `passives.test.ts`): en **lutning**
+(🛡️ Ram, 🏎️ Race eller ⚖️ Blandat), en **passiv** som alltid är på, en **aktiv förmåga** på egen knapp med nedkylning och laddningsring, och en
+**startpryl** som följer med fordonet in i rundan (`newRun` lägger den i väskan). Loppet gör det som id:na säger (`useAbility`, `abilityStep` och passiverna i
+`src/rally/index.ts`); passiverna som är körkänsla ligger i `feel` i `src/shared/rally.ts` (sandbuggyns `roll`, sportbilens luftmotstånd, monstrets och pickupens massa).
+
+| Fordon | Lutning | Passiv | Aktiv (F) | Nedkylning | Startpryl |
+|---|---|---|---|---|---|
+| 🚗 Rallybil | Blandat | Perfekt sladd: en lång sladd fyller på nitron | ⚡ Kickstart: kort rusning och extra grepp | 12 s | Soptunneturbon |
+| 🏜️ Sandbuggy | Race | Sandkungen: sand, gräs och grus bromsar inte | 🦘 Hopp: ett jättehopp | 9 s | Mammas tofflor |
+| 🛻 Pickup | Ram | Löst flak: smäller du tappar du hö bakom dig | 🛻 Flaket: olja och höbalar bakom dig | 14 s | Dödskalle-dekalen |
+| 🏎️ Sportbil | Race | Vindtunnel: högre topphastighet | 🧲 Slipström-snärt: precis bakom en bil slungas du förbi | 10 s | Kaffeslurparen |
+| 🦖 Monstertruck | Ram | Småbilsätaren: kör över små bilar, de blir plattor | 💥 Krossa: stötvåg som slungar bort alla nära | 15 s | Grannens traktordäck |
+| 🛞 Fyrhjuling | Blandat | Mjuklandning: boost när du landar ett hopp | 🔄 Bakhjulssväng: 90 graders sväng på stället | 8 s | Katapultsätet |
+| 🏍️ Motorcykel | Race | Wheelie på boost: framhjulet lyfter, lite mer fart | 🚀 Wheelie-raket: lång raketboost, svårstyrd | 16 s | Snusmotorn |
+| 🛵 Moppe | Race | Smal som en planka: halka och höbalar stör knappt, mindre träffyta | 💨 Väj!: en sekund oberörbar | 9 s | Terrorklockan |
+| 🚜 Traktor | Ram | Knuffar allt: tung och ramm 1,8 | 🚜 Rammbock: rusa fram, slunga bort bilar (skrot i Blodbad) | 17 s | Stulna älghorn |
+| 🛋️ Soffbil | Blandat | Kaosarvet: en slumpad pryl varje akt | 🛋️ Soffkudde-kaos: slumpar rusning, hopp, höbalar, pannkaka, platsbyte, korvkanon, slem eller spöke | 11 s | Slumpväxeln |
+
+Datorförarna använder sina fordons förmågor lite grann (racers en fartstöt, rammare en stöt mot någon nära framför, bara i Blandat och Blodbad), högst var 15:e–40:e sekund.
+Förmågorna är av i Snabbracets rättvisa läge (`rules.sameCars`). Balansen: de som ändrar farten finns i `src/shared/abilities.ts` (`PASSIVE_LAP`, `PASSIVE_RAM`, `save` per förmåga)
+och går in i `playerStats` i `racesim.ts`; rivalernas mod blev lite skarpare med ökande akt (`rivalSkill`) för att kompensera startpryl och förmåga.
+
+**Start och upplåsning** (`src/run/unlocks.ts`, `meta.ts`): fem fordon är öppna från början (rallybil, sandbuggy, pickup, moppe, traktor); de andra fem låses upp av utmaningar, en per fordon:
+
+| Fordon | Utmaning |
+|---|---|
+| Sportbil | Vinn en runda |
+| Fyrhjuling | Vinn en runda på Söndagsåkare |
+| Monstertruck | Gör 10 takedowns i en runda |
+| Motorcykel | Slå Sura Bengt med moppen |
+| Soffbil | Vinn akt 2 utan att tappa ett hjärta |
+
+En utmaning är data (`CHALLENGES`): vilket fordon den öppnar, ett mål, och en `measure(run)` som säger vad en runda kommit fram till. `mode: 'best'` är mest i en runda och kollas efter varje steg
+(`checkChallenges` i `commit`, med en liten "UPPLÅST!"-remsa i hörnet, aldrig mitt i bilden), `mode: 'total'` summeras över rundor och räknas en gång när rundan tar slut (`RunEnd` skyddar mot dubbelräkning).
+Framstegen sparas i `Meta.progress`, de öppna fordonen i `Meta.bodies`. Nya fordon (fas 10) är fler rader i `CHALLENGES` och `KITS`; testerna kräver en utmaning för varje fordon som inte är en starter.
+**Migrering**: en gammal sparning utan `bodies` får starters plus allt troféerna en gång öppnat (`LEGACY_BODY_UNLOCK`), så ingen förlorar något. Troféer låser fortfarande upp prylar i potten.
+Bilvalet visar lutning, stjärnor, passiv, aktiv (namn, rad, nedkylning) och startpryl, och för låsta fordon villkoret med en framstegsstapel ("Takedowns i en runda: 6/10").

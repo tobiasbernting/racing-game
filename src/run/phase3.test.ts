@@ -11,7 +11,7 @@ import { CAR_BODY_NAMES, CAR_BODY_TEXT, RALLY_COURSE_NAMES } from '../shared/nam
 import { DRY_COURSES, canRain, skyFor, variationFor } from '../shared/variation.ts';
 import { EVENTS, pickEventId } from './events.ts';
 import { ACTS, ACT_COURSES, BOSS_COURSE, allNodes, generateAct } from './map.ts';
-import { BODY_UNLOCK, cleanMeta, defaultMeta, unlockedBodies } from './meta.ts';
+import { STARTERS, cleanMeta, defaultMeta, unlockedBodies } from './meta.ts';
 import { BOSS_DEFS, planRace } from './plan.ts';
 import { newRun } from './state.ts';
 import { TRINKETS, buildMods, trinketById } from './trinkets.ts';
@@ -54,17 +54,11 @@ describe('the new vehicles', () => {
     }
   });
 
-  it('unlock with trophies: the moped first, the sofa last, and a stored locked body falls back to the rally car', () => {
-    expect(unlockedBodies(0)).toEqual(['hatch', 'buggy']);
-    expect(BODY_UNLOCK.moped).toBeLessThan(BODY_UNLOCK.atv);
-    expect(BODY_UNLOCK.atv).toBeLessThan(BODY_UNLOCK.tractor);
-    expect(BODY_UNLOCK.tractor).toBeLessThan(BODY_UNLOCK.moto);
-    expect(Math.max(...CAR_BODIES.map((b) => BODY_UNLOCK[b]))).toBe(BODY_UNLOCK.sofa);
-    expect(unlockedBodies(BODY_UNLOCK.moped)).toContain('moped');
-    expect(unlockedBodies(BODY_UNLOCK.moped)).not.toContain('atv');
-    expect(unlockedBodies(999)).toHaveLength(CAR_BODIES.length);
-    expect(cleanMeta({ ...defaultMeta(), trophies: 1, body: 'sofa' }).body).toBe('hatch');
-    expect(cleanMeta({ ...defaultMeta(), trophies: BODY_UNLOCK.sofa, body: 'sofa' }).body).toBe('sofa');
+  it('five starters; the rest open by challenges; a stored locked body falls back to the rally car', () => {
+    expect(unlockedBodies(defaultMeta())).toEqual(['hatch', 'buggy', 'pickup', 'moped', 'tractor']);
+    expect(STARTERS).toHaveLength(5);
+    expect(cleanMeta({ ...defaultMeta(), body: 'sofa' }).body).toBe('hatch');
+    expect(cleanMeta({ ...defaultMeta(), bodies: [...STARTERS, 'sofa'], body: 'sofa' }).body).toBe('sofa');
   });
 
   it('the computer cars sometimes drive them, the same way every time for the same seed', () => {

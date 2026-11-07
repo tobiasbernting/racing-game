@@ -252,7 +252,7 @@ export class Car {
     const F = this.feel;
     const rough = surf >= Ground_.Grass && surf !== Ground_.Ice;
     const mu = MU[surf]! * this.grip * (rough ? Math.sqrt(F.rough) : 1);
-    const rollDecel = ((ROLL[surf]! + Math.abs(vLong) * ROLL_V[surf]!) * (this.roam && rough ? 0.55 : 1)) / (rough ? F.rough : 1);
+    const rollDecel = ((ROLL[surf]! + Math.abs(vLong) * ROLL_V[surf]!) * (this.roam && rough ? 0.55 : 1)) / (rough ? F.rough : 1) * (rough ? F.roll : 1);
 
     // ---- steering: fewer degrees at speed, plus a hand catching slides ----
     const maxSteer = (0.62 * F.steer) / (1 + Math.abs(vLong) / 11);

@@ -3,8 +3,9 @@
 // (run) or fresh progress (meta) instead of an error.
 import { CAR_DRIVERS, CAR_PARTS, isCarPart, PART_MAX_LEVEL, defaultStyle, isCarBody, newCar, type CarDriver, type GarageCar } from '../shared/rally.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
-import { ACTS, NODE_TYPES, findNode, actMap, type NodeType } from './map.ts';
+import { ACTS, BOSSES, NODE_TYPES, findNode, actMap, type BossId, type NodeType } from './map.ts';
 import { cleanMeta, defaultMeta, type Meta } from './meta.ts';
+import { CHALLENGES } from './unlocks.ts';
 import { emptyRunStats, validPaint, type Acquired, type NodeLog, type RunEnd, type RunState, type Screen } from './state.ts';
 import { MAX_STACK, isTrinket, perksOf, type Owned } from './trinkets.ts';
 import { isRaceKind } from '../shared/kinds.ts';
@@ -105,6 +106,17 @@ function cleanEndScreen(raw: unknown, act: number, seed: number): Screen | null 
   return s?.kind === 'postrace' ? s : null;
 }
 
+/** Challenge progress as stored: known challenge ids with whole numbers. */
+function cleanProgress(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!isObj(raw)) return out;
+  for (const c of CHALLENGES) {
+    const v = raw[c.id];
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) out[c.id] = Math.min(c.goal, Math.floor(v));
+  }
+  return out;
+}
+
 function cleanEnd(raw: unknown): RunEnd | undefined {
   if (!isObj(raw)) return undefined;
   const bodies = Array.isArray(raw.unlockedBodies) ? raw.unlockedBodies.filter(isCarBody) : [];
@@ -114,6 +126,7 @@ function cleanEnd(raw: unknown): RunEnd | undefined {
     total: num(raw.total, 0, 9999, 0),
     unlockedBodies: bodies,
     unlockedTrinkets: Array.isArray(raw.unlockedTrinkets) ? raw.unlockedTrinkets.filter(isTrinket) : [],
+    progress: cleanProgress(raw.progress),
   };
 }
 
@@ -142,6 +155,7 @@ function cleanLog(raw: unknown): NodeLog[] {
       lost: num(x.lost, 0, 9, 0),
       goalMet: typeof x.goalMet === 'boolean' ? x.goalMet : undefined,
       takedowns: optNum(x.takedowns, 0, 99),
+      boss: typeof x.boss === 'string' && (BOSSES as readonly string[]).includes(x.boss) ? (x.boss as BossId) : undefined,
     });
   }
   return out;
@@ -207,6 +221,8 @@ export function parseRun(raw: unknown): RunState | null {
     log: cleanLog(raw.log),
     got: cleanGot(raw.got),
     nodeLost: num(raw.nodeLost, 0, 9, 0),
+    chal0: cleanProgress(raw.chal0),
+    opened: Array.isArray(raw.opened) ? raw.opened.filter(isCarBody) : [],
     end: status === 'running' ? undefined : cleanEnd(raw.end),
   };
 }

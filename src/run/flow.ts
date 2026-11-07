@@ -3,7 +3,7 @@
 // save after every step and tests can walk a whole run.
 import type { RallyResult } from '../rally/options.ts';
 import { ACTS, NODE_NAMES, type MapNode } from './map.ts';
-import { canUpgrade, makeStock, partOfChoice, rewardChoices } from './economy.ts';
+import { canUpgrade, drawTrinkets, makeStock, partOfChoice, rewardChoices } from './economy.ts';
 import { eventById, pickEventId, resolveChoice } from './events.ts';
 import { BOSS_DEFS, goalMet, planRace, type RacePlan } from './plan.ts';
 import { addRaceStats } from './stats.ts';
@@ -134,6 +134,7 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     lost,
     goalMet: met ?? undefined,
     takedowns: res.takedowns || undefined,
+    boss: node.boss,
   });
   return r;
 }
@@ -214,12 +215,20 @@ export function finishNode(run: RunState): RunState {
     if (r.act >= ACTS) {
       r.act = ACTS - 1;
       r.status = 'won';
-    }
+    } else if (r.car.body === 'sofa') chaosGift(r);
   } else {
     r.at = scr.nodeId;
     r.path.push(scr.nodeId);
   }
   return r;
+}
+
+/** The sofa's passive: a random trinket from the pool lands in the build at the start of each new act. */
+export function chaosGift(r: RunState): string | null {
+  const id = drawTrinkets(r, Rng.for(r.seed, 'sofa', r.act), 1, 'event')[0];
+  if (!id) return null;
+  addTrinket(r, id, { from: 'Kaosarvet: soffan hittade den', node: '' });
+  return id;
 }
 
 /** Acts completed, for the trophies and the summary. */

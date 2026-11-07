@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { BODY_UNLOCK, cleanMeta, defaultMeta, trophiesFor, unlockedBodies, unlockedTrinkets } from './meta.ts';
+import { STARTERS, cleanMeta, defaultMeta, trophiesFor, unlockedBodies, unlockedTrinkets } from './meta.ts';
 import { META_KEY, RUN_KEY, clearRun, loadMeta, loadRun, parseRun, saveMeta, saveRun } from './save.ts';
 import { continueAfterRace, enterNode, submitRace } from './flow.ts';
 import { newRun, reachable, type RunState } from './state.ts';
@@ -127,10 +127,8 @@ describe('saving a run', () => {
 });
 
 describe('meta progress', () => {
-  it('starts with the rally car and the buggy', () => {
-    expect(unlockedBodies(0)).toEqual(['hatch', 'buggy']);
-    expect(unlockedBodies(BODY_UNLOCK.pickup)).toContain('pickup');
-    expect(unlockedBodies(100)).toHaveLength(10);
+  it('starts with the five starters', () => {
+    expect(unlockedBodies(defaultMeta())).toEqual(STARTERS);
   });
 
   it('trophies put more trinkets in the pool', () => {
@@ -148,7 +146,7 @@ describe('meta progress', () => {
   });
 
   it('round trips and falls back to fresh progress on junk', () => {
-    const m = { ...defaultMeta(), trophies: 9, runs: 3, bestAct: 2, seen: ['gummianka', 'xx'], calm: true, body: 'coupe' as const, driver: 'cat' as const };
+    const m = { ...defaultMeta(), trophies: 9, runs: 3, bestAct: 2, seen: ['gummianka', 'xx'], calm: true, bodies: [...STARTERS, 'coupe' as const], body: 'coupe' as const, driver: 'cat' as const };
     saveMeta(m);
     const back = loadMeta();
     expect(back.trophies).toBe(9);
@@ -179,7 +177,7 @@ describe('a finished run stays saved until its summary is left', () => {
     const r = newRun({ seed: 9, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
     r.status = 'dead';
     r.hearts = 0;
-    r.end = { won: false, trophies: 1, total: 1, unlockedBodies: [], unlockedTrinkets: [] };
+    r.end = { won: false, trophies: 1, total: 1, unlockedBodies: [], unlockedTrinkets: [], progress: {} };
     const back = parseRun(JSON.parse(JSON.stringify(r)));
     expect(back?.status).toBe('dead');
     expect(back?.end).toEqual(r.end);

@@ -3,7 +3,8 @@
 import type { RaceStats } from '../rally/mods.ts';
 import { CAR_PAINTS, newCar, type CarDriver, type CarBody, type GarageCar } from '../shared/rally.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
-import { ACTS, actMap, findNode, type ActMap, type MapNode, type NodeType } from './map.ts';
+import { ACTS, actMap, findNode, type ActMap, type BossId, type MapNode, type NodeType } from './map.ts';
+import { kitOf } from '../shared/abilities.ts';
 import { MAX_STACK, perksOf, stackCap, trinketById, type Owned } from './trinkets.ts';
 import type { RaceKind } from '../shared/kinds.ts';
 
@@ -56,6 +57,7 @@ export const emptyRunStats = (): RunStats => ({
   oilHits: 0,
   overtakes: 0,
   hazards: 0,
+  abilityUses: 0,
   podiums: 0,
   totalTime: 0,
   kronorSpent: 0,
@@ -84,6 +86,8 @@ export interface NodeLog {
   lost: number;
   goalMet?: boolean;
   takedowns?: number;
+  /** Which boss it was (bosses only). */
+  boss?: BossId;
 }
 
 /** A trinket or a part upgrade that came into the build, and where from. */
@@ -146,6 +150,8 @@ export interface RunEnd {
   total: number;
   unlockedBodies: CarBody[];
   unlockedTrinkets: string[];
+  /** The challenge progress when the run ended (the result screen compares it with `RunState.chal0`). */
+  progress?: Record<string, number>;
 }
 
 export interface RunState {
@@ -173,6 +179,9 @@ export interface RunState {
   got: Acquired[];
   /** Hearts lost in the node being played (for the log of shops and events). */
   nodeLost: number;
+  /** Challenge progress when the run began, and the vehicles it opened on the way (run/unlocks.ts). */
+  chal0: Record<string, number>;
+  opened: CarBody[];
   /** Present once a finished run has been counted. */
   end?: RunEnd;
 }
@@ -184,13 +193,18 @@ export interface NewRunOpts {
   driver: CarDriver;
   paint: string;
   trophies: number;
+  /** Challenge progress now, to tell afterwards what the run moved. */
+  progress?: Record<string, number>;
 }
 
 export function newRun(o: NewRunOpts): RunState {
   const car = newCar(1, o.body, CAR_BODY_NAMES[o.body], o.paint);
   car.style.driver = o.driver;
   const hearts = o.calm ? CALM_HEARTS : START_HEARTS;
-  return { v: 1, seed: o.seed, calm: o.calm, pool: o.trophies, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0, log: [], got: [], nodeLost: 0 };
+  const run: RunState = { v: 1, seed: o.seed, calm: o.calm, pool: o.trophies, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0, log: [], got: [], nodeLost: 0, chal0: { ...(o.progress ?? {}) }, opened: [] };
+  // every vehicle starts with a trinket that fits it
+  addTrinket(run, kitOf(o.body).trinket, { from: `Startpryl: ${CAR_BODY_NAMES[o.body]}`, node: '' });
+  return run;
 }
 
 export const copyRun = (r: RunState): RunState => structuredClone(r);
