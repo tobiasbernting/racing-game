@@ -293,7 +293,7 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
     info.push(el('div', 'rg-bossbox', el('div', 'rg-bossname', `${plan.boss.emoji} ${plan.boss.name}`), el('div', 'rg-bossnick', plan.boss.nick), el('p', 'rg-quote', plan.boss.intro), el('p', 'rg-trick', `⚠️ ${plan.boss.trick}`), ...rules.map((x) => el('p', 'rg-trick', `${BOSS_RULES[x].emoji} ${BOSS_RULES[x].text}`))));
   }
   if (plan.goal) info.push(el('div', 'rg-goal', '🎯 ', el('b', null, plan.goal.text), el('small', null, ' Fixar du det får du extra kronor och en pryl.')));
-  if (node.type === 'elite') info.push(el('div', 'rg-goal', '💀 Mördarrivaler. Tar du dig i mål får du välja en pryl.'));
+  if (node.type === 'elite') info.push(el('div', 'rg-goal', '💀 Mördarrivaler. Ett dödslopp ger alltid ett byte, även om du inte vinner.'));
   info.push(
     el(
       'div',

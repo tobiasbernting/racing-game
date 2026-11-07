@@ -422,6 +422,9 @@ const rally = (ctx: GameContext): GameInstance => {
         tumble: () => knock(player(), 99, 1),
         honk: () => honk(player()),
         swap: (b: CarBody) => swapPlayerBody(b),
+        gas: (n = 2) => api.gas(n),
+        /** Stop the loop on the frame just drawn (for a screenshot of a passing effect). */
+        freeze: () => loop?.pause(),
         /** Wreck the n-th rival at once, crediting the player with the takedown. */
         takedown: (n = 0) => {
           const v = entrants.filter((e) => e !== meE)[n];
@@ -1263,7 +1266,7 @@ const rally = (ctx: GameContext): GameInstance => {
       const cosH = Math.cos(c.heading);
       // a low green cloud hanging behind and beside the car: near the ground, never in front of the chase camera,
       // and see-through the closer it is to the lens (gasFx fades what is within a few metres of the camera)
-      const n = Math.round(((high ? 14 : 8) + strength * 2) * (push ? 1 : 0.5));
+      const n = Math.round(((high ? 22 : 12) + strength * 3) * (push ? 1 : 0.5));
       for (let k = 0; k < n; k++) {
         const fwd = -(0.8 + Math.random() * 3.2);
         const side = (Math.random() < 0.5 ? -1 : 1) * (2.2 + Math.random() * 2);
@@ -1276,9 +1279,9 @@ const rally = (ctx: GameContext): GameInstance => {
           vz: -sinH * side * 0.25 + (Math.random() - 0.5) * 1,
           life: 1.4 + Math.random() * 0.9,
           size0: 0.8,
-          size1: 2.2 + strength * 0.25,
+          size1: 3.4 + strength * 0.3,
           color: colGas,
-          alpha: push ? 0.42 : 0.24,
+          alpha: push ? 0.8 : 0.35,
           drag: 1.8,
           gravity: -0.1,
         });

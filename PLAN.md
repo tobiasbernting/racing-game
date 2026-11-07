@@ -114,6 +114,10 @@ run strong, which is right; the rivals and courses must keep up. Design directio
 6. **Two directions + difficulty**: Rally/Blandat/Blodbad nodes and courses, health and takedowns, ramming
    physics, Blodbad points, rival archetypes, rival scaling (upgrades, trinkets, driving, catch-up), harder
    courses later in a run, a cap on runaway trinket stacks, a race-time based balance simulation.
+   Built: kinds on the map, Blodbad (health, wrecks, takedowns, points), ramming physics, archetypes and the scaling curve, harder
+   courses (oil, potholes, a narrower road, three laps in act 3), soft caps, win rewards (pick 1 of 3, 2nd place a pick of 2),
+   a stricter hearts rule in normal mode, a race-time balance simulation, and a lower, see-through gas cloud. Tone: chaos, not toilets.
+
 7. **Vehicles with abilities**: passives, active ability button, starting trinkets, ram/race lean, 5
    starters, unlocks by wins and challenges, manual shifting.
 8. **Ten new vehicles**: e.g. EPA-traktor, glassbil, sopbil, snöskoter, gokart, golfbil, åkgräsklippare,
