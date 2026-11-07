@@ -15,13 +15,15 @@ import { buildMods } from './run/trinkets.ts';
 import type { RaceKind } from './shared/kinds.ts';
 import { chooseEvent, continueAfterRace, currentNode, currentPlan, enterNode, finishNode, pickReward, submitRace, backToMap } from './run/flow.ts';
 import { buyHeart, buyRepair, buyTrinket, reroll, workshopPaint, workshopRepair, workshopUpgrade } from './run/economy.ts';
-import { BODY_UNLOCK, trophiesFor, unlockedBodies, unlockedTrinkets, type Meta } from './run/meta.ts';
+import { trophiesFor, unlockedBodies, unlockedTrinkets, type Meta } from './run/meta.ts';
+import { checkChallenges } from './run/unlocks.ts';
+import { kitOf } from './shared/abilities.ts';
 import { newSeed } from './run/rng.ts';
 import { allNodes, type NodeType } from './run/map.ts';
 import { clearRun, loadMeta, loadRun, saveMeta, saveRun } from './run/save.ts';
 import { mapOf, newRun, trinketCount, type RunState } from './run/state.ts';
 import { btn, arrowNav, el } from './ui/dom.ts';
-import { confettiRain, pryl, sfx } from './ui/juice.ts';
+import { confettiRain, pryl, sfx, upplast } from './ui/juice.ts';
 import { saveSettings, settings } from './settings.ts';
 import { trinketById } from './run/trinkets.ts';
 import { bagView, collectionView, eventView, mapView, menuView, overView, pickView, postraceView, preraceView, rewardView, settingsView, shopView, titleView, workshopView, type PickSel } from './ui/views.ts';
@@ -55,6 +57,8 @@ export class App {
   private meta: Meta = loadMeta();
   private runState: RunState | null = null;
   private fpsEl: HTMLElement | null = null;
+  /** How charged the vehicle's ability is, for the ring on its touch button. */
+  private abil = { charge: 1, ready: true };
   private fpsStop: (() => void) | null = null;
   /** The car and driver being picked for a new run. */
   private sel: PickSel;
@@ -420,6 +424,7 @@ export class App {
     this.show(el('div', 'arc-panel', el('div', 'arc-loading', '🏎️ Laddar…')));
     this.opts = this.rallyOptions();
     this.result = null;
+    this.abil = { charge: 1, ready: true };
     let factory: GameFactory;
     try {
       this.factory ??= import('./rally/index.ts').then((m) => m.default);
@@ -448,6 +453,10 @@ export class App {
       quality: this.quality,
       dpr: Math.min(window.devicePixelRatio || 1, dprCap),
       options: this.opts,
+      abilityHud: (charge, ready) => {
+        this.abil = { charge, ready };
+        this.paintAbility();
+      },
       end: (score, detail) => {
         if (ended || run !== this.run) return;
         ended = true;
@@ -589,7 +598,7 @@ export class App {
 
   private pickScreen(): void {
     // a car locked since (cleaned meta) falls back to the rally car
-    if (!unlockedBodies(this.meta.trophies).includes(this.sel.body)) this.sel.body = 'hatch';
+    if (!unlockedBodies(this.meta).includes(this.sel.body)) this.sel.body = 'hatch';
     this.showScreen(
       pickView(this.meta, this.sel, {
         onChange: () => this.preview?.update(this.selCar()),
@@ -608,7 +617,7 @@ export class App {
     this.meta.paint = s.paint;
     saveMeta(this.meta);
     clearRun();
-    this.commit(newRun({ seed: newSeed(), calm: this.meta.calm, body: s.body, driver: s.driver, paint: s.paint, trophies: this.meta.trophies }));
+    this.commit(newRun({ seed: newSeed(), calm: this.meta.calm, body: s.body, driver: s.driver, paint: s.paint, trophies: this.meta.trophies, progress: this.meta.progress }));
   }
 
   private resumeRun(r: RunState): void {
@@ -634,10 +643,21 @@ export class App {
       this.meta.seen = [...seen];
       saveMeta(this.meta);
     }
+    // the challenges that open vehicles: checked after every step of the run (the end of the run checks again)
+    const chk = checkChallenges(this.meta, r);
+    if (chk.steps.length || chk.unlocked.length) {
+      this.meta = chk.meta;
+      saveMeta(this.meta);
+      for (const c of chk.unlocked) if (!r.opened.includes(c.body)) r.opened.push(c.body);
+    }
     if (r.status === 'running') saveRun(r);
     else this.endRun(r);
     this.showRun();
     if (got && prev && trinketCount(r) > trinketCount(prev)) this.fanfare(got.id);
+    for (const c of chk.unlocked) {
+      sfx.fanfare(this.audio, this.master);
+      upplast(this.card, kitOf(c.body).active.emoji, CAR_BODY_NAMES[c.body], c.title);
+    }
   }
 
   /** NY PRYL! A banner, confetti and a little tune over the next screen. */
@@ -727,14 +747,17 @@ export class App {
     const gain = trophiesFor({ bossesBeaten: r.stats.bossesBeaten, won, races: r.stats.races });
     const old = this.meta.trophies;
     const total = old + gain;
-    const bodies = unlockedBodies(total).filter((b) => BODY_UNLOCK[b] > old);
+    // the end of the run counts for the challenges that add up over runs (once: `end` guards it)
+    const chk = checkChallenges(this.meta, r, true);
+    const bodies = [...new Set([...r.opened, ...chk.unlocked.map((c) => c.body)])];
     const trinkets = unlockedTrinkets(total)
       .filter((t) => t.unlock > old)
       .map((t) => t.id);
     const seen = new Set(this.meta.seen);
     trinkets.forEach((id) => seen.add(id));
-    this.meta = { ...this.meta, trophies: total, runs: this.meta.runs + 1, wins: this.meta.wins + (won ? 1 : 0), bestAct: Math.max(this.meta.bestAct, won ? 3 : r.act + 1), seen: [...seen] };
-    r.end = { won, trophies: gain, total, unlockedBodies: bodies, unlockedTrinkets: trinkets };
+    this.meta = { ...chk.meta, trophies: total, runs: this.meta.runs + 1, wins: this.meta.wins + (won ? 1 : 0), bestAct: Math.max(this.meta.bestAct, won ? 3 : r.act + 1), seen: [...seen] };
+    r.opened = bodies;
+    r.end = { won, trophies: gain, total, unlockedBodies: bodies, unlockedTrinkets: trinkets, progress: { ...this.meta.progress } };
     saveMeta(this.meta);
     saveRun(r);
   }
@@ -940,6 +963,7 @@ export class App {
     this.touchEl.style.setProperty('--tbo', String(c.opacity));
     const rects = layoutRects({ w: r.width, h: r.height, safe: this.safe(), scheme: c.scheme, size: c.size, lefty: c.lefty, pos: c.pos[posKey(device, c.scheme)], show: this.visibleIds() });
     for (const rc of rects) this.touchEl.append(this.touchButton(rc, need.nitro));
+    this.paintAbility();
   }
 
   /** One on-screen button for a rectangle of the layout. */
@@ -947,12 +971,13 @@ export class App {
     const c = this.ctl;
     const pedal = c.scheme !== 'easy';
     const word = rc.id === 'gas' ? 'GAS' : rc.id === 'brake' && pedal ? 'BROMS' : '';
-    const label: Record<BtnId, string> = { left: '◀', right: '▶', hand: '🌀', gas: 'GAS', brake: pedal ? 'BROMS' : '▼', nitro: hasNitro ? '🔥' : '🎥', ability: '✨', shiftDn: '−', shiftUp: '+' };
+    const kit = this.opts ? kitOf(this.opts.car.body) : null;
+    const label: Record<BtnId, string> = { left: '◀', right: '▶', hand: '🌀', gas: 'GAS', brake: pedal ? 'BROMS' : '▼', nitro: hasNitro ? '🔥' : '🎥', ability: kit?.active.emoji ?? '✨', shiftDn: '−', shiftUp: '+' };
     const k = el('div', `arc-tb tb-${rc.id}${word ? ' word' : ''}`, label[rc.id]);
     k.dataset.btn = rc.id;
     k.style.cssText = `left:${rc.x}px;top:${rc.y}px;width:${rc.w}px;height:${rc.h}px;font-size:${Math.round(rc.w * (word ? 0.22 : 0.4))}px`;
     k.setAttribute('role', 'button');
-    k.setAttribute('aria-label', { left: 'Styr vänster', right: 'Styr höger', hand: 'Handbroms', gas: 'Gas', brake: 'Broms', nitro: hasNitro ? 'Nitro' : 'Byt kamera', ability: 'Förmåga', shiftDn: 'Växla ned', shiftUp: 'Växla upp' }[rc.id]);
+    k.setAttribute('aria-label', { left: 'Styr vänster', right: 'Styr höger', hand: 'Handbroms', gas: 'Gas', brake: 'Broms', nitro: hasNitro ? 'Nitro' : 'Byt kamera', ability: kit ? `Förmåga: ${kit.active.name}` : 'Förmåga', shiftDn: 'Växla ned', shiftUp: 'Växla upp' }[rc.id]);
     if (rc.id === 'gas' && this.cstate.manual) {
       // a swipe up or down on the pedal shifts too, with the thumb still on the gas
       let y0 = 0;
@@ -1003,6 +1028,14 @@ export class App {
       k.addEventListener('lostpointercapture', release);
     } else this.hold(k, BUTTON_MAP[rc.id]);
     return k;
+  }
+
+  /** The charge ring and the ready glow on the ability button. */
+  private paintAbility(): void {
+    const b = this.touchEl.querySelector<HTMLElement>('.tb-ability');
+    if (!b) return;
+    b.style.setProperty('--charge', String(this.abil.charge));
+    b.classList.toggle('ready', this.abil.ready);
   }
 
   // ---- the layout editor (Inställningar → Flytta knappar) ----

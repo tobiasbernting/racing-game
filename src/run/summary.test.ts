@@ -7,10 +7,15 @@ import { parseRun } from './save.ts';
 import { addRaceStats } from './stats.ts';
 import { emptyRunStats, newRun, reachable, type RunState } from './state.ts';
 import { TRINKETS, trinketById } from './trinkets.ts';
-import { allStats, buildMix, buildTimeline, buildView, nextUnlock, statView, trophyReasons, verdictOf } from './summary.ts';
+import { abilityOf, allStats, buildMix, buildTimeline, buildView, nextUnlock, statView, trophyReasons, verdictOf } from './summary.ts';
 import { trophiesFor } from './meta.ts';
 
-const fresh = (): RunState => newRun({ seed: 7, calm: false, body: 'hatch', driver: 'cow', paint: '#e8412c', trophies: 0 });
+const fresh = (): RunState => {
+  const r = newRun({ seed: 7, calm: false, body: 'hatch', driver: 'cow', paint: '#e8412c', trophies: 0 });
+  r.trinkets = [];
+  r.got = [];
+  return r;
+};
 const result = (o: Partial<RallyResult> = {}): RallyResult => ({ place: 1, n: 4, finished: true, time: 90000, laps: 2, kronor: 100, coins: 0, medal: null, damage: 0, ...o });
 const raceNode = (run: RunState): RunState => enterNode(run, (reachable(run).find((n) => n.type === 'race' || n.type === 'challenge') ?? reachable(run)[0]!).id);
 
@@ -141,8 +146,14 @@ describe('the build mix', () => {
     expect(trinketById(run.trinkets[0]!.id)).toBeTruthy();
   });
 
-  it('has a slot for a vehicle ability that is empty for now', () => {
-    expect(buildView(fresh()).ability).toBeNull();
+  it('fills the ability slot from the vehicle: the active, the passive and how often it was used', () => {
+    const r = fresh();
+    r.stats.abilityUses = 7;
+    const a = buildView(r).ability;
+    expect(a.name).toBe('Kickstart');
+    expect(a.uses).toBe(7);
+    expect(a.passive.name).toBe('Perfekt sladd');
+    expect(abilityOf({ ...r, car: { ...r.car, body: 'tractor' } }).name).toBe('Rammbock');
   });
 });
 

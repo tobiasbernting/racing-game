@@ -22,6 +22,7 @@ const KEYS: Record<string, Button> = {
   KeyE: 'su',
   KeyC: 'c',
   KeyL: 'c',
+  KeyF: 'x',
   Enter: 'start',
   NumpadEnter: 'start',
 };
@@ -31,7 +32,7 @@ const PAD_BUTTONS: [number, Button][] = [
   [0, 'a'],
   [1, 'b'],
   [2, 'c'],
-  [3, 'c'],
+  [3, 'x'],
   [4, 'sd'],
   [5, 'su'],
   [9, 'start'],

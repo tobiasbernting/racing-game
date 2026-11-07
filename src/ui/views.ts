@@ -10,7 +10,9 @@ import { partOfChoice } from '../run/economy.ts';
 import { RALLY_COURSE_DEFS } from '../shared/rally.ts';
 import { fmtTime } from '../rally/util.ts';
 import { ACTS, NODE_EMOJI, NODE_NAMES, allNodes, type MapNode, type NodeType } from '../run/map.ts';
-import { BODY_UNLOCK, unlockedBodies, unlockedTrinkets, type Meta } from '../run/meta.ts';
+import { isUnlocked, unlockedTrinkets, type Meta } from '../run/meta.ts';
+import { challengeFor, progressText } from '../run/unlocks.ts';
+import { LEAN_EMOJI, LEAN_NAMES, LEAN_TEXT, kitOf } from '../shared/abilities.ts';
 import { canUpgrade, healPrice, repairPrice, rerollPrice, trinketPrice } from '../run/economy.ts';
 import { EVENTS, choiceAllowed, eventById } from '../run/events.ts';
 import { currentNode, currentPlan } from '../run/flow.ts';
@@ -94,22 +96,50 @@ export interface PickSel {
   paint: string;
 }
 
+/** The stars of a vehicle's stats, the lean, passive, active and starting trinket; or, if it is locked, what opens it. */
+export function kitCard(meta: Meta, body: CarBody): HTMLElement {
+  const k = kitOf(body);
+  const st = carStars(newCar(1, body, ''));
+  const stars = (n: number): string => '★'.repeat(n) + '☆'.repeat(5 - n);
+  const open = isUnlocked(meta, body);
+  const ch = challengeFor(body);
+  const t = trinketById(k.trinket);
+  const kids: Node[] = [];
+  if (!open && ch) {
+    const have = Math.min(ch.goal, meta.progress[ch.id] ?? 0);
+    const bar = el('div', 'rg-kit-bar');
+    const fill = el('i');
+    fill.style.width = `${Math.round((have / ch.goal) * 100)}%`;
+    bar.append(fill);
+    kids.push(el('div', 'rg-kit-lock', el('b', null, `🔒 Låses upp: ${ch.title}`), bar, el('small', null, progressText(ch, have))));
+  }
+  kids.push(
+    el('div', 'rg-kit-head', el('span', `rg-lean lean-${k.lean}`, `${LEAN_EMOJI[k.lean]} ${LEAN_NAMES[k.lean]}`), el('small', null, LEAN_TEXT[k.lean]), el('span', 'rg-kit-text', CAR_BODY_TEXT[body])),
+    el('div', 'rg-kit-stars', el('span', null, `Fart ${stars(st.speed)}`), el('span', null, `Grepp ${stars(st.grip)}`), el('span', null, `Hållbarhet ${stars(st.tough)}`)),
+    el('div', 'rg-kit-grid',
+      el('div', 'rg-kit-row', el('span', 'rg-kit-k', 'Passiv'), el('div', null, el('b', null, k.passive.name), el('small', null, k.passive.text))),
+      el('div', 'rg-kit-row', el('span', 'rg-kit-k act', 'Aktiv'), el('div', null, el('b', null, `${k.active.emoji} ${k.active.name}`, el('em', null, ` · ${k.active.cooldown} s`)), el('small', null, k.active.text))),
+      el('div', 'rg-kit-row', el('span', 'rg-kit-k', 'Startpryl'), el('div', null, el('b', null, `${t?.emoji ?? '🎁'} ${t?.name ?? k.trinket}`), el('small', null, t?.text ?? ''))),
+    ),
+  );
+  return el('div', `rg-kit${open ? '' : ' locked'}`, ...kids);
+}
+
 export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): void; onStart(s: PickSel): void; onBack(): void }): HTMLElement {
-  const open = unlockedBodies(meta.trophies);
   const bodies = el('div', 'rg-row');
   const drivers = el('div', 'rg-row');
   const paints = el('div', 'rg-row');
   // built once, only the pressed state changes (so keyboard focus stays where it is)
   const pressed: [HTMLElement, () => boolean][] = [];
-  // one line about the car you stand on: what it is good at, and its stars
   const desc = el('div', 'rg-bodydesc');
-  const stars = (n: number): string => '★'.repeat(n) + '☆'.repeat(5 - n);
+  const start = go('Kör!', () => {
+    if (isUnlocked(meta, sel.body)) o.onStart(sel);
+  });
   const describe = (): void => {
-    const st = carStars(newCar(1, sel.body, ''));
-    desc.replaceChildren(
-      el('span', 'rg-bd-text', `${CAR_BODY_NAMES[sel.body]}: ${CAR_BODY_TEXT[sel.body]}`),
-      el('span', 'rg-bd-stars', `Fart ${stars(st.speed)}  Grepp ${stars(st.grip)}  Hållbarhet ${stars(st.tough)}`),
-    );
+    desc.replaceChildren(kitCard(meta, sel.body));
+    const locked = !isUnlocked(meta, sel.body);
+    start.disabled = locked;
+    start.textContent = locked ? '🔒 Låst' : 'Kör!';
   };
   const pick = (b: HTMLElement, isOn: () => boolean, set: () => void): void => {
     b.addEventListener('click', () => {
@@ -122,10 +152,11 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
     b.setAttribute('aria-pressed', String(isOn()));
   };
   for (const b of CAR_BODIES) {
-    const locked = !open.includes(b);
-    const x = btn('rg-chipbtn', locked ? `🔒 ${CAR_BODY_NAMES[b]}` : CAR_BODY_NAMES[b]);
-    x.disabled = locked;
-    if (locked) x.append(el('small', null, `${BODY_UNLOCK[b]} 🏆`));
+    const locked = !isUnlocked(meta, b);
+    const ch = challengeFor(b);
+    const x = btn(`rg-chipbtn${locked ? ' locked' : ''}`, locked ? `🔒 ${CAR_BODY_NAMES[b]}` : CAR_BODY_NAMES[b]);
+    if (locked && ch) x.append(el('small', null, `${Math.min(ch.goal, meta.progress[ch.id] ?? 0)}/${ch.goal}`));
+    else x.append(el('small', null, `${LEAN_EMOJI[kitOf(b).lean]} ${LEAN_NAMES[kitOf(b).lean]}`));
     pick(x, () => sel.body === b, () => (sel.body = b));
     bodies.append(x);
   }
@@ -151,7 +182,7 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
       el('div', 'arc-preview rg-preview'),
       el('div', 'rg-picks', el('div', 'arc-h', 'Bil'), bodies, desc, el('div', 'arc-h', 'Förare'), drivers, el('div', 'arc-h', 'Färg'), paints),
     ),
-    foot(ghost('← Tillbaka', o.onBack), go('Kör!', () => o.onStart(sel))),
+    foot(ghost('← Tillbaka', o.onBack), start),
   );
 }
 
@@ -264,6 +295,7 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
     r.difficulty === 'hard' ? chip('💀 Hårt') : r.difficulty === 'easy' ? chip('🛋️ Söndagsåkning') : null,
     plan.field.hazards.oil + plan.field.hazards.hay + plan.field.hazards.pothole > 0 ? chip('🛢️ Hinder på vägen') : null,
     plan.field.narrow < 1 ? chip('↔️ Smal väg') : null,
+    chip(`${kitOf(run.car.body).active.emoji} ${kitOf(run.car.body).active.name} (F)`),
   ].filter((x): x is HTMLElement => !!x);
   const rivals = el('ul', 'rg-rivals');
   const talkers: { name: string; talk: string }[] = [];
@@ -617,8 +649,15 @@ export { resultView as overView } from './result.ts';
 
 export function collectionView(meta: Meta, o: { onBack(): void }): HTMLElement {
   const bodies = CAR_BODIES.map((b) => {
-    const open = BODY_UNLOCK[b] <= meta.trophies;
-    return el('div', `rg-body-card${open ? '' : ' locked'}`, el('span', 'rg-bcn', open ? CAR_BODY_NAMES[b] : '🔒 ???'), el('small', null, open ? 'Upplåst' : `Kräver ${BODY_UNLOCK[b]} 🏆`));
+    const open = isUnlocked(meta, b);
+    const ch = challengeFor(b);
+    const k = kitOf(b);
+    return el(
+      'div',
+      `rg-body-card${open ? '' : ' locked'}`,
+      el('span', 'rg-bcn', open ? `${k.active.emoji} ${CAR_BODY_NAMES[b]}` : `🔒 ${CAR_BODY_NAMES[b]}`),
+      el('small', null, open ? `${LEAN_EMOJI[k.lean]} ${k.passive.name} · ${k.active.name}` : ch ? `${ch.title} (${Math.min(ch.goal, meta.progress[ch.id] ?? 0)}/${ch.goal})` : 'Låst'),
+    );
   });
   const open = new Set(unlockedTrinkets(meta.trophies).map((t) => t.id));
   const seen = new Set(meta.seen);

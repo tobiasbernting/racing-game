@@ -115,3 +115,12 @@ export function pryl(host: HTMLElement, emoji: string, name: string): void {
   confettiRain(host, 70, 1.8);
   setTimeout(() => b.remove(), 2200);
 }
+
+/** A small "UPPLÅST!" ribbon in the corner of whatever screen is up: a new vehicle is open. It never blocks anything and goes by itself. */
+export function upplast(host: HTMLElement, emoji: string, name: string, why: string): void {
+  host.querySelectorAll('.arc-unl').forEach((n) => n.remove());
+  const b = el('div', 'arc-unl', el('span', 'arc-unl-i', emoji), el('div', 'arc-unl-t', el('b', null, 'UPPLÅST!'), el('span', null, name), el('small', null, why)));
+  b.setAttribute('role', 'status');
+  host.append(b);
+  setTimeout(() => b.remove(), 5200);
+}

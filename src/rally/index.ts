@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { CAR_BODIES, CAR_BODY_DEFS, NITRO_SECONDS, RACE_DNF_PRIZE, cleanRules, newCar, raceMedal, racePrize, type CarBody, type GarageCar } from '../shared/rally.ts';
 import { Loop } from '../arcade/kit.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
+import { CHAOS_TEXT, DODGE, HOP, KICKSTART, PASSIVE_RAM, POUND, RAMMER, SLINGSHOT, SOFTLAND, WHEELIE_ROCKET, chaosPick, chargeOf, draftTarget, kitOf, pivotDir } from '../shared/abilities.ts';
 import { rivalById, rivalCast } from '../shared/rivals.ts';
 import { LASTLAP_BOOST, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
 import { KIND_AGGRO, pointsTable, type RaceKind } from '../shared/kinds.ts';
@@ -101,6 +102,9 @@ interface Entrant {
   aimT: number;
   /** Seconds since the last hit on this car (for the boss that heals). */
   calmT: number;
+  /** Seconds until a computer car uses its vehicle's ability, and how far its front wheel is lifted (a bike on boost). */
+  abilNext: number;
+  wheelie: number;
 }
 
 /** Anyone on the track, for the standings, the minimap and the name tags. */
@@ -208,12 +212,17 @@ const rally = (ctx: GameContext): GameInstance => {
   const mods = opts?.mods ?? noMods();
   const mt = mods.tune;
   const twist = opts?.twist ?? null;
+  // the vehicle's own kit (abilities.ts): off in the fair quick race where every body is levelled
+  const abilityOn = !!opts && !rules?.sameCars;
+  const kit = abilityOn ? kitOf(myCar.body) : null;
+  /** The hatchback's passive gives a nitro slot of its own (a perfect drift fills it). */
+  const nitroSlots = (): number => myTune.charges + (kit?.passive.id === 'nitroTopUp' ? 1 : 0);
   /** The handling a body gets from the player's parts and trinkets (the body can change mid-race with a trinket). */
   const tuneForBody = (body: CarBody): Tune => {
     const t = tuneFor({ ...myCar, body }, !!rules?.sameCars, !!rules?.nitro);
     t.power = capPower(t.power * mt.power);
     t.grip = capGrip(t.grip * mt.grip);
-    t.size *= mt.size;
+    t.size *= mt.size * (kit?.passive.id === 'slim' ? 0.85 : 1);
     t.dmgMul *= mt.tough;
     if (rules?.nitro) t.charges = Math.min(MAX_CHARGES, Math.round(t.charges + mt.charges));
     return t;
@@ -241,7 +250,7 @@ const rally = (ctx: GameContext): GameInstance => {
   const placeCamBtn = (pedals: boolean): void => {
     if (pedals === lastPedals) return;
     lastPedals = pedals;
-    hud.camBtn.classList.toggle('show', ctx.touch && (myTune.charges > 0 || pedals));
+    hud.camBtn.classList.toggle('show', ctx.touch && (nitroSlots() > 0 || pedals));
     hud.setCamTop(pedals);
   };
   placeCamBtn(!!ctx.controls?.pedals);
@@ -405,7 +414,7 @@ const rally = (ctx: GameContext): GameInstance => {
     await nextFrame();
     if (destroyed) return;
     hud.ready();
-    hud.setNitro(nitroLeft, myTune.charges, false);
+    hud.setNitro(Math.floor(nitroLeft), nitroSlots(), false);
     hud.setDamage(damageK > 0 ? meE!.damage : null);
     if (DEBUG) {
       // where the triangles go
@@ -435,6 +444,27 @@ const rally = (ctx: GameContext): GameInstance => {
         gas: (n = 2) => api.gas(n),
         /** Stop the loop on the frame just drawn (for a screenshot of a passing effect). */
         freeze: () => loop?.pause(),
+        /** Put the player on the road `gap` m behind the n-th rival, in its lane, rolling at `speed` m/s. */
+        behind: (n = 0, gap = 9, speed = 20) => {
+          const v = entrants.filter((e) => e !== meE)[n];
+          if (!v || !meE) return;
+          meE.car.place(v.car.proj.s - gap, v.car.proj.d, ground);
+          const h = meE.car.heading;
+          meE.car.vx = Math.sin(h) * speed;
+          meE.car.vz = Math.cos(h) * speed;
+          meE.lastS = meE.car.proj.s;
+          meE.u = v.u - gap;
+        },
+        /** Use the vehicle's ability now (ignores the cooldown). */
+        ability: () => {
+          abilCd = 0;
+          if (useAbility(meE!)) {
+            stats.abilityUses++;
+            abilCd = kit?.active.cooldown ?? 0;
+          }
+        },
+        drift: (tier = 3) => topUpNitro(tier),
+        abilityState: () => ({ cd: abilCd, kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, nitro: nitroLeft, uses: stats.abilityUses }),
         /** Wreck the n-th rival at once, crediting the player with the takedown. */
         takedown: (n = 0) => {
           const v = entrants.filter((e) => e !== meE)[n];
@@ -563,6 +593,8 @@ const rally = (ctx: GameContext): GameInstance => {
         nitroNext: 5 + Math.random() * 6,
         aimT: Math.random() * 0.5,
         calmT: 9,
+        abilNext: 9 + Math.random() * 10,
+        wheelie: 0,
       };
       e.maxHp = maxHpOf(car.feel.mass, spec?.hp ?? 1) * (isMe ? 1 + 0.08 * (myCar.parts.armour ?? 0) : 1);
       e.hp = e.maxHp;
@@ -617,6 +649,16 @@ const rally = (ctx: GameContext): GameInstance => {
   let slowNote = 0;
   // nitro, drift boost and style points (the player only)
   let nitroLeft = myTune.charges;
+  let nitroBank = 0;
+  // the vehicle's active ability (abilities.ts): seconds until it is ready, and what is running
+  let abilCd = 0;
+  let kickT = 0;
+  let dodgeT = 0;
+  let chargeT = 0;
+  let rocketT = 0;
+  let loadCd = 0;
+  let landCd = 0;
+  let abilKey = '';
   let nitroT = 0;
   // what the trinkets did, for the funny stats and the result
   const stats = emptyStats();
@@ -869,7 +911,7 @@ const rally = (ctx: GameContext): GameInstance => {
 
   /** Damage from a knock of strength `j` (m/s), scaled by the rules and the car's toughness. */
   function hurt(e: Entrant, j: number, k = 1): void {
-    if (damageK <= 0 || j <= 0) return;
+    if (damageK <= 0 || j <= 0 || (e === meE && dodgeT > 0)) return;
     const before = e.damage;
     e.damage = clamp(e.damage + Math.min(15, j * k) * e.tune.dmgMul * damageK, 0, 100);
     if (Math.floor(e.damage / 4) !== Math.floor(before / 4)) e.model.setDamage(e.damage);
@@ -885,8 +927,8 @@ const rally = (ctx: GameContext): GameInstance => {
     const c = me.car;
     // nitro on C (L, gamepad X/Y, the 🔥 button); the C key itself is the camera
     const nitroKey = inp.pressed('c') && !inp.keyPressed('KeyC');
-    if (myTune.charges > 0 && nitroKey && racing && phase === 'race' && !me.finished && nitroT <= 0) {
-      if (nitroLeft > 0) {
+    if (nitroSlots() > 0 && nitroKey && racing && phase === 'race' && !me.finished && nitroT <= 0) {
+      if (nitroLeft >= 1) {
         nitroLeft--;
         nitroT = nitroLen;
         mods.bus.boost('nitro');
@@ -946,6 +988,7 @@ const rally = (ctx: GameContext): GameInstance => {
           hud.popup(['', 'Turbo!', 'Superturbo!', 'Megaturbo!'][drift.tier]!, 'blue');
           stats.boosts++;
           mods.bus.boost('drift');
+          topUpNitro(drift.tier);
         }
         if (drift.t > 0.4) mods.bus.drift(drift.t, drift.tier);
         stats.longestDrift = Math.max(stats.longestDrift, drift.t);
@@ -959,7 +1002,7 @@ const rally = (ctx: GameContext): GameInstance => {
       }
     }
     hud.setDrift(drift.on ? clamp(drift.t / 2.4, 0.04, 1) : 0, drift.tier);
-    hud.setNitro(nitroLeft, myTune.charges, nitroT > 0);
+    hud.setNitro(Math.floor(nitroLeft), nitroSlots(), nitroT > 0);
     hud.setStyle(opts ? stylePts : 0);
     // flames and speed lines while the nitro burns
     const burn = nitroT > 0 ? 1 : driftBoostT > 0 ? 0.5 : 0;
@@ -1012,14 +1055,23 @@ const rally = (ctx: GameContext): GameInstance => {
     }
     const d = e.damage;
     const loose = c.surface >= Ground_.Grass && c.surface !== Ground_.Ice;
-    c.grip = e.tune.grip * rainGrip * damageGrip(d) * (e.mudT > 0 ? 0.8 : 1) * (e.slickT > 0 ? 0.55 : 1) * (twist?.grip ?? 1) * (isMe && loose ? mt.offroad : 1);
+    c.grip = e.tune.grip * rainGrip * damageGrip(d) * (e.mudT > 0 ? 0.8 : 1) * (e.slickT > 0 ? 0.55 : 1) * (twist?.grip ?? 1) * (isMe && loose ? mt.offroad : 1) * (isMe && kickT > 0 ? KICKSTART.grip : 1);
     e.rivalBoostT = Math.max(0, e.rivalBoostT - dt);
     e.squashT = Math.max(0, e.squashT - dt);
     e.squash = damp(e.squash, e.squashT > 0 ? 1 : 0, 14, dt);
     if (!isMe) c.boost = e.rivalBoostT > 0 ? 1.35 : 1;
     if (isMe) {
       c.power = e.basePower * damagePower(d) * (loose ? mt.offroad : 1) * (e.squashT > 0 ? 0.4 : 1);
-      c.boost = Math.max(nitroT > 0 ? nitroPush : 1, driftBoostT > 0 ? 1.3 : 1, extraBoostT > 0 ? extraBoostK : 1);
+      let b = Math.max(nitroT > 0 ? nitroPush : 1, driftBoostT > 0 ? 1.3 : 1, extraBoostT > 0 ? extraBoostK : 1, chargeT > 0 ? RAMMER.strength : 1);
+      // the motorbike pops a wheelie on boost and goes a little faster for it
+      if (kit?.passive.id === 'wheelieBoost' && b > 1.05) b *= 1.06;
+      c.boost = b;
+      c.ram = ramNow();
+    }
+    // a bike lifts its front wheel while it boosts (the player's and the computer's alike)
+    if (e.body === 'moto') {
+      const up = isMe ? c.boost > 1.05 && !c.air : e.rivalBoostT > 0 && !c.air;
+      e.wheelie = damp(e.wheelie, up ? (isMe && rocketT > 0 ? 0.5 : 0.34) : 0, 7, dt);
     }
   }
 
@@ -1031,6 +1083,18 @@ const rally = (ctx: GameContext): GameInstance => {
     for (let k = 0; k < (high ? n : Math.ceil(n / 2)); k++) {
       tmpCol.setHSL(Math.random(), 0.9, 0.65);
       particles.emit({ x: x + (Math.random() - 0.5) * spread * 2, y: y + 0.3 + Math.random() * 1.2, z: z + (Math.random() - 0.5) * spread * 2, vx: (Math.random() - 0.5) * 3, vy: 1 + Math.random() * 2, vz: (Math.random() - 0.5) * 3, life: 0.7 + Math.random() * 0.4, size0: 0.35, size1: 0.05, color: tmpCol, alpha: 1, drag: 1.2, gravity: 3 });
+    }
+  }
+
+  /** The hatchback's passive: a long, clean drift (tier 3) fills a nitro charge, a shorter good one (tier 2) half of one. */
+  function topUpNitro(tier: number): void {
+    if (kit?.passive.id !== 'nitroTopUp' || tier < 2) return;
+    nitroBank += tier >= 3 ? 1 : 0.5;
+    if (nitroBank >= 1 && nitroLeft < nitroSlots()) {
+      nitroBank -= 1;
+      nitroLeft = Math.min(nitroSlots(), Math.floor(nitroLeft) + 1);
+      hud.toast('🔥 Perfekt sladd! Nitron fylldes på');
+      audio.chime();
     }
   }
 
@@ -1074,8 +1138,264 @@ const rally = (ctx: GameContext): GameInstance => {
     }
   }
 
+
+  // ---- the vehicle's ability: passives and the active on its own button ----
+  /** The ram power of the player's bumper: the trinkets', the vehicle's own, and the tractor's charge. */
+  const ramNow = (): number => Math.min(RAMMER.maxRam, Math.max(ramPowerOf(mt.shove), kit ? PASSIVE_RAM[myCar.body] ?? 1 : 1) * (chargeT > 0 ? RAMMER.ram : 1));
+
+  /** Cars around the player: ahead (fwd > 0) and beside (lat), in the player's frame. */
+  function around(): { e: Entrant; fwd: number; lat: number; d: number }[] {
+    const me = player();
+    const c = me.car;
+    const sinH = Math.sin(c.heading);
+    const cosH = Math.cos(c.heading);
+    const out: { e: Entrant; fwd: number; lat: number; d: number }[] = [];
+    for (const e of entrants) {
+      if (e === me || e.finished || e.wreckT > 0) continue;
+      const dx = e.car.x - c.x;
+      const dz = e.car.z - c.z;
+      out.push({ e, fwd: dx * sinH + dz * cosH, lat: dx * cosH - dz * sinH, d: Math.hypot(dx, dz) });
+    }
+    return out;
+  }
+
+  /** A ring of puffs flying out along the ground from the car (a shockwave, a landing, a dodge). */
+  function ring(c: Car, n: number, speed: number, col: THREE.Color): void {
+    for (let k = 0; k < (high ? n : n / 2); k++) {
+      const a = (k / n) * Math.PI * 2;
+      particles.emit({ x: c.x, y: c.y + 0.35, z: c.z, vx: Math.cos(a) * speed, vy: 0.3 + Math.random() * 0.6, vz: Math.sin(a) * speed, life: 0.9, size0: 1.3, size1: 3.6, color: col, alpha: 0.8, drag: 1.5 });
+    }
+  }
+
+  /** Uses the active. Returns false when it fizzled (the slingshot with nobody to pull on), so no use is counted. */
+  function useAbility(me: Entrant): boolean {
+    if (!kit) return false;
+    const c = me.car;
+    const th = track.heading(c.proj.s);
+    const sinH = Math.sin(c.heading);
+    const cosH = Math.cos(c.heading);
+    switch (kit.active.id) {
+      case 'kickstart':
+        api.boost(KICKSTART.boost, KICKSTART.strength);
+        kickT = KICKSTART.gripSeconds;
+        sparks(c.x - sinH * 2, c.y, c.z - cosH * 2, high ? 14 : 7);
+        hud.toast('⚡ Kickstart!');
+        break;
+      case 'hop':
+        c.vy = Math.max(c.vy, 0) + HOP.vy;
+        c.y += 0.06;
+        api.kick(HOP.kick);
+        stats.jumps++;
+        stats.bounces++;
+        shake = Math.max(shake, 0.2);
+        ring(c, 14, 4, colDust);
+        audio.boing();
+        hud.toast('🦘 Hopp!');
+        break;
+      case 'tailgate': {
+        obstacles.add('oil', c.x - sinH * 3.6, c.y, c.z - cosH * 3.6, c);
+        obstacles.add('hay', c.x - sinH * 6.8 + cosH * 1.3, c.y, c.z - cosH * 6.8 - sinH * 1.3, c);
+        obstacles.add('hay', c.x - sinH * 7.4 - cosH * 1.5, c.y, c.z - cosH * 7.4 + sinH * 1.5, c);
+        stats.hazards += 3;
+        audio.hay(8);
+        ring(c, 10, 3, colHay);
+        hud.toast('🛻 Flaket tippas! Olja och hö');
+        break;
+      }
+      case 'slingshot': {
+        const target = draftTarget(around());
+        if (!target) {
+          abilCd = SLINGSHOT.miss;
+          hud.toast('🧲 Ingen att dra i. Ligg precis bakom en bil');
+          return false;
+        }
+        api.kick(SLINGSHOT.kick);
+        api.boost(SLINGSHOT.boost, SLINGSHOT.strength);
+        c.launch = Math.max(c.launch, 0.7);
+        shake = Math.max(shake, 0.25);
+        hud.toast('🧲 Slipström! Snärt!');
+        break;
+      }
+      case 'groundPound': {
+        c.vy = Math.max(c.vy, 0) + 3.5;
+        c.y += 0.05;
+        let hit = 0;
+        for (const o of around()) {
+          if (o.d > POUND.radius || o.d < 0.1) continue;
+          const f = 1 - 0.55 * (o.d / POUND.radius);
+          const nx = (o.e.car.x - c.x) / o.d;
+          const nz = (o.e.car.z - c.z) / o.d;
+          o.e.car.vx += nx * POUND.push * f;
+          o.e.car.vz += nz * POUND.push * f;
+          o.e.car.vy += 4.5 * f;
+          o.e.car.yawRate += (Math.random() - 0.5) * 6;
+          o.e.squashT = Math.max(o.e.squashT, POUND.squash * f);
+          if (carnage) {
+            ledger.hit(o.e.id, me.id, POUND.damage, timeU.value);
+            damageHp(o.e, POUND.damage * f, me);
+          }
+          hit++;
+        }
+        stats.squashed += hit;
+        shake = Math.max(shake, 0.7);
+        ring(c, 40, 15, colHot);
+        ring(c, 24, 8, colSmoke);
+        sparks(c.x, c.y, c.z, high ? 20 : 10);
+        audio.boom();
+        hud.toast(hit ? `💥 KROSSA! ${hit} ${hit === 1 ? 'bil' : 'bilar'} flög` : '💥 KROSSA! Ingen i närheten');
+        break;
+      }
+      case 'pivot': {
+        const dir = pivotDir(me.ctl.steer, wrapAngle(th - c.heading));
+        const ang = dir * (Math.PI / 2);
+        const cs = Math.cos(ang);
+        const sn = Math.sin(ang);
+        const vx = c.vx * cs + c.vz * sn;
+        const vz = -c.vx * sn + c.vz * cs;
+        c.heading = wrapAngle(c.heading + ang);
+        c.vx = vx * 0.9;
+        c.vz = vz * 0.9;
+        c.yawRate = 0;
+        c.steerAngle = 0;
+        shake = Math.max(shake, 0.25);
+        ring(c, 12, 5, colDust);
+        audio.slip();
+        hud.toast(dir > 0 ? '🔄 Bakhjulssväng vänster!' : '🔄 Bakhjulssväng höger!');
+        break;
+      }
+      case 'wheelieRocket':
+        api.boost(WHEELIE_ROCKET.boost, WHEELIE_ROCKET.strength);
+        rocketT = WHEELIE_ROCKET.boost;
+        c.launch = Math.max(c.launch, 0.8);
+        shake = Math.max(shake, 0.3);
+        hud.toast('🚀 Wheelie-raket!');
+        break;
+      case 'dodge': {
+        dodgeT = DODGE.seconds;
+        c.ghost = Math.max(c.ghost, DODGE.seconds);
+        const dir = me.ctl.steer >= 0 ? 1 : -1;
+        c.vx += cosH * dir * 3.5;
+        c.vz -= sinH * dir * 3.5;
+        me.mudT = 0;
+        me.slickT = 0;
+        ring(c, 14, 4, colSmoke);
+        audio.poof();
+        hud.toast('💨 Väj! Oberörbar!');
+        break;
+      }
+      case 'rammer':
+        chargeT = RAMMER.seconds;
+        c.launch = Math.max(c.launch, 0.6);
+        shake = Math.max(shake, 0.3);
+        audio.boom();
+        hud.toast('🚜 RAMMBOCK!');
+        break;
+      case 'cushionChaos': {
+        const fx = chaosPick(Math.random());
+        const fallback = (): void => api.boost(1.5, 1.4);
+        switch (fx) {
+          case 'boost':
+            fallback();
+            break;
+          case 'hop':
+            api.bounce(HOP.vy * 0.85);
+            stats.jumps++;
+            break;
+          case 'hay':
+            if (!api.dropAhead('hay')) fallback();
+            break;
+          case 'pancake':
+            api.squashLeader(2.6);
+            break;
+          case 'swap':
+            if (!api.swapAhead()) fallback();
+            break;
+          case 'cannon':
+            api.cannon(1.6);
+            break;
+          case 'slime':
+            api.banana();
+            api.banana();
+            break;
+          case 'ghost':
+            api.ghost(2.6);
+            break;
+        }
+        api.sparkle(14);
+        hud.toast(`🛋️ ${CHAOS_TEXT[fx]}`);
+        break;
+      }
+    }
+    return true;
+  }
+
+  /** Each frame: the ability button, the cooldown, the running timers, the charge on the button and the HUD. */
+  function abilityStep(dt: number, me: Entrant, racing: boolean): void {
+    if (!kit) return;
+    const inp = ctx.input;
+    abilCd = Math.max(0, abilCd - dt);
+    kickT = Math.max(0, kickT - dt);
+    dodgeT = Math.max(0, dodgeT - dt);
+    chargeT = Math.max(0, chargeT - dt);
+    rocketT = Math.max(0, rocketT - dt);
+    loadCd = Math.max(0, loadCd - dt);
+    landCd = Math.max(0, landCd - dt);
+    const live = racing && phase === 'race' && !me.finished && me.wreckT <= 0 && me.tumbleT <= 0;
+    if (inp.pressed('x') && live) {
+      if (abilCd > 0) {
+        if (abilCd > 0.3) hud.toast(`${kit.active.emoji} ${kit.active.name} laddar… ${Math.ceil(abilCd)} s`);
+      } else if (useAbility(me)) {
+        abilCd = kit.active.cooldown;
+        stats.abilityUses++;
+        hud.popup(`${kit.active.emoji} ${kit.active.name}`, 'abil');
+      }
+    }
+    // the bike rocket is hard to steer; the tractor's charge keeps its line
+    if (rocketT > 0) me.ctl.steer = clamp(me.ctl.steer * WHEELIE_ROCKET.steer, -1, 1);
+    // a vehicle with a stomp or a charge gets a dust trail while it lasts
+    if (chargeT > 0 && Math.random() < (high ? 0.7 : 0.35)) sparks(me.car.x - Math.sin(me.car.heading) * 2.6, me.car.y, me.car.z - Math.cos(me.car.heading) * 2.6, 2);
+    const k = chargeOf(abilCd, kit.active.cooldown);
+    const key = `${Math.round(k * 40)}/${abilCd <= 0}`;
+    if (key !== abilKey) {
+      abilKey = key;
+      hud.setAbility(kit.active.emoji, kit.active.name, k, abilCd <= 0);
+      ctx.abilityHud?.(k, abilCd <= 0);
+    }
+  }
+
+  /** A computer car uses its vehicle's ability now and then: racers a burst of speed, rammers a charge at whoever is close ahead. */
+  function rivalAbility(e: Entrant, dt: number): void {
+    if (!abilityOn || e.wreckT > 0 || e.car.air) return;
+    e.abilNext -= dt;
+    if (e.abilNext > 0) return;
+    const a = kitOf(e.body).active;
+    const c = e.car;
+    if (a.ai === 'ram') {
+      // only where there is shoving to do, and only with somebody close ahead
+      const sinH = Math.sin(c.heading);
+      const cosH = Math.cos(c.heading);
+      const target = entrants.some((o) => {
+        if (o === e || o.finished || o.wreckT > 0) return false;
+        const dx = o.car.x - c.x;
+        const dz = o.car.z - c.z;
+        const fwd = dx * sinH + dz * cosH;
+        return fwd > 2 && fwd < 22 && Math.abs(dx * cosH - dz * sinH) < 5;
+      });
+      if (!target || kind === 'rally') {
+        e.abilNext = 3;
+        return;
+      }
+    } else if (Math.abs(e.ctl.steer) > 0.25) {
+      e.abilNext = 1.2;
+      return;
+    }
+    e.rivalBoostT = Math.max(e.rivalBoostT, 0.9);
+    e.abilNext = a.cooldown * (1.8 + Math.random() * 0.8);
+  }
+
   /** The boss rivals' tricks: a short nitro every now and then, a hop across the road. */
   function rivalTricks(e: Entrant, dt: number): void {
+    rivalAbility(e, dt);
     const sp = e.spec;
     if (sp && sp.nitroEvery > 0) {
       // nitro on the straights: not in the bends, where it would only throw them off
@@ -1235,6 +1555,8 @@ const rally = (ctx: GameContext): GameInstance => {
     for (const e of entrants) {
       const o = obstacles.touch(e.car);
       if (!o) continue;
+      // the moped's Väj!: nothing on the road touches it for a second
+      if (e === me && dodgeT > 0) continue;
       const c = e.car;
       if (o.kind === 'pothole') {
         // a pothole: a jolt up, a lost bit of speed, a little damage
@@ -1527,6 +1849,45 @@ const rally = (ctx: GameContext): GameInstance => {
     if (hit > 5) particles.emit({ x: info.x, y: info.y + 0.5, z: info.z, vy: 0.8, life: 0.7, size0: 0.8, size1: 2.4, color: colSmoke, alpha: 0.35, drag: 2 });
   }
 
+
+  /** What the player's vehicle does to a car it bumps: the monster squashes small ones, the tractor in a charge flings them, the pickup drops its load. */
+  function vehicleContact(o: Entrant, hit: number): void {
+    if (!kit || !racingNow()) return;
+    const me = player();
+    const c = me.car;
+    const sinH = Math.sin(c.heading);
+    const cosH = Math.cos(c.heading);
+    if (kit.passive.id === 'squashSmall' && o.car.feel.mass <= 1.25 && o.squashT <= 0 && c.speed > 5 && hit > 1.5) {
+      o.squashT = 1.7;
+      o.car.ghost = Math.max(o.car.ghost, 1.5);
+      stats.squashed++;
+      poof(o.car.x, o.car.y, o.car.z);
+      audio.boing();
+      hud.toast(`🧦 ${o.name} blev platt som en socka`);
+    }
+    if (kit.passive.id === 'loadDrop' && hit > 3 && loadCd <= 0) {
+      loadCd = 3.5;
+      obstacles.add('hay', c.x - sinH * 3.4 + cosH * (Math.random() - 0.5) * 2, c.y, c.z - cosH * 3.4 - sinH * (Math.random() - 0.5) * 2, c);
+      stats.hazards++;
+      hud.toast('🛻 Lasset ramlade. Hö på vägen!');
+    }
+    if (chargeT > 0) {
+      const dx = o.car.x - c.x;
+      const dz = o.car.z - c.z;
+      const d = Math.max(0.1, Math.hypot(dx, dz));
+      o.car.vx += (dx / d) * 10;
+      o.car.vz += (dz / d) * 10;
+      o.car.vy += 6.5;
+      o.car.yawRate += (Math.random() < 0.5 ? -1 : 1) * 6;
+      o.squashT = Math.max(o.squashT, 0.5);
+      shake = Math.max(shake, 0.5);
+      if (carnage) {
+        ledger.hit(o.id, me.id, RAMMER.damage, timeU.value);
+        damageHp(o, RAMMER.damage, me);
+      }
+    }
+  }
+
   /** The hit between two cars: sound, sparks, shake, and the damage (health in Blodbad, plating otherwise). */
   function carHit(i: number, k: number, hit: number, info: HitInfo): void {
     const me = player();
@@ -1542,6 +1903,7 @@ const rally = (ctx: GameContext): GameInstance => {
       audio.crunch(hit, other.car.feel.mass);
       shake = Math.max(shake, Math.min(0.55, hit * 0.055 * (0.8 + 0.2 * Math.sqrt(other.car.feel.mass))));
       mods.bus.hit('car', hit);
+      if (fresh) vehicleContact(other, hit);
       if (hit > 3) buzz(hit > 8 ? 'crash' : 'hit', !!ctx.controls?.haptics);
     } else if (hit > 4 && Math.hypot(ea.car.x - me.car.x, ea.car.z - me.car.z) < 30 && fresh) audio.crunch(hit * 0.5, ea.car.feel.mass);
     if (hit > 2 && fresh) impactFx(info, ea, eb, hit);
@@ -1566,7 +1928,7 @@ const rally = (ctx: GameContext): GameInstance => {
 
   /** Health lost: from another car (who may get a takedown if this wrecks it) or from the road (null). */
   function damageHp(x: Entrant, dmg: number, from: Entrant | null): void {
-    if (!carnage || x.wreckT > 0 || x.finished || dmg <= 0 || !racingNow()) return;
+    if (!carnage || x.wreckT > 0 || x.finished || dmg <= 0 || !racingNow() || (x === meE && dodgeT > 0)) return;
     x.hp = Math.max(0, x.hp - dmg);
     x.calmT = 0;
     if (from) ledger.hit(x.id, from.id, dmg, timeU.value);
@@ -1829,6 +2191,7 @@ const rally = (ctx: GameContext): GameInstance => {
     for (const e of entrants) tumbleStep(e, dt, e === me);
     for (const e of entrants) wreckStep(e, dt);
     modTick(dt, me, racing);
+    abilityStep(dt, me, racing);
     hornStep(dt, me, racing);
     for (const e of entrants) handling(e, dt, e === me);
     tricks(dt, me, racing);
@@ -1978,6 +2341,11 @@ const rally = (ctx: GameContext): GameInstance => {
           audio.thud(c.landed * 1.3);
           shake = Math.max(shake, Math.min(0.5, c.landed * 0.07));
           mods.bus.hit('land', c.landed);
+          if (kit?.passive.id === 'softLanding' && c.landed >= SOFTLAND.min && landCd <= 0 && phase === 'race') {
+            landCd = 1.5;
+            api.boost(SOFTLAND.boost, SOFTLAND.strength);
+            hud.toast('🏁 Mjuklandning! Boost');
+          }
         }
         for (let k = 0; k < (high ? 16 : 7); k++) {
           const a = Math.random() * Math.PI * 2;
@@ -2112,7 +2480,7 @@ const rally = (ctx: GameContext): GameInstance => {
     if (damageK > 0) hud.setDamage(me.damage);
 
     // camera input: C (the key), Start, the 🎥 button; the C button is the camera too when there is no nitro
-    if (inp.keyPressed('KeyC') || inp.pressed('start') || camPress || (inp.pressed('c') && myTune.charges === 0)) {
+    if (inp.keyPressed('KeyC') || inp.pressed('start') || camPress || (inp.pressed('c') && nitroSlots() === 0)) {
       camMode = (camMode + 1) % 3;
       hud.toast(`🎥 ${CAMS[camMode]}`);
     }
@@ -2227,7 +2595,7 @@ const rally = (ctx: GameContext): GameInstance => {
       roll += Math.PI * flip;
     }
     m.root.position.set(c.x, c.y + 1.4 * flip, c.z);
-    euler.set(-c.slopePitch, c.heading, c.slopeRoll + roll, 'YXZ');
+    euler.set(-c.slopePitch - (e?.wheelie ?? 0), c.heading, c.slopeRoll + roll, 'YXZ');
     m.root.quaternion.setFromEuler(euler);
     m.body.position.y = c.susp + (wk - 1) * m.wheelR;
     m.body.rotation.x = clamp(-c.accLong * 0.009, -0.09, 0.07);
@@ -2451,6 +2819,7 @@ const rally = (ctx: GameContext): GameInstance => {
         rivalHp: entrants.filter((e) => e !== me).map((e) => Math.round(e.hp)),
         style: stylePts,
         nitro: nitroLeft,
+        ability: { cd: abilCd, kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, wheelie: me.wheelie, ram: me.car.ram, boost: me.car.boost, ghost: me.car.ghost, vy: me.car.vy, air: me.car.air, heading: me.car.heading, uses: stats.abilityUses, squashed: entrants.filter((e) => e !== me && e.squashT > 0).length },
         tumbles,
         mods: { stats: { ...stats }, bonusKr, coinKr, extraBoostT, bananas: obstacles.count, squashed: entrants.filter((e) => e.squashT > 0).length },
         calls: renderer.info.render.calls,
