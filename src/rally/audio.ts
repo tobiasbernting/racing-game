@@ -3,6 +3,7 @@
 // and a cheerful little music loop.
 import { noise as noiseShot, tone } from '../arcade/sfx.ts';
 import type { CarBody } from '../shared/rally.ts';
+import { settings } from '../settings.ts';
 import { clamp } from './util.ts';
 
 interface Voice {
@@ -489,8 +490,11 @@ export class RallyAudio {
   music(level: number): void {
     this.musicLevel = level;
     if (!this.a || !this.musicBus) return;
-    this.musicBus.gain.setTargetAtTime(this.paused ? 0 : level * 0.55, this.a.currentTime, 0.4);
-    if (level > 0 && !this.musicTimer && !this.paused) this.startMusic();
+    // the settings panel can turn the music off (it is read again whenever the race resumes)
+    const on = settings.music ? level : 0;
+    this.musicBus.gain.setTargetAtTime(this.paused ? 0 : on * 0.55, this.a.currentTime, 0.4);
+    if (on > 0 && !this.musicTimer && !this.paused) this.startMusic();
+    else if (on === 0 && this.musicTimer) this.stopMusic();
   }
 
   private startMusic(): void {

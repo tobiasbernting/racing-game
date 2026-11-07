@@ -64,7 +64,7 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
   const r = copyRun(run);
   const node = nodeOf(r, run.screen.nodeId)!;
   const plan = planRace(node, r.calm);
-  const heartLost = costsHeart(res.place, res.n, res.finished);
+  const heartLost = costsHeart(res.place, res.n, res.finished, r.calm);
   const met = plan.goal ? goalMet(plan.goal, res) : null;
   const raw = res.kronor + res.coins + (res.bonus ?? 0);
   const total = scaleKronor(r, raw, plan.prize * (met ? 1.5 : 1));
@@ -161,7 +161,8 @@ export function finishNode(run: RunState): RunState {
   r.nodesDone++;
   if (node?.type === 'boss') {
     r.stats.bossesBeaten++;
-    healHeart(r, 1);
+    // a boss pays one heart back (two in lugnt läge)
+    healHeart(r, r.calm ? 2 : 1);
     r.act++;
     r.at = null;
     r.path = [];

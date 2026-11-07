@@ -60,3 +60,6 @@ export function trinketCard(def: TrinketDef, o: { n?: number; price?: number; on
   b.disabled = !!o.disabled;
   return b;
 }
+
+/** The run's seed as a short code a kid can read out ("Frö: 3K9XQ2"). */
+export const seedLabel = (seed: number): string => `Frö: ${(seed >>> 0).toString(36).toUpperCase()}`;

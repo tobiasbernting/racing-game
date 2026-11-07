@@ -48,7 +48,8 @@ export function trinketPrice(run: RunState, id: string): number {
   return round5(TRINKET_PRICE[def.rarity] * (1 + run.act * 0.15) * (1 - perksOf(run.trinkets).shopDiscount));
 }
 
-export const healPrice = (run: RunState): number => round5(90 * (1 + run.act * 0.15) * (1 - perksOf(run.trinkets).shopDiscount));
+/** A heart costs about one decent race's pay; on the very last heart the kiosk takes a quarter off. */
+export const healPrice = (run: RunState): number => round5(100 * (1 + run.act * 0.15) * (1 - perksOf(run.trinkets).shopDiscount) * (run.hearts <= 1 ? 0.75 : 1));
 export const repairPrice = (run: RunState): number => (run.car.damage <= 0 ? 0 : Math.max(5, round5(run.car.damage * 0.7 * (1 - perksOf(run.trinkets).shopDiscount))));
 export const rerollPrice = (screen: ShopScreen): number => 20 + 15 * screen.rerolls;
 

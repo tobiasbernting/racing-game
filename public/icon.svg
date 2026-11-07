@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2b63"/><stop offset="1" stop-color="#120d24"/></linearGradient>
+    <linearGradient id="road" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b5470"/><stop offset="1" stop-color="#2b2640"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <circle cx="384" cy="120" r="56" fill="#ffd23f"/>
+  <path d="M0 330 L170 250 L260 310 L360 230 L512 320 V512 H0Z" fill="#241a46"/>
+  <path d="M150 512 L226 300 H286 L362 512Z" fill="url(#road)"/>
+  <path d="M254 512 L254 470 M254 440 L254 400 M256 370 L256 330" stroke="#fff3b0" stroke-width="10" stroke-linecap="round"/>
+  <g transform="translate(256 360)">
+    <ellipse cx="0" cy="92" rx="118" ry="16" fill="#000" opacity=".35"/>
+    <rect x="-112" y="40" width="40" height="58" rx="12" fill="#14101f"/>
+    <rect x="72" y="40" width="40" height="58" rx="12" fill="#14101f"/>
+    <path d="M-104 70 Q-104 10 -70 -6 L-48 -62 Q-44 -78 -28 -78 H28 Q44 -78 48 -62 L70 -6 Q104 10 104 70 V84 H-104Z" fill="#e63946"/>
+    <path d="M-40 -64 H40 L54 -14 H-54Z" fill="#9fd8ff"/>
+    <rect x="-16" y="-80" width="32" height="150" fill="#ffd23f" opacity=".9"/>
+    <circle cx="-66" cy="58" r="14" fill="#fff3b0"/>
+    <circle cx="66" cy="58" r="14" fill="#fff3b0"/>
+    <rect x="-70" y="74" width="140" height="12" rx="6" fill="#b3361f"/>
+  </g>
+</svg>

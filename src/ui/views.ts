@@ -12,7 +12,10 @@ import { currentNode, currentPlan } from '../run/flow.ts';
 import { mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
 import { TRINKETS, trinketById } from '../run/trinkets.ts';
 import { btn, el, plural } from './dom.ts';
-import { ACT_NAMES, chip, statusBar, trinketCard, trinketIcons } from './parts.ts';
+import { ACT_NAMES, chip, seedLabel, statusBar, trinketCard, trinketIcons } from './parts.ts';
+import { countUp } from './juice.ts';
+import type { Settings } from '../settings.ts';
+import type { RunEnd } from '../run/state.ts';
 
 const screen = (cls: string, ...kids: (Node | null)[]): HTMLElement => el('div', `rg-screen ${cls}`, ...kids.filter((k): k is Node => !!k));
 const foot = (...kids: Node[]): HTMLElement => el('div', 'rg-foot', ...kids);
@@ -29,6 +32,9 @@ export interface TitleOpts {
   onQuick(): void;
   onCollection(): void;
   onCalm(on: boolean): void;
+  onSettings(): void;
+  /** A line of help for phones that cannot go fullscreen by themselves (iPhone in Safari). */
+  homeHint?: boolean;
 }
 
 export function titleView(o: TitleOpts): HTMLElement {
@@ -69,7 +75,8 @@ export function titleView(o: TitleOpts): HTMLElement {
       el('div', 'rg-saveinfo', `Akt ${s.act + 1}/${ACTS} · ${s.hearts}/${s.maxHearts} ❤️ · ${s.kronor} kr · ${s.trinkets.reduce((a, t) => a + t.n, 0)} prylar`),
     );
   }
-  right.append(newBtn, el('div', 'rg-pair', ghost('⚡ Snabbrace', o.onQuick), ghost('📖 Samling', o.onCollection)), calm);
+  right.append(newBtn, el('div', 'rg-pair', ghost('⚡ Snabbrace', o.onQuick), ghost('📖 Samling', o.onCollection)), el('div', 'rg-pair', calm, ghost('⚙️ Inställningar', o.onSettings)));
+  if (o.homeHint) right.append(el('small', 'rg-homehint', 'Fusktips: Dela, sedan Lägg till på hemskärmen, så slipper du webbläsarens kant.'));
   return screen('rg-title', left, right);
 }
 
@@ -227,7 +234,7 @@ export function mapView(o: MapOpts): HTMLElement {
     statusBar(run, btn('rg-icon wide', '🎒 Prylar', o.onBag), menu),
     field,
     legend,
-    el('div', 'rg-maphint', run.at === null ? 'Välj var du ska börja – tryck på en glödande plats!' : 'Tryck på en glödande plats för att åka dit.'),
+    el('div', 'rg-maphint', run.at === null ? 'Välj var du ska börja – tryck på en glödande plats!' : 'Tryck på en glödande plats för att åka dit.', el('small', 'rg-seed', seedLabel(run.seed))),
   );
 }
 
@@ -271,17 +278,20 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
 
 // ---- after the race ----
 
-export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postrace' }>, o: { onNext(): void }): HTMLElement {
+export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postrace' }>, o: { onNext(): void; onCount?: () => void }): HTMLElement {
   const s = scr.summary;
   const head = !s.finished ? 'Nästan i mål!' : s.place === 1 ? '🏆 Du vann!' : `${s.place}:a plats`;
   const medal = s.medal ? { gold: '🥇', silver: '🥈', bronze: '🥉' }[s.medal] : '';
   const lines: Node[] = [];
   if (s.finished) lines.push(el('div', 'rg-time', `⏱️ ${fmtTime(s.time / 1000)} ${medal}`));
+  const kr = el('b', null, `+${s.total} kr`);
+  // the kronor count up on the card
+  setTimeout(() => countUp(kr, s.total, { prefix: '+', suffix: ' kr', ms: 900, tick: o.onCount }), 350);
   lines.push(
     el(
       'div',
       'rg-kronor',
-      el('b', null, `+${s.total} kr`),
+      kr,
       el('small', null, ` (lopp ${s.prize}${s.coins ? ` · mynt ${s.coins}` : ''}${s.bonus ? ` · prylar ${s.bonus}` : ''})`),
     ),
   );
@@ -405,39 +415,96 @@ export function bagView(run: RunState, o: { onClose(): void }): HTMLElement {
   return screen('rg-bag', statusBar(run), el('h2', 'rg-h', '🎒 Dina prylar'), el('div', 'rg-cards bag', ...rows), foot(go('Stäng', o.onClose)));
 }
 
-export function menuView(run: RunState, o: { onClose(): void; onTitle(): void }): HTMLElement {
-  return screen('rg-menu', statusBar(run), el('div', 'rg-menubody', el('h2', 'rg-h', 'Paus'), go('Fortsätt spela', o.onClose), ghost('💾 Spara och gå till titeln', o.onTitle), el('small', null, 'Rundan sparas av sig själv efter varje plats.')));
+export function menuView(run: RunState, o: { onClose(): void; onTitle(): void; onSettings(): void }): HTMLElement {
+  return screen(
+    'rg-menu',
+    statusBar(run),
+    el('div', 'rg-menubody', el('h2', 'rg-h', 'Paus'), go('Fortsätt spela', o.onClose), ghost('⚙️ Inställningar', o.onSettings), ghost('💾 Spara och gå till titeln', o.onTitle), el('small', null, `Rundan sparas av sig själv efter varje plats. ${seedLabel(run.seed)}`)),
+  );
+}
+
+// ---- settings ----
+
+export interface SettingsOpts {
+  settings: Settings;
+  calm: boolean;
+  /** Can the page go fullscreen (and is it, now)? Null: not supported here. */
+  fullscreen: boolean | null;
+  onChange(): void;
+  onCalm(on: boolean): void;
+  onFullscreen(): void;
+  onClose(): void;
+}
+
+export function settingsView(o: SettingsOpts): HTMLElement {
+  const s = o.settings;
+  const vols = el('div', 'rg-vols');
+  const volBtns: [HTMLElement, number][] = [];
+  const paintVols = (): void => volBtns.forEach(([b, v]) => b.setAttribute('aria-pressed', String(Math.abs(s.volume - v) < 0.02)));
+  for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+    const b = btn('rg-chipbtn', v === 0 ? '🔇' : `${Math.round(v * 100)}%`, () => {
+      s.volume = v;
+      paintVols();
+      o.onChange();
+    });
+    b.setAttribute('aria-label', v === 0 ? 'Ljud av' : `Ljud ${Math.round(v * 100)} procent`);
+    volBtns.push([b, v]);
+    vols.append(b);
+  }
+  paintVols();
+  const toggle = (icon: string, label: string, hint: string, get: () => boolean, set: (v: boolean) => void): HTMLButtonElement => {
+    const b = btn('rg-btn rg-toggle rg-set', '');
+    const draw = (): void => {
+      b.setAttribute('aria-pressed', String(get()));
+      b.replaceChildren(el('span', null, `${icon} ${label}: ${get() ? 'På' : 'Av'}`), el('small', null, hint));
+    };
+    b.addEventListener('click', () => {
+      set(!get());
+      draw();
+    });
+    draw();
+    return b;
+  };
+  const grid = el(
+    'div',
+    'rg-setgrid',
+    el('div', 'rg-setvol', el('span', 'rg-setlabel', '🔊 Ljud'), vols),
+    toggle('🎵', 'Musik', 'Soundtracken till kaoset', () => s.music, (v) => { s.music = v; o.onChange(); }),
+    toggle('📳', 'Skakningar', 'Kameran får spel vid krascher och landningar', () => s.shake, (v) => { s.shake = v; o.onChange(); }),
+    toggle('🌈', 'Lugnt läge', '5 hjärtan och rivaler som tar det lugnt (gäller nästa runda)', () => o.calm, (v) => { o.calm = v; o.onCalm(v); }),
+    toggle('📈', 'Visa FPS', 'Siffran som skvallrar om du laggar', () => s.fps, (v) => { s.fps = v; o.onChange(); }),
+    o.fullscreen === null ? null : btn('rg-btn rg-set', '⛶ Helskärm på/av (ingen kant, ingen nåd)', o.onFullscreen),
+  );
+  return screen('rg-settings', el('div', 'rg-top', el('h2', 'rg-h tight', '⚙️ Inställningar')), el('div', 'rg-setbody', grid), foot(go('Klart, kör!', o.onClose)));
 }
 
 // ---- the end of a run ----
 
-export interface OverInfo {
-  won: boolean;
-  trophies: number;
-  total: number;
-  unlockedBodies: CarBody[];
-  unlockedTrinkets: string[];
-}
+export type OverInfo = RunEnd;
 
-export function funnyStats(run: RunState): string[] {
+/** The silly numbers of a run: [text, count, silly]. The biggest silly count becomes the headline. */
+export function funnyStats(run: RunState): { text: string; n: number; silly: boolean }[] {
   const s = run.stats;
-  const out: string[] = [];
-  if (s.bounces > 0) out.push(`🦆 Studsade ${plural(s.bounces, 'gång', 'gånger')}`);
-  if (s.driftSeconds >= 1) out.push(`🌀 Sladdade i ${Math.round(s.driftSeconds)} sekunder`);
-  if (s.bananas > 0) out.push(`🍌 Tappade ${plural(s.bananas, 'bananskal', 'bananskal')}${s.bananaHits ? ` (${s.bananaHits} träffar!)` : ''}`);
-  if (s.quacks > 0) out.push(`📣 Kvackade ${plural(s.quacks, 'gång', 'gånger')}`);
-  if (s.squashed > 0) out.push(`🥞 Gjorde ${plural(s.squashed, 'bil', 'bilar')} till pannkaka`);
-  if (s.jumps > 0) out.push(`🦘 Hoppade ${plural(s.jumps, 'gång', 'gånger')}`);
-  if (s.coins > 0) out.push(`🪙 Samlade ${plural(s.coins, 'mynt', 'mynt')}`);
-  if (s.boosts > 0) out.push(`🔥 Boostade ${plural(s.boosts, 'gång', 'gånger')}`);
-  out.push(`💰 Tjänade ${s.kronorEarned} kr`);
-  out.push(`🏁 Vann ${s.wins} av ${plural(s.races, 'lopp', 'lopp')}`);
+  const out: { text: string; n: number; silly: boolean }[] = [];
+  const add = (n: number, text: string, silly = true): void => {
+    if (n > 0) out.push({ text, n, silly });
+  };
+  add(s.bounces, `🦆 Studsade ${plural(s.bounces, 'gång', 'gånger')}`);
+  add(Math.round(s.driftSeconds), `🌀 Sladdade i ${Math.round(s.driftSeconds)} sekunder`);
+  add(s.bananas, `🍌 Tappade ${plural(s.bananas, 'bananskal', 'bananskal')}${s.bananaHits ? ` (${s.bananaHits} träffar!)` : ''}`);
+  add(s.quacks, `📣 Kvackade ${plural(s.quacks, 'gång', 'gånger')}`);
+  add(s.squashed, `🥞 Gjorde ${plural(s.squashed, 'bil', 'bilar')} till pannkaka`);
+  add(s.jumps, `🦘 Hoppade ${plural(s.jumps, 'gång', 'gånger')}`);
+  add(s.coins, `🪙 Samlade ${plural(s.coins, 'mynt', 'mynt')}`, false);
+  add(s.boosts, `🔥 Boostade ${plural(s.boosts, 'gång', 'gånger')}`, false);
+  out.push({ text: `💰 Tjänade ${s.kronorEarned} kr`, n: 0, silly: false });
+  out.push({ text: `🏁 Vann ${s.wins} av ${plural(s.races, 'lopp', 'lopp')}`, n: 0, silly: false });
   return out;
 }
 
 export function overView(run: RunState, info: OverInfo, o: { onAgain(): void; onTitle(): void }): HTMLElement {
   const stats = funnyStats(run);
-  // the funniest first: the biggest count among the silly ones
+  const hero = stats.filter((x) => x.silly).sort((a, b) => b.n - a.n)[0];
   const unlocked = [
     ...info.unlockedBodies.map((b) => `🚗 Ny bil: ${CAR_BODY_NAMES[b]}`),
     ...info.unlockedTrinkets.map((id) => {
@@ -445,6 +512,9 @@ export function overView(run: RunState, info: OverInfo, o: { onAgain(): void; on
       return `${d?.emoji ?? '🎁'} Ny pryl: ${d?.name ?? id}`;
     }),
   ];
+  // where the trophies came from
+  const why = [run.stats.bossesBeaten ? `${plural(run.stats.bossesBeaten, 'boss', 'bossar')} × 2` : '', info.won ? 'seger +3' : '', run.stats.races >= 3 ? 'körde några lopp +1' : ''].filter(Boolean).join(' · ');
+  const total = run.trinkets.reduce((a, t) => a + t.n, 0);
   return screen(
     'rg-over',
     el(
@@ -455,12 +525,21 @@ export function overView(run: RunState, info: OverInfo, o: { onAgain(): void; on
         'rg-overleft',
         el('h1', 'arc-title', info.won ? 'Du vann Galna Rallyt!' : 'Rundan är slut'),
         el('p', 'arc-sub', info.won ? '🏆 Alla tre bossar är besegrade!' : `Du nådde akt ${run.act + 1} av ${ACTS} (${ACT_NAMES[Math.min(run.act, ACTS - 1)]}).`),
+        el('div', 'rg-overcar', `🚗 ${CAR_BODY_NAMES[run.car.body]} med ${CAR_DRIVER_EMOJI[run.car.style.driver ?? 'human']} ${CAR_DRIVER_NAMES[run.car.style.driver ?? 'human']}`),
         el('div', 'rg-trophy big', `+${info.trophies} 🏆`, el('small', null, ` (totalt ${info.total})`)),
+        why ? el('small', 'rg-why', why) : null,
         unlocked.length ? el('ul', 'rg-unlocks', ...unlocked.slice(0, 5).map((u) => el('li', null, u))) : null,
-        el('div', 'arc-h', 'Dina prylar'),
+        el('div', 'arc-h', `Dina prylar${total ? ` (${total})` : ''}`),
         run.trinkets.length ? trinketIcons(run.trinkets, 24) : el('small', null, 'Inga prylar den här gången'),
       ),
-      el('div', 'rg-overright', el('div', 'arc-h', 'Rundans galna siffror'), el('ul', 'rg-stats', ...stats.map((l) => el('li', null, l)))),
+      el(
+        'div',
+        'rg-overright',
+        el('div', 'arc-h', 'Rundans galna siffror'),
+        hero ? el('div', 'rg-hero', hero.text) : null,
+        el('ul', 'rg-stats', ...stats.filter((x) => x !== hero).map((x) => el('li', null, x.text))),
+        el('small', 'rg-seed', seedLabel(run.seed)),
+      ),
     ),
     foot(ghost('Till titeln', o.onTitle), go('Ny runda', o.onAgain)),
   );
