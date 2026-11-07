@@ -22,6 +22,11 @@ uniform vec3 uCloud;
 uniform float uTime;
 uniform float uCover;
 uniform float uNight;
+uniform float uSpace;
+uniform vec3 uEarth;
+uniform vec3 uEx;
+uniform vec3 uEy;
+uniform float uEarthR;
 varying vec3 vDir;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p) {
@@ -52,15 +57,37 @@ void main() {
   }
   col += uSunCol * pow(sd, 350.0) * 1.6;
   col += vec3(1.0, 0.86, 0.62) * smoothstep(0.99925, 0.99965, sd) * 4.0 * (1.0 - uNight);
-  if (uNight > 0.0) {
-    // the moon and the stars (hidden by the clouds)
+  float starK = max(uNight, uSpace);
+  if (starK > 0.0) {
+    // the moon and the stars (hidden by the clouds; in space they are everywhere)
     col += vec3(0.9, 0.93, 1.0) * smoothstep(0.9993, 0.99955, sd) * 2.2 * uNight;
     vec2 g = vec2(atan(d.x, d.z) * 160.0, d.y * 260.0);
     vec2 cell = floor(g);
     float st = hash(cell);
     float tw = 0.6 + 0.4 * sin(uTime * 2.0 + st * 40.0);
-    float star = step(0.985, st) * smoothstep(0.5, 0.1, length(fract(g) - 0.5)) * smoothstep(0.02, 0.25, h);
-    col += vec3(0.85, 0.9, 1.0) * star * tw * uNight * 1.4;
+    float star = step(mix(0.985, 0.972, uSpace), st) * smoothstep(0.5, 0.1, length(fract(g) - 0.5)) * mix(smoothstep(0.02, 0.25, h), smoothstep(-0.02, 0.08, h), uSpace);
+    col += vec3(0.85, 0.9, 1.0) * star * tw * starK * 1.4;
+  }
+  if (uSpace > 0.5) {
+    // the Earth: a blue ball with continents and clouds, lit from the sun's side
+    float ed = dot(d, uEarth);
+    if (ed > 0.0) {
+      vec2 q = vec2(dot(d, uEx), dot(d, uEy)) / (ed * uEarthR);
+      float r = length(q);
+      col += vec3(0.2, 0.45, 1.0) * smoothstep(1.5, 1.0, r) * 0.12;
+      if (r < 1.0) {
+        vec3 n = vec3(q, sqrt(1.0 - r * r));
+        float c1 = fbm(n.xy * 2.4 + n.z * 1.7 + 3.0);
+        float land = smoothstep(0.5, 0.56, c1);
+        vec3 surf = mix(vec3(0.05, 0.2, 0.62), mix(vec3(0.16, 0.42, 0.16), vec3(0.6, 0.5, 0.3), smoothstep(0.58, 0.72, c1)), land);
+        float cl = smoothstep(0.52, 0.72, fbm(n.xy * 3.6 - n.z * 2.0 + 9.0));
+        surf = mix(surf, vec3(0.95), cl * 0.85);
+        vec3 L = normalize(vec3(dot(uSun, uEx), dot(uSun, uEy), dot(uSun, uEarth)));
+        float lit = clamp(dot(n, L), 0.0, 1.0);
+        vec3 ec = surf * (0.1 + 1.1 * lit) + vec3(0.25, 0.5, 1.0) * pow(1.0 - n.z, 3.0) * 0.6;
+        col = mix(col, ec, smoothstep(1.0, 0.96, r));
+      }
+    }
   }
   col = mix(col, uHorizon, smoothstep(0.0, -0.1, h));
   gl_FragColor = vec4(col, 1.0);
@@ -131,7 +158,20 @@ export function buildSky(renderer: THREE.WebGLRenderer, quality: 'high' | 'low',
     uTime: { value: 0 },
     uCover: { value: p.cover },
     uNight: { value: p.night },
+    uSpace: { value: p.earth ? 1 : 0 },
+    uEarth: { value: new THREE.Vector3(0, 1, 0) },
+    uEx: { value: new THREE.Vector3(1, 0, 0) },
+    uEy: { value: new THREE.Vector3(0, 0, 1) },
+    uEarthR: { value: p.earth ? p.earth.size : 0.1 },
   };
+  if (p.earth) {
+    const ee = THREE.MathUtils.degToRad(p.earth.elev);
+    const dir = new THREE.Vector3(Math.sin(p.earth.az) * Math.cos(ee), Math.sin(ee), Math.cos(p.earth.az) * Math.cos(ee)).normalize();
+    const ex = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+    uniforms.uEarth.value.copy(dir);
+    uniforms.uEx.value.copy(ex);
+    uniforms.uEy.value.copy(new THREE.Vector3().crossVectors(ex, dir).normalize());
+  }
   const geo = new THREE.SphereGeometry(100, 40, 20);
   const mat = new THREE.ShaderMaterial({ uniforms, vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: THREE.BackSide, depthWrite: false });
   const mesh = new THREE.Mesh(geo, mat);

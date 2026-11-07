@@ -7,6 +7,25 @@ export const CAR_BODY_NAMES: Record<CarBody, string> = {
   pickup: 'Pickup',
   coupe: 'Sportbil',
   monster: 'Monstertruck',
+  atv: 'Fyrhjuling',
+  moto: 'Motorcykel',
+  moped: 'Moppe',
+  tractor: 'Traktor',
+  sofa: 'Soffbil',
+};
+
+/** One cheerful line on how each body drives. */
+export const CAR_BODY_TEXT: Record<CarBody, string> = {
+  hatch: 'En vanlig, go rallybil.',
+  buggy: 'Lätt och grepp i sanden.',
+  pickup: 'Stark och tålig.',
+  coupe: 'Snabb men skör.',
+  monster: 'Enorma hjul, enorm tyngd.',
+  atv: 'Lätt och yr. Älskar hopp och grus!',
+  moto: 'Rasande snabb. Lutar sig i kurvorna!',
+  moped: 'Långsam men spänstig. Ring-ring!',
+  tractor: 'Tung som en björn. Puttrar fram och puffar bort alla.',
+  sofa: 'En soffa på hjul. Helt galen.',
 };
 
 export const RALLY_COURSE_NAMES: Record<RallyCourse, string> = {
@@ -17,6 +36,11 @@ export const RALLY_COURSE_NAMES: Record<RallyCourse, string> = {
   city: 'Staden',
   meadow: 'Ängen',
   mountain: 'Fjället',
+  desert: 'Öknen',
+  volcano: 'Vulkanen',
+  candy: 'Godislandet',
+  moon: 'Månen',
+  kitchen: 'Köket',
 };
 
 export const CAR_DRIVER_NAMES: Record<CarDriver, string> = {
@@ -28,9 +52,10 @@ export const CAR_DRIVER_NAMES: Record<CarDriver, string> = {
   sheep: 'Fåret',
   dog: 'Hunden',
   cat: 'Katten',
+  rabbit: 'Kaninen',
 };
 
-export const CAR_DRIVER_EMOJI: Record<CarDriver, string> = { human: '🧑', cow: '🐮', horse: '🐴', pig: '🐷', rooster: '🐓', sheep: '🐑', dog: '🐶', cat: '🐱' };
+export const CAR_DRIVER_EMOJI: Record<CarDriver, string> = { human: '🧑', cow: '🐮', horse: '🐴', pig: '🐷', rooster: '🐓', sheep: '🐑', dog: '🐶', cat: '🐱', rabbit: '🐰' };
 
 export const CAR_PART_NAMES: Record<CarPart, string> = {
   engine: 'Motor',

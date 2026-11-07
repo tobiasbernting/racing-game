@@ -5,20 +5,21 @@
 // time of day, rain, damage, nitro, pickups) and the player's car. It reports the outcome through
 // options.onDone (placing, time, kronor) before ctx.end. Without options it plays the default race.
 import * as THREE from 'three';
-import { NITRO_SECONDS, RACE_DNF_PRIZE, cleanRules, newCar, raceMedal, racePrize, type GarageCar } from '../shared/rally.ts';
+import { CAR_BODIES, CAR_BODY_DEFS, NITRO_SECONDS, RACE_DNF_PRIZE, cleanRules, newCar, raceMedal, racePrize, type CarBody, type GarageCar } from '../shared/rally.ts';
 import { Loop } from '../arcade/kit.ts';
-import { RIVAL_NAMES } from '../shared/names.ts';
+import { CAR_BODY_NAMES, RIVAL_NAMES } from '../shared/names.ts';
 import type { GameContext, GameInstance } from '../arcade/types.ts';
 import { Driver, steerTo } from './ai.ts';
 import { RallyAudio } from './audio.ts';
-import { Car, collideCars, Ground_, type Controls } from './car.ts';
-import { COURSES } from './courses.ts';
+import { BASE_POWER, Car, collideCars, Ground_, type Controls } from './car.ts';
+import { courseFor } from './variant.ts';
+import { canRain, variationFor } from '../shared/variation.ts';
 import { Coins } from './coins.ts';
 import { Confetti, Particles, Skids } from './fx.ts';
 import { blobTex } from './geo.ts';
 import { Hud, type Racer } from './hud.ts';
 import { lakeDist } from './layout.ts';
-import { carModel, WHEELS, WHEEL_R, type CarModel, type Driver as Face } from './models.ts';
+import { carModel, type CarModel, type Driver as Face } from './models.ts';
 import { emptyStats, noMods, type FinishAdjust, type FinishInfo, type RaceApi, type TickState } from './mods.ts';
 import { Obstacles } from './obstacles.ts';
 import { rallyOptions } from './options.ts';
@@ -29,14 +30,23 @@ import { buildScenery, type Scenery } from './scenery.ts';
 import { buildSky, rainy, type Sky } from './sky.ts';
 import { Terrain, buildFields, buildWater, type Water } from './terrain.ts';
 import { Fence, Track } from './track.ts';
-import { aiCar, arcadeCar, damageGrip, damagePower, smokeColor, tuneFor, type Tune } from './tuning.ts';
+import { aiCar, arcadeCar, damageGrip, damagePower, rivalBody, rivalFeel, seededUnit, smokeColor, tuneFor, type Tune } from './tuning.ts';
 import { clamp, damp, fmtTime, lerp, ordinal, smooth, wrapAngle } from './util.ts';
 
 const CAMS = ['Bakom bilen', 'På huven', 'Långt bakom'];
+/** Seconds a bike lies on its side after a big crash (the rider somersaults for the first one). */
+const TUMBLE_LEN = 1.5;
 
 interface Entrant {
   /** Player id, or `ai:<n>` for a computer car. */
   id: string;
+  /** What it drives (the player's can change with a trinket). */
+  body: CarBody;
+  /** Seconds left in a comic tumble (bikes that took a big hit), and which way the rider flies. */
+  tumbleT: number;
+  tumbleDir: number;
+  /** 0..1 after a smaller knock: the rider wobbles. */
+  wobble: number;
   name: string;
   color: string;
   car: Car;
@@ -135,25 +145,40 @@ const rally = (ctx: GameContext): GameInstance => {
   // ---- what we are playing ----
   const opts = rallyOptions(ctx.options);
   const rules = opts ? cleanRules(opts.rules) : null;
-  const course = COURSES[rules?.course ?? 'farm'];
+  // the same course never plays the same twice: the seed mirrors it, turns it round, thins or crowds the props
+  const vary = opts && rules ? variationFor(rules.course, opts.seed ?? 20261030) : null;
+  const course = courseFor(rules?.course ?? 'farm', vary);
   const LAPS = rules ? rules.laps : LAPS_Q;
-  const rain = rules?.weather === 'rain';
+  const rain = rules?.weather === 'rain' && canRain(course.id);
   const timeOfDay = rules?.time ?? 'day';
   const night = course.theme.alwaysNight || timeOfDay === 'night';
   const rainGrip = rain ? 0.85 : 1;
   const diff = DIFF[rules?.difficulty ?? 'normal'];
   const damageK = rules?.damage ? 1 : 0;
   const myCar: GarageCar = opts?.car ?? arcadeCar(ctx.player.color);
-  const myTune = tuneFor(myCar, !!rules?.sameCars, !!rules?.nitro);
   const nAi = rules ? rules.ai : ROSTER.length;
   // the run's trinkets (mods.ts): static numbers now, hooks while the race runs
   const mods = opts?.mods ?? noMods();
   const mt = mods.tune;
   const twist = opts?.twist ?? null;
-  myTune.power *= mt.power;
-  myTune.grip *= mt.grip;
-  myTune.size *= mt.size;
-  if (rules?.nitro) myTune.charges += mt.charges;
+  /** The handling a body gets from the player's parts and trinkets (the body can change mid-race with a trinket). */
+  const tuneForBody = (body: CarBody): Tune => {
+    const t = tuneFor({ ...myCar, body }, !!rules?.sameCars, !!rules?.nitro);
+    t.power *= mt.power;
+    t.grip *= mt.grip;
+    t.size *= mt.size;
+    t.dmgMul *= mt.tough;
+    if (rules?.nitro) t.charges += mt.charges;
+    return t;
+  };
+  const myTune = tuneForBody(myCar.body);
+  /** How a body drives: levelled in a fair race, steadier with a sidecar. */
+  const feelOf = (body: CarBody, mine: boolean) => {
+    if (!mine) return rivalFeel(body);
+    const f = (rules?.sameCars ? CAR_BODY_DEFS.hatch : CAR_BODY_DEFS[body]).feel;
+    if (mt.sidecar && body === 'moto') return { ...f, two: false, lean: 0.2, mass: f.mass * 1.7, steer: 0.95, yaw: 1.05, halfW: 0.95, bumpR: 0.8, bumpAt: 0.85 };
+    return f;
+  };
   const nitroLen = NITRO_SECONDS * mt.nitroSeconds;
   const nitroPush = 1 + 0.45 * mt.nitroPower;
 
@@ -220,12 +245,14 @@ const rally = (ctx: GameContext): GameInstance => {
   /** What lies off the road on this course. */
   const offroad = (): ((x: number, z: number) => number) | null => {
     if (course.theme.scenery === 'ice') return (x, z) => (lakeDist(x, z, course.layout) < 1.0 ? Ground_.Ice : Ground_.DeepSnow);
-    if (course.theme.scenery === 'beach') return () => Ground_.SoftSand;
+    if (course.theme.scenery === 'beach' || course.theme.scenery === 'desert') return () => Ground_.SoftSand;
+    // dust on the moon and ash round the volcano: loose, but not deep
+    if (course.theme.scenery === 'moon' || course.theme.scenery === 'volcano') return () => Ground_.Sand;
     return null;
   };
 
-  const modelFor = (car: GarageCar, driver?: Face): CarModel => {
-    const m = carModel({ body: car.body, style: car.style, driver, shadowTex, envMap: sky.env, quality: ctx.quality });
+  const modelFor = (car: GarageCar, driver?: Face, sidecar = false): CarModel => {
+    const m = carModel({ body: car.body, style: car.style, driver, shadowTex, envMap: sky.env, quality: ctx.quality, sidecar });
     m.setDamage(car.damage ?? 0);
     m.setNight(night);
     scene.add(m.root, m.shadow);
@@ -266,7 +293,7 @@ const rally = (ctx: GameContext): GameInstance => {
     hud.progress(0.6);
     await nextFrame();
     if (destroyed) return;
-    scenery = course.id === 'farm' ? buildScenery(track, terrain, ctx.quality, timeU) : buildThemeScenery(track, terrain, course, ctx.quality, timeU, course.theme.lit || night);
+    scenery = course.id === 'farm' ? buildScenery(track, terrain, ctx.quality, timeU) : buildThemeScenery(track, terrain, course, ctx.quality, timeU, course.theme.lit || night, vary);
     scene.add(scenery.group);
     disposers.push(() => scenery.dispose());
     if (rain || course.theme.snow) {
@@ -334,6 +361,13 @@ const rally = (ctx: GameContext): GameInstance => {
         .slice(0, 25)
         .map(([k, v]) => `${k}=${Math.round(v)}`);
     }
+    // test hooks (dev build only): crash the player's bike, honk, swap the vehicle
+    if (DEBUG)
+      (window as unknown as { __rallyDebug: unknown }).__rallyDebug = {
+        tumble: () => knock(player(), 99, 1),
+        honk: () => honk(player()),
+        swap: (b: CarBody) => swapPlayerBody(b),
+      };
     loop = new Loop((dt) => {
       for (let k = 0; k < TURBO && !ended; k++) update(dt);
     }, render);
@@ -358,15 +392,14 @@ const rally = (ctx: GameContext): GameInstance => {
       // a boss takes the first rival's place with its own name, face, body and colour
       const r = r0 && boss ? { ...r0, name: boss.name, face: boss.face, skill: boss.skill, power: boss.power, bias: 0 } : r0;
       const color = isMe ? (opts ? myCar.style.paint : ctx.player.color) : boss ? boss.color : colors[k] ?? PALETTE[k]!;
-      const gcar = isMe ? myCar : opts ? aiCar(k, color, r!.face) : arcadeCar(color);
-      if (boss) {
-        gcar.body = boss.body;
-        gcar.style.number = 1;
-      }
+      const body: CarBody = isMe ? myCar.body : boss ? boss.body : opts ? rivalBody(opts.seed ?? 20261030, k) : 'hatch';
+      const gcar = isMe ? myCar : opts ? aiCar(k, color, r!.face, body) : arcadeCar(color);
+      if (boss) gcar.style.number = 1;
       if (!isMe && !opts) gcar.style.number = k + 2;
-      const model = modelFor(isMe || opts ? gcar : { ...gcar, body: 'hatch' }, isMe ? undefined : r!.face);
+      const model = modelFor(isMe || opts ? gcar : { ...gcar, body: 'hatch' }, isMe ? undefined : r!.face, isMe && mt.sidecar && body === 'moto');
       disposers.push(() => model.dispose());
       const car = new Car(track);
+      car.setBody(body, feelOf(body, isMe));
       car.place(s, d, ground);
       car.offroadAt = offroad();
       const kid = ctx.touch;
@@ -376,8 +409,9 @@ const rally = (ctx: GameContext): GameInstance => {
       if (r) {
         const skill = r.skill * (kid ? 0.93 : 1) * diff.skill * (twist?.rivalSkill ?? 1);
         driver = new Driver({ skill, bias: r.bias, lineUse: 0.85 + r.skill * 0.15, wobble: r.wobble, phase: k * 1.7 });
-        power = r.power * (kid ? 0.92 : 1) * diff.power * (twist?.rivalPower ?? 1);
+        power = r.power * (kid ? 0.92 : 1) * diff.power * (twist?.rivalPower ?? 1) * lerp(1, CAR_BODY_DEFS[body].power, 0.5);
         car.assist = 0.75;
+        car.size = 1 + (CAR_BODY_DEFS[body].size - 1) * 0.6;
       } else {
         car.assist = (kid ? 0.75 : 0.45) + tune.assist;
         car.traction = kid ? 0.75 : 0.85;
@@ -385,12 +419,18 @@ const rally = (ctx: GameContext): GameInstance => {
         car.grip = tune.grip;
         car.brakeMul = tune.brakeMul;
         car.size = tune.size;
-        car.gravity = mt.gravity;
+        car.topK = mt.top;
         model.root.scale.setScalar(mt.size);
       }
-      car.power *= power;
+      car.power = BASE_POWER * power;
+      // the moon is low gravity for everyone (and the trinkets float you further)
+      car.gravity = (course.theme.gravity ?? 1) * (isMe ? mt.gravity : 1);
       const e: Entrant = {
         id: isMe ? meId : `ai:${k}`,
+        body,
+        tumbleT: 0,
+        tumbleDir: 1,
+        wobble: 0,
         name: isMe ? ctx.player.name || 'Du' : r!.name,
         color,
         car,
@@ -494,6 +534,14 @@ const rally = (ctx: GameContext): GameInstance => {
   const colSnow = new THREE.Color('#f2f6fb');
   const colSand = new THREE.Color('#e2cc94');
   const colSmoke = new THREE.Color('#d9d6d0');
+  // the dust a car kicks up has the colour of the ground it is on
+  {
+    const dust = ({ volcano: '#6a5a54', moon: '#8c8e96', desert: '#e8c47c', candy: '#f6d0e0', kitchen: '#fff2e0' } as Record<string, string | undefined>)[course.theme.scenery];
+    if (dust) {
+      colDust.set(dust);
+      colSand.set(dust);
+    }
+  }
   const colMySmoke = new THREE.Color();
   const colGrass = new THREE.Color('#6f9a3f');
   const colDirt = new THREE.Color('#8a7350');
@@ -632,7 +680,7 @@ const rally = (ctx: GameContext): GameInstance => {
   }
 
   // ---- per-frame effects for one car ----
-  function carEffects(c: Car, idx: number, isPlayer: boolean, dt: number): void {
+  function carEffects(c: Car, idx: number, isPlayer: boolean, dt: number, wp: [number, number][]): void {
     if (c.air) {
       for (let w = 0; w < 4; w++) skids.lift(idx * 4 + w);
       return;
@@ -646,11 +694,11 @@ const rally = (ctx: GameContext): GameInstance => {
     const dustCol = surf === Ground_.Snow || surf === Ground_.DeepSnow ? colSnow : surf === Ground_.Sand || surf === Ground_.SoftSand ? colSand : colDust;
     const rutCol = surf === Ground_.Snow || surf === Ground_.DeepSnow ? colSnowRut : surf === Ground_.Sand || surf === Ground_.SoftSand ? colSandRut : colRut;
     const smoke = isPlayer && opts ? smokeColor(myCar.style.smoke, timeU.value, colMySmoke) : colSmoke;
-    for (let w = 0; w < 4; w++) {
-      const [wx, wz] = WHEELS[w]!;
+    for (let w = 0; w < wp.length; w++) {
+      const [wx, wz] = wp[w]!;
       const x = c.x + sinH * wz + cosH * wx;
       const z = c.z + cosH * wz - sinH * wx;
-      const rear = w >= 2;
+      const rear = wz < 0;
       const slip = rear ? Math.max(c.slip, c.wheelspin) : c.frontSlip * smooth(3, 8, sp);
       const id = idx * 4 + w;
       const onRoad = surf === Ground_.Asphalt || surf === Ground_.Kerb || surf === Ground_.Ice;
@@ -903,6 +951,121 @@ const rally = (ctx: GameContext): GameInstance => {
     }
   }
 
+  /** A hit of strength `j` (m/s): a bike falls over from `big` up (the rider somersaults, then it is back on its wheels), a smaller knock wobbles it. */
+  function knock(e: Entrant, j: number, big: number): void {
+    if (e.tumbleT > 0 || e.finished || !racingNow()) return;
+    if (j >= big) {
+      tumbles++;
+      e.tumbleT = TUMBLE_LEN;
+      e.tumbleDir = Math.random() < 0.5 ? -1 : 1;
+      if (e === meE) {
+        audio.slip();
+        setTimeout(() => !destroyed && audio.boing(), 380);
+        hud.toast(['Hoppsan, du ramlade!', 'Aj! Upp på hjulen igen!', 'Salto! 10 poäng!', 'Plums! Det var på låtsas!'][Math.floor(Math.random() * 4)]!);
+        shake = Math.max(shake, 0.4);
+      }
+      sparkleAt(e.car.x, e.car.y + 0.5, e.car.z, 8, 0.8);
+    } else if (j >= 2.5) e.wobble = 1;
+  }
+
+  let tumbles = 0;
+  const racingNow = (): boolean => phase === 'race' || phase === 'finish';
+
+  /** Per car each frame: wobble fades; while a bike lies on its side it steers nothing, slows to a stop and then pops up again with a ghost. */
+  function tumbleStep(e: Entrant, dt: number, isMe: boolean): void {
+    e.wobble = Math.max(0, e.wobble - dt * 1.6);
+    if (e.tumbleT <= 0) return;
+    const c = e.car;
+    e.tumbleT = Math.max(0, e.tumbleT - dt);
+    e.ctl.throttle = 0;
+    e.ctl.brake = 0.15;
+    e.ctl.steer = 0;
+    e.ctl.handbrake = false;
+    const k = Math.exp(-dt * 2.2);
+    c.vx *= k;
+    c.vz *= k;
+    c.yawRate *= Math.exp(-dt * 6);
+    if (e.tumbleT === 0) {
+      poof(c.x, c.y, c.z);
+      c.ghost = Math.max(c.ghost, 2.2);
+      e.stuckT = 0;
+      if (isMe) audio.poof();
+    }
+  }
+
+  // ---- the horn: H, and by itself when a car is just ahead (the moped's bell, or a trinket that likes tooting) ----
+  let hornCd = 0;
+  function honk(me: Entrant): void {
+    hornCd = 1.1;
+    const c = me.car;
+    const sinH = Math.sin(c.heading);
+    const cosH = Math.cos(c.heading);
+    let near = 0;
+    for (const e of entrants) {
+      if (e === me) continue;
+      const dx = e.car.x - c.x;
+      const dz = e.car.z - c.z;
+      if (dx * sinH + dz * cosH > -2 && Math.hypot(dx, dz) < 14) near++;
+    }
+    audio.horn(me.body);
+    sparkleAt(c.x + sinH * 1.2, c.y + 1.2, c.z + cosH * 1.2, 3, 0.4);
+    mods.bus.honk(near);
+  }
+
+  function hornStep(dt: number, me: Entrant, racing: boolean): void {
+    hornCd = Math.max(0, hornCd - dt);
+    if (!racing || phase !== 'race' || me.finished) return;
+    if (ctx.input.keyPressed('KeyH') && hornCd <= 0) return honk(me);
+    // by itself: right behind another car, going fast enough to mean it
+    if ((me.body === 'moped' || mods.bus.honking) && hornCd <= 0 && me.car.speed > 6 && me.tumbleT <= 0) {
+      const c = me.car;
+      const sinH = Math.sin(c.heading);
+      const cosH = Math.cos(c.heading);
+      for (const e of entrants) {
+        if (e === me) continue;
+        const dx = e.car.x - c.x;
+        const dz = e.car.z - c.z;
+        const fwd = dx * sinH + dz * cosH;
+        const lat = dx * cosH - dz * sinH;
+        if (fwd > 1.5 && fwd < 6.5 && Math.abs(lat) < 2.4) {
+          hornCd = 4;
+          honk(me);
+          hornCd = 4;
+          return;
+        }
+      }
+    }
+  }
+
+  /** The trinket that swaps the vehicle: a poof and another body, with the handling and the model to match. */
+  function swapPlayerBody(next: CarBody): void {
+    const e = player();
+    if (e.body === next) return;
+    const old = e.model;
+    scene.remove(old.root, old.shadow);
+    old.dispose();
+    for (const l of headlights) l.dispose();
+    headlights.length = 0;
+    e.body = next;
+    const t = tuneForBody(next);
+    Object.assign(myTune, { ...t, charges: myTune.charges });
+    const c = e.car;
+    c.setBody(next, feelOf(next, true));
+    c.size = myTune.size;
+    c.brakeMul = myTune.brakeMul;
+    c.grip = myTune.grip;
+    e.basePower = BASE_POWER * myTune.power;
+    const m = modelFor({ ...myCar, body: next }, undefined, mt.sidecar && next === 'moto');
+    m.root.scale.setScalar(mt.size);
+    disposers.push(() => m.dispose());
+    e.model = m;
+    e.tumbleT = 0;
+    if (night) addHeadlights();
+    poof(c.x, c.y, c.z);
+    audio.poof();
+    hud.toast(`🎠 ${CAR_BODY_NAMES[next]}!`);
+  }
+
   /** Banana peels and hay bales spin whoever drives over them. */
   function obstaclesStep(dt: number, racing: boolean): void {
     obstacles.update(dt);
@@ -912,9 +1075,12 @@ const rally = (ctx: GameContext): GameInstance => {
       const o = obstacles.touch(e.car);
       if (!o) continue;
       const c = e.car;
-      c.yawRate += (Math.random() < 0.5 ? -1 : 1) * 7;
-      c.vx *= 0.55;
-      c.vz *= 0.55;
+      // a tractor hardly notices a banana peel or a hay bale
+      const sl = c.feel.slip;
+      c.yawRate += (Math.random() < 0.5 ? -1 : 1) * 7 * sl;
+      c.vx *= 1 - 0.45 * sl;
+      c.vz *= 1 - 0.45 * sl;
+      if (c.feel.two) e.wobble = 1;
       if (o.kind === 'banana') {
         if (e !== me) stats.bananaHits++;
         if (Math.hypot(c.x - me.car.x, c.z - me.car.z) < 40) audio.slip();
@@ -1041,6 +1207,11 @@ const rally = (ctx: GameContext): GameInstance => {
         e.car.yawRate += (Math.random() - 0.5) * 3;
       }
     },
+    swapVehicle() {
+      const e = player();
+      const pool = CAR_BODIES.filter((b) => b !== e.body);
+      swapPlayerBody(pool[Math.floor(Math.random() * pool.length)]!);
+    },
     kronor(n) {
       bonusKr += n;
       hud.popup(`+${n} kr`, 'coin');
@@ -1092,6 +1263,7 @@ const rally = (ctx: GameContext): GameInstance => {
         hud.subtitle('');
         hud.hideRace(false);
         audio.beep(true);
+        if (me.body === 'moped') setTimeout(() => !destroyed && audio.horn('moped'), 250);
         audio.cheer(0.7);
         audio.music(0.32);
         thrPrev = me.ctl.throttle > 0.5;
@@ -1165,7 +1337,9 @@ const rally = (ctx: GameContext): GameInstance => {
     }
     // a damaged car pulls to one side and wobbles a little
     if (me.damage > 70 && !me.finished) me.ctl.steer = clamp(me.ctl.steer + ((me.damage - 70) / 30) * (0.05 + 0.04 * Math.sin(timeU.value * 5)), -1, 1);
+    for (const e of entrants) tumbleStep(e, dt, e === me);
     modTick(dt, me, racing);
+    hornStep(dt, me, racing);
     for (const e of entrants) handling(e, dt, e === me);
     tricks(dt, me, racing);
     obstaclesStep(dt, racing);
@@ -1187,6 +1361,8 @@ const rally = (ctx: GameContext): GameInstance => {
             if (ea) hurt(ea, (j - 2) * 1.2);
             if (eb) hurt(eb, (j - 2) * 1.2);
           }
+          // a bike that is hit hard falls over; a lighter knock only makes the rider wobble
+          for (const x of [ea, eb]) if (x && x.car.feel.two) knock(x, j, 7);
         });
     }
     for (const e of entrants) e.car.settle(dt, ground);
@@ -1265,6 +1441,7 @@ const rally = (ctx: GameContext): GameInstance => {
       const isMe = e === me;
       if (c.wallHit > 1.5) {
         const hay = c.wallKind === Fence.Bales;
+        if (c.feel.two && !hay) knock(e, c.wallHit, 8.5);
         if (isMe) {
           if (hay) audio.hay(c.wallHit);
           else audio.thud(c.wallHit);
@@ -1290,7 +1467,7 @@ const rally = (ctx: GameContext): GameInstance => {
           const a = Math.random() * Math.PI * 2;
           particles.emit({ x: c.x + Math.cos(a) * 1.4, y: c.y + 0.2, z: c.z + Math.sin(a) * 1.8, vx: Math.cos(a) * 3, vy: 0.6, vz: Math.sin(a) * 3, life: 1.2, size0: 1.0, size1: 3.4, color: c.surface === Ground_.Gravel ? colDust : colSmoke, alpha: 0.4, drag: 2 });
         }
-        if (c.landed > 5) hurt(e, (c.landed - 5) * 1.5 * (1 - e.tune.assist));
+        if (c.landed > 5) hurt(e, (c.landed - 5) * 1.5 * (1 - e.tune.assist) * c.feel.landing);
       }
       c.landed = 0;
       // a battered car smokes from the bonnet
@@ -1328,6 +1505,7 @@ const rally = (ctx: GameContext): GameInstance => {
 
     // ---- sound ----
     const mc = me.car;
+    audio.setEngine(me.body);
     audio.playerEngine(mc.rpm, mc.throttleIn, mc.shifted);
     for (const e of entrants) e.car.shifted = 0;
     const onRoad = mc.surface === Ground_.Asphalt || mc.surface === Ground_.Kerb || mc.surface === Ground_.Ice;
@@ -1346,11 +1524,11 @@ const rally = (ctx: GameContext): GameInstance => {
       .sort((a, b) => a.d - b.d);
     for (let k = 0; k < 2; k++) {
       const n = near[k];
-      if (n) audio.otherEngine(k, n.r.car.rpm, Math.pow(clamp(1 - n.d / 70, 0, 1), 2));
+      if (n) audio.otherEngine(k, n.r.car.rpm, Math.pow(clamp(1 - n.d / 70, 0, 1), 2), entrants.find((e) => e.car === n.r.car)?.body);
     }
 
     // ---- effects ----
-    entrants.forEach((e, i) => carEffects(e.car, i, e === me, dt));
+    entrants.forEach((e, i) => carEffects(e.car, i, e === me, dt, e.model.wheelPos));
     particles.update(dt);
     skids.flush();
     confetti.update(dt, timeU.value);
@@ -1483,21 +1661,47 @@ const rally = (ctx: GameContext): GameInstance => {
   const up = new THREE.Vector3(0, 1, 0);
   const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
-  function syncModel(c: Car, m: CarModel, time: number, blink = true, wk = 1): void {
+  function syncModel(c: Car, m: CarModel, time: number, blink = true, wk = 1, e: Entrant | null = null): void {
+    const F = c.feel;
+    // a bike that crashed: it falls over, the rider somersaults off, then both are back on the wheels
+    const age = e && e.tumbleT > 0 ? TUMBLE_LEN - e.tumbleT : -1;
+    let roll = c.lean;
+    if (age >= 0) roll += e!.tumbleDir * 1.45 * smooth(0, 0.22, age) * (1 - smooth(1.0, 1.35, age));
+    else if (e && e.wobble > 0) roll += Math.sin(time * 34) * 0.16 * e.wobble;
     m.root.position.set(c.x, c.y, c.z);
-    euler.set(-c.slopePitch, c.heading, c.slopeRoll, 'YXZ');
+    euler.set(-c.slopePitch, c.heading, c.slopeRoll + roll, 'YXZ');
     m.root.quaternion.setFromEuler(euler);
-    m.body.position.y = c.susp + (wk - 1) * WHEEL_R;
+    m.body.position.y = c.susp + (wk - 1) * m.wheelR;
     m.body.rotation.x = clamp(-c.accLong * 0.009, -0.09, 0.07);
-    m.body.rotation.z = clamp(c.accLat * 0.007, -0.08, 0.08);
-    for (let w = 0; w < 4; w++) {
-      const wg = m.wheels[w];
-      if (!wg) continue;
-      if (w < 2) wg.rotation.y = c.steerAngle;
+    m.body.rotation.z = F.lean > 0.4 ? 0 : clamp(c.accLat * 0.007, -0.08, 0.08);
+    const wp = m.wheelPos;
+    for (let w = 0; w < m.wheels.length; w++) {
+      const wg = m.wheels[w]!;
+      const front = wp[w]![1] > 0;
+      if (front) wg.rotation.y = c.steerAngle;
       const spin = wg.children[0];
-      if (spin) spin.rotation.x = w < 2 ? c.wheelRot : c.rearRot;
+      // the wheel angle from the distance rolled, so a big tractor wheel turns slowly
+      if (spin) spin.rotation.x = ((front ? c.wheelRot : c.rearRot) * 0.34) / (m.wheelRadii[w] ?? 0.34);
       wg.scale.setScalar(wk);
-      wg.position.y = WHEEL_R * wk + Math.max(-0.08, Math.min(0.06, c.susp * 0.3));
+      wg.position.y = m.wheelR * wk + Math.max(-0.08, Math.min(0.06, c.susp * 0.3));
+    }
+    // the rider: leans into the bend, sways with the speed, wobbles after a knock, flies off in a crash
+    const rd = m.rider;
+    if (rd) {
+      const at = m.riderAt;
+      let dy = c.susp * 0.6;
+      let dz = 0;
+      let rx = clamp(c.accLong * -0.012, -0.22, 0.18);
+      let rz = c.lean * (F.lean < 0.5 ? 2.4 : 0.4);
+      if (age >= 0) {
+        const t = Math.min(age, 1.0);
+        dy += Math.max(0, 4.6 * t - 4.6 * t * t) * 1.2;
+        dz = 1.6 * t * (age < 1 ? 1 : 0);
+        rx += age < 1 ? age * Math.PI * 4 : 0;
+        rz += age < 1 ? Math.sin(age * 9) * 0.5 : 0;
+      } else if (e && e.wobble > 0) rz += Math.sin(time * 30) * 0.5 * e.wobble;
+      rd.position.set(at.x, at.y + dy, at.z + dz);
+      rd.rotation.set(rx, 0, rz);
     }
     m.brakeMat.color.set(c.braking ? '#ff3a24' : '#701812');
     m.root.visible = !blink || c.ghost <= 0 || Math.floor(time * 12) % 2 === 0;
@@ -1514,7 +1718,7 @@ const rally = (ctx: GameContext): GameInstance => {
   function syncModels(time: number): void {
     for (const e of entrants) {
       const isMe = e === meE;
-      syncModel(e.car, e.model, time, true, isMe ? mt.wheels : 1);
+      syncModel(e.car, e.model, time, true, isMe ? mt.wheels : 1, e);
       // bigger cars (trinkets) and cars squashed flat as pancakes
       const base = isMe ? mt.size : 1;
       const q = e.squash;
@@ -1547,8 +1751,8 @@ const rally = (ctx: GameContext): GameInstance => {
       fov = 55;
     } else if (camMode === 1) {
       me.model.root.updateMatrixWorld();
-      me.model.body.localToWorld(camPos.set(0, 1.42, 0.95));
-      me.model.body.localToWorld(camLook.set(0, 1.2, 25));
+      me.model.body.localToWorld(camPos.copy(me.model.eye));
+      me.model.body.localToWorld(camLook.set(me.model.eye.x, me.model.eye.y - 0.22, me.model.eye.z + 25));
       fov = 74 + smooth(5, 45, c.speed) * 10;
     } else {
       const far = camMode === 2;
@@ -1650,6 +1854,7 @@ const rally = (ctx: GameContext): GameInstance => {
         damage: me.damage,
         style: stylePts,
         nitro: nitroLeft,
+        tumbles,
         mods: { stats: { ...stats }, bonusKr, coinKr, extraBoostT, bananas: obstacles.count, squashed: entrants.filter((e) => e.squashT > 0).length },
         calls: renderer.info.render.calls,
         triangles: renderer.info.render.triangles,

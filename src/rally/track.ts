@@ -8,7 +8,7 @@ export const Fence = { None: 0, Pole: 1, Bales: 2, Rail: 3, Stone: 4 } as const;
 export type Fence = (typeof Fence)[keyof typeof Fence];
 
 /** Fence kinds 5.. belong to the other courses (props.ts draws them): snow banks, tyre stacks, rope and posts, log piles, concrete barriers. */
-export const FenceX = { Snow: 5, Tyres: 6, Rope: 7, Logs: 8, Barrier: 9 } as const;
+export const FenceX = { Snow: 5, Tyres: 6, Rope: 7, Logs: 8, Barrier: 9, Candy: 10, Cubes: 11, Rocks: 12 } as const;
 
 export type SurfaceName = 'asphalt' | 'gravel' | 'snow' | 'sand' | 'ice';
 

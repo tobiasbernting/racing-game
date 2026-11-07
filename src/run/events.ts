@@ -36,6 +36,8 @@ export interface EventDef {
   title: string;
   text: string;
   choices: [EventChoice, EventChoice];
+  /** Only in these acts (0-based); anywhere when left out. Events about a place belong to the acts that visit it. */
+  acts?: readonly number[];
 }
 
 export const EVENTS: EventDef[] = [
@@ -189,8 +191,111 @@ export const EVENTS: EventDef[] = [
   },
 ];
 
+// ---- phase 3: events for the wild and the crazy acts ----
+EVENTS.push(
+  {
+    id: 'kamel',
+    emoji: '🐪',
+    title: 'Kamelen med solglasögon',
+    text: 'En kamel med solglasögon står mitt på vägen. “Pratar du kamelspråk?” frågar den, stilla.',
+    acts: [1],
+    choices: [
+      {
+        label: 'Svara på kamelspråk',
+        outcomes: [
+          { w: 55, text: 'Kamelen skrattar så att solglasögonen trillar av och ger dig något blankt i tack.', fx: [{ k: 'trinket' }] },
+          { w: 45, text: 'Du sa visst något oartigt. Kamelen spottar. Du tappar 15 kr på rymmen.', fx: [{ k: 'kr', n: -15 }] },
+        ],
+      },
+      { label: 'Erbjud kamelen din lunch (−10 kr)', needKr: 10, outcomes: [{ text: 'Kamelen blir rörd och ger dig 45 kr i dricks. Den hade hela tiden en plånbok i puckeln.', fx: [{ k: 'kr', n: 35 }] }] },
+    ],
+  },
+  {
+    id: 'vulkanrap',
+    emoji: '🌋',
+    title: 'Vulkanen rapar',
+    text: 'Marken skakar. Vulkanen rapar upp en glödande sten med ett paket fastbundet. “Förlåt!” ropar den.',
+    acts: [1],
+    choices: [
+      {
+        label: 'Fånga stenen',
+        outcomes: [
+          { w: 60, text: 'Pytt-i-panna! Stenen är bara varm, och paketet innehåller en riktig pryl.', fx: [{ k: 'trinket' }] },
+          { w: 40, text: 'Aj, varm! Bilen blir lite sotig och skadad.', fx: [{ k: 'damage', n: 20 }] },
+        ],
+      },
+      { label: 'Backa undan', outcomes: [{ text: 'Stenen studsar förbi och lämnar ett mynt som har smält fast i vägen: 25 kr.', fx: [{ k: 'kr', n: 25 }] }] },
+    ],
+  },
+  {
+    id: 'maneman',
+    emoji: '🌙',
+    title: 'Gubben i månen',
+    text: 'Gubben i månen sträcker ut huvudet: “Har du någon ost? Jag är så hungrig, och månen är bara en ostbit hela vägen.”',
+    acts: [2],
+    choices: [
+      { label: 'Skicka en hälsning', outcomes: [{ text: 'Gubben blir så glad att han ger dig ett hjärta tillbaka (eller 40 kr om du redan var hel).', fx: [{ k: 'heart', n: 1 }] }] },
+      {
+        label: 'Be om ost som tack',
+        outcomes: [
+          { w: 40, text: 'Han kastar ner en ostbit, med något blankt gömt inuti!', fx: [{ k: 'trinket', rarity: 'rare' }] },
+          { w: 60, text: 'Han skrattar och kastar ner en ostbit värd 55 kr på ostmarknaden.', fx: [{ k: 'kr', n: 55 }] },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'chokladflod',
+    emoji: '🍫',
+    title: 'Chokladfloden',
+    text: 'Vid vägen porlar en flod av varm choklad. En skylt säger: “Doppa gärna. Eller smaka. Men inte båda.”',
+    acts: [2],
+    choices: [
+      { label: 'Smaka en klunk', outcomes: [{ text: 'Mmmmm! Du blir pigg och får ett hjärta tillbaka (eller 40 kr om du redan var full av energi).', fx: [{ k: 'heart', n: 1 }] }] },
+      {
+        label: 'Doppa hela bilen',
+        outcomes: [
+          { w: 50, text: 'Bilen blir så glad av chokladen att motorn spinner. Du får en uppgradering!', fx: [{ k: 'part' }] },
+          { w: 50, text: 'Kladdigt! Choklad i hjulhusen. Bilen blir lite skadad.', fx: [{ k: 'damage', n: 25 }] },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'soffan',
+    emoji: '🛋️',
+    title: 'Soffan på vägen',
+    text: 'En stor, mjuk soffa står mitt i vägen, med en kudde och en kopp kaffe. Ingen tycks vara hemma.',
+    choices: [
+      { label: 'Slå dig ner en stund', outcomes: [{ text: 'Ahh. Kaffet är precis lagom. Du blir helt ny och får ett hjärta tillbaka (eller 40 kr).', fx: [{ k: 'heart', n: 1 }] }] },
+      {
+        label: 'Putta bort soffan',
+        outcomes: [
+          { w: 55, text: 'Under soffan ligger gamla mynt och ett par spelkort som är värda en slant: 40 kr.', fx: [{ k: 'kr', n: 40 }] },
+          { w: 45, text: 'Soffan var tyngre än den såg ut. Du får skjuta den i en timme och blir skadad.', fx: [{ k: 'damage', n: 15 }] },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'frukost',
+    emoji: '🥣',
+    title: 'Gigantiska flingor',
+    text: 'En flinga stor som ett däck ligger på vägen. En lapp säger: “Ät mig! (Eller åk förbi.)”',
+    acts: [2],
+    choices: [
+      { label: 'Ta en tugga', outcomes: [{ text: 'Knaprigt! Och i mitten gömde sig en liten present.', fx: [{ k: 'trinket' }] }] },
+      { label: 'Åk förbi', outcomes: [{ text: 'Du åker förbi i full fart. Flingan studsar i vind och lämnar 20 kr efter sig.', fx: [{ k: 'kr', n: 20 }] }] },
+    ],
+  },
+);
+
 export const eventById = (id: string): EventDef | undefined => EVENTS.find((e) => e.id === id);
-export const pickEventId = (run: RunState, nodeId: string): string => Rng.for(run.seed, nodeId, 'event').pick(EVENTS).id;
+/** An event for this node: the ones that belong to the act, picked from the run seed. */
+export const pickEventId = (run: RunState, nodeId: string): string => {
+  const pool = EVENTS.filter((e) => !e.acts || e.acts.includes(run.act));
+  return Rng.for(run.seed, nodeId, 'event').pick(pool.length ? pool : EVENTS).id;
+};
 
 export const choiceAllowed = (run: RunState, c: EventChoice): boolean => run.kronor >= (c.needKr ?? 0);
 

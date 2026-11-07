@@ -7,7 +7,7 @@
 // Bodies
 // ---------------------------------------------------------------------------
 
-export const CAR_BODIES = ['hatch', 'buggy', 'pickup', 'coupe', 'monster'] as const;
+export const CAR_BODIES = ['hatch', 'buggy', 'pickup', 'coupe', 'monster', 'atv', 'moto', 'moped', 'tractor', 'sofa'] as const;
 export type CarBody = (typeof CAR_BODIES)[number];
 export const isCarBody = (s: unknown): s is CarBody => typeof s === 'string' && (CAR_BODIES as readonly string[]).includes(s);
 
@@ -22,14 +22,60 @@ export interface CarBodyDef {
   tough: number;
   /** Bigger bodies feel heavier (the model and the camera use it too). */
   size: number;
+  /** How it drives in car.ts (see `feel`: the cars all share the plain feel). */
+  feel: Feel;
 }
 
+/** The driving feel of a body in car.ts. Every number is a multiplier on the plain rally car (1) unless it says. */
+export interface Feel {
+  /** Collision mass: a heavy body shoves light ones aside. */
+  mass: number;
+  /** Steering angle and rate. */
+  steer: number;
+  /** Yaw inertia: below 1 the body turns on a dime (and twitches), above 1 it is lazy. */
+  yaw: number;
+  /** Top speed in m/s (0 = whatever the engine and the drag allow). */
+  top: number;
+  /** Rolling resistance and grip on grass, sand and snow: above 1 it loves the rough. */
+  rough: number;
+  /** Landings and bumps hurt by this much. */
+  landing: number;
+  /** Banana peels and hay bales: 1 spins you fully, below 1 you barely notice. */
+  slip: number;
+  /** How far the body leans into bends (1 = a motorbike), as the visual roll of the whole vehicle. */
+  lean: number;
+  /** The engine's shove (the cap on the driving force) and the air drag, as multipliers. */
+  punch: number;
+  drag: number;
+  /** Two wheels (a falling-over kind of vehicle). */
+  two: boolean;
+  /** Half width and half length for fences and bumping (metres, before size). */
+  halfW: number;
+  halfL: number;
+  /** Radius of the two bump circles (metres, before size) and how far from the middle they sit. */
+  bumpR: number;
+  bumpAt: number;
+}
+
+const CAR_FEEL: Feel = { mass: 1, steer: 1, yaw: 1, top: 0, rough: 1, landing: 1, slip: 1, lean: 0, punch: 1, drag: 1, two: false, halfW: 0.95, halfL: 1.05, bumpR: 1.0, bumpAt: 1.05 };
+const feel = (o: Partial<Feel>): Feel => ({ ...CAR_FEEL, ...o });
+
 export const CAR_BODY_DEFS: Record<CarBody, CarBodyDef> = {
-  hatch: { id: 'hatch', price: 0, power: 1.0, grip: 1.0, tough: 1.0, size: 1.0 },
-  buggy: { id: 'buggy', price: 900, power: 0.95, grip: 1.1, tough: 0.9, size: 0.95 },
-  pickup: { id: 'pickup', price: 1500, power: 1.05, grip: 0.95, tough: 1.3, size: 1.1 },
-  coupe: { id: 'coupe', price: 2500, power: 1.2, grip: 1.05, tough: 0.85, size: 1.0 },
-  monster: { id: 'monster', price: 4000, power: 1.1, grip: 0.9, tough: 1.5, size: 1.3 },
+  hatch: { id: 'hatch', price: 0, power: 1.0, grip: 1.0, tough: 1.0, size: 1.0, feel: feel({}) },
+  buggy: { id: 'buggy', price: 900, power: 0.95, grip: 1.1, tough: 0.9, size: 0.95, feel: feel({}) },
+  pickup: { id: 'pickup', price: 1500, power: 1.05, grip: 0.95, tough: 1.3, size: 1.1, feel: feel({}) },
+  coupe: { id: 'coupe', price: 2500, power: 1.2, grip: 1.05, tough: 0.85, size: 1.0, feel: feel({}) },
+  monster: { id: 'monster', price: 4000, power: 1.1, grip: 0.9, tough: 1.5, size: 1.3, feel: feel({}) },
+  // the fyrhjuling: light and twitchy, loves the rough and the jumps
+  atv: { id: 'atv', price: 1800, power: 1.0, grip: 1.04, tough: 0.9, size: 0.9, feel: feel({ mass: 0.6, steer: 1.3, yaw: 0.6, rough: 1.6, landing: 0.5, lean: 0.25, halfW: 0.7, halfL: 0.95, bumpR: 0.75, bumpAt: 0.85 }) },
+  // the motorcykel: very quick in a straight line, leans into bends and has less grip
+  moto: { id: 'moto', price: 3200, power: 1.35, grip: 0.84, tough: 0.7, size: 0.9, feel: feel({ mass: 0.45, steer: 1.15, yaw: 0.75, lean: 1, punch: 1.25, drag: 0.72, two: true, landing: 1.2, halfW: 0.4, halfL: 0.95, bumpR: 0.5, bumpAt: 0.8 }) },
+  // the moppe: slow, super nimble and a bit silly
+  moped: { id: 'moped', price: 600, power: 0.62, grip: 1.0, tough: 0.75, size: 0.85, feel: feel({ mass: 0.35, steer: 1.45, yaw: 0.5, top: 24, lean: 0.7, punch: 0.85, drag: 0.9, two: true, halfW: 0.38, halfL: 0.85, bumpR: 0.48, bumpAt: 0.7 }) },
+  // the traktor: slow, heavy and unstoppable
+  tractor: { id: 'tractor', price: 2200, power: 0.7, grip: 0.95, tough: 2.2, size: 1.2, feel: feel({ mass: 3.6, steer: 0.85, yaw: 1.7, top: 21, rough: 1.5, punch: 0.85, landing: 0.4, slip: 0.2, halfW: 1.25, halfL: 1.5, bumpR: 1.25, bumpAt: 1.1 }) },
+  // the soffbil: a sofa on wheels. Average stats, maximum silliness
+  sofa: { id: 'sofa', price: 5000, power: 1.0, grip: 0.92, tough: 1.0, size: 1.05, feel: feel({ mass: 1.1, steer: 0.95, yaw: 1.1, lean: 0.3, halfW: 1.0, halfL: 1.05 }) },
 };
 
 // ---------------------------------------------------------------------------
@@ -106,7 +152,7 @@ export const CAR_HORNS = ['beep', 'tune', 'cow', 'duck', 'train', 'honk'] as con
 export type CarHorn = (typeof CAR_HORNS)[number];
 
 /** Who sits behind the wheel: you, or one of the farm animals (the AI's faces in models.ts). */
-export const CAR_DRIVERS = ['human', 'cow', 'horse', 'pig', 'rooster', 'sheep', 'dog', 'cat'] as const;
+export const CAR_DRIVERS = ['human', 'cow', 'horse', 'pig', 'rooster', 'sheep', 'dog', 'cat', 'rabbit'] as const;
 export type CarDriver = (typeof CAR_DRIVERS)[number];
 
 /** Tyre smoke and boost flame colour. */
@@ -238,7 +284,7 @@ export function carStars(car: GarageCar): { speed: number; grip: number; handlin
 // Courses and rules
 // ---------------------------------------------------------------------------
 
-export const RALLY_COURSES = ['farm', 'forest', 'ice', 'beach', 'city', 'meadow', 'mountain'] as const;
+export const RALLY_COURSES = ['farm', 'forest', 'ice', 'beach', 'city', 'meadow', 'mountain', 'desert', 'volcano', 'candy', 'moon', 'kitchen'] as const;
 export type RallyCourse = (typeof RALLY_COURSES)[number];
 export const isRallyCourse = (s: unknown): s is RallyCourse => typeof s === 'string' && (RALLY_COURSES as readonly string[]).includes(s);
 
@@ -262,7 +308,16 @@ export const RALLY_COURSE_DEFS: Record<RallyCourse, RallyCourseDef> = {
   city: { id: 'city', prize: 1.3, surface: 'asphalt', gold: 55, emoji: '🌃', color: '#8a4fd8' },
   meadow: { id: 'meadow', prize: 1.05, surface: 'gravel', gold: 48, emoji: '🌼', color: '#9bc53d' },
   mountain: { id: 'mountain', prize: 1.25, surface: 'snow', gold: 59, emoji: '🏔️', color: '#4a6fa5' },
+  desert: { id: 'desert', prize: 1.3, surface: 'sand', gold: 66, emoji: '🏜️', color: '#e8a33a' },
+  volcano: { id: 'volcano', prize: 1.4, surface: 'gravel', gold: 68, emoji: '🌋', color: '#e8501c' },
+  candy: { id: 'candy', prize: 1.45, surface: 'asphalt', gold: 56, emoji: '🍭', color: '#f06ba8' },
+  moon: { id: 'moon', prize: 1.5, surface: 'asphalt', gold: 61, emoji: '🌙', color: '#9aa3b8' },
+  kitchen: { id: 'kitchen', prize: 1.45, surface: 'asphalt', gold: 66, emoji: '🥣', color: '#7fc8e8' },
 };
+
+/** The courses of the wild (act 2) and the crazy (act 3) kind; the countryside ones are the rest. */
+export const WILD_COURSES: readonly RallyCourse[] = ['desert', 'volcano'];
+export const CRAZY_COURSES: readonly RallyCourse[] = ['candy', 'moon', 'kitchen'];
 
 export const RALLY_TIMES = ['day', 'sunset', 'night'] as const;
 export type RallyTime = (typeof RALLY_TIMES)[number];

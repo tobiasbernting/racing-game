@@ -247,6 +247,9 @@ export class App {
     return {
       rules: { ...defaultRules(), course: p.course },
       car,
+      // each quick race gets its own seed: the course comes mirrored or turned round, with other pads and coins
+      seed: (Math.random() * 0xffffff) | 0,
+      coins: false,
       onDone: (r) => {
         this.result = r;
       },
@@ -562,7 +565,7 @@ export class App {
       rules: plan.rules,
       car: run.car,
       seed: node.seed,
-      mods: buildMods(run.trinkets),
+      mods: buildMods(run.trinkets, run.car.body),
       twist: plan.twist,
       coins: true,
       onDone: (res) => {

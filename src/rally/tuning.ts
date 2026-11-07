@@ -1,7 +1,7 @@
 // What a GarageCar does to the handling (body stats and tuning parts), the computer cars' cars, the
 // damage rules, and the player's smoke colour.
 import * as THREE from 'three';
-import { CAR_BODIES, CAR_BODY_DEFS, PART_EFFECTS, defaultStyle, emptyParts, newCar, type CarBody, type CarDriver, type CarSmoke, type GarageCar } from '../shared/rally.ts';
+import { CAR_BODIES, CAR_BODY_DEFS, PART_EFFECTS, defaultStyle, emptyParts, newCar, type CarBody, type CarDriver, type CarSmoke, type Feel, type GarageCar } from '../shared/rally.ts';
 import { clamp } from './util.ts';
 
 export interface Tune {
@@ -45,9 +45,48 @@ export const damageGrip = (d: number): number => 1 - 0.1 * clamp(d, 0, 100) / 10
 /** Bodies for the computer cars online (the same on every screen). */
 const AI_BODIES: CarBody[] = ['hatch', 'buggy', 'pickup', 'coupe', 'hatch'];
 
+/** Who the computer drivers get to drive, with weights: mostly cars, now and then something silly. */
+const RIVAL_POOL: [CarBody, number][] = [
+  ['hatch', 2],
+  ['buggy', 1.2],
+  ['pickup', 1.2],
+  ['coupe', 1.2],
+  ['atv', 1.2],
+  ['moto', 1],
+  ['moped', 1],
+  ['tractor', 0.7],
+  ['sofa', 0.5],
+];
+
+/** A deterministic 0..1 from a seed and a slot (no Math.random: the same race gives the same grid). */
+export function seededUnit(seed: number, k: number): number {
+  let h = Math.imul((seed | 0) ^ Math.imul(k + 1, 0x9e3779b1), 0x85ebca6b);
+  h ^= h >>> 15;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 13;
+  return (h >>> 0) / 4294967296;
+}
+
+/** The body a computer car drives: from the race seed and its slot, in about four races out of ten something that is not a car. */
+export function rivalBody(seed: number, k: number): CarBody {
+  const total = RIVAL_POOL.reduce((a, [, w]) => a + w, 0);
+  let x = seededUnit(seed, k) * total;
+  for (const [b, w] of RIVAL_POOL) {
+    x -= w;
+    if (x < 0) return b;
+  }
+  return 'hatch';
+}
+
+/** What a computer car feels like on its body: the real mass and steering, but no crawling top speed (the rubber band does the rest). */
+export function rivalFeel(body: CarBody): Feel {
+  const f = CAR_BODY_DEFS[body].feel;
+  return f.top > 0 ? { ...f, top: Math.max(34, f.top * 1.7) } : f;
+}
+
 /** A computer car for the online grid and the remote screens: body, colour and number from its slot. */
-export function aiCar(k: number, color: string, driver: CarDriver): GarageCar {
-  const c = newCar(-1 - k, AI_BODIES[k % AI_BODIES.length] ?? 'hatch', '', color);
+export function aiCar(k: number, color: string, driver: CarDriver, body?: CarBody): GarageCar {
+  const c = newCar(-1 - k, body ?? AI_BODIES[k % AI_BODIES.length] ?? 'hatch', '', color);
   c.style = { ...defaultStyle(color), number: k + 2, driver };
   return c;
 }

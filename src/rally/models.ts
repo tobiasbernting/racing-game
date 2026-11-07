@@ -5,6 +5,7 @@ import { CAR_BODY_DEFS, defaultStyle, type CarBody, type CarDriver, type CarSpoi
 import { Geo, mat } from './geo.ts';
 import { ATLAS, paintCar, paintCrack, paintDamage, paintPlate, REGION_KIND, type DecalSpot, type PaintLayout, type Region, type RegionSizes } from './style.ts';
 import { rng } from './util.ts';
+import { EXTRA_BODIES, riderGeo } from './vehicles.ts';
 
 export const FALU = '#9b2c1f';
 export const WHITE = '#f1ede4';
@@ -488,7 +489,7 @@ export function person(): { shirt: THREE.BufferGeometry; rest: THREE.BufferGeome
 export type Driver = CarDriver;
 
 /** The driver's head, seen through the windows. */
-function driverHead(kind: Driver, color: string): THREE.BufferGeometry {
+export function driverHead(kind: Driver, color: string): THREE.BufferGeometry {
   const g = new Geo();
   switch (kind) {
     case 'human':
@@ -537,6 +538,19 @@ function driverHead(kind: Driver, color: string): THREE.BufferGeometry {
       }
       g.box(0.06, 0.03, 0.08, '#e85a70', 0.02, -0.15, 0.24);
       break;
+    case 'rabbit':
+      // a grey-white rabbit with tall ears, a pink nose and two front teeth
+      g.box(0.32, 0.3, 0.32, '#e8e4dc', 0, 0, 0);
+      g.box(0.2, 0.14, 0.14, '#f4f0ea', 0, -0.07, 0.2);
+      g.box(0.06, 0.05, 0.04, '#e8708a', 0, 0.0, 0.28);
+      g.box(0.04, 0.07, 0.03, '#ffffff', -0.025, -0.1, 0.26);
+      g.box(0.04, 0.07, 0.03, '#ffffff', 0.025, -0.1, 0.26);
+      for (const sx of [-1, 1]) {
+        g.box(0.09, 0.5, 0.06, '#e8e4dc', sx * 0.1, 0.38, -0.02, 0, 0, sx * 0.12);
+        g.box(0.05, 0.4, 0.04, '#f0a0b0', sx * 0.1, 0.38, 0.0, 0, 0, sx * 0.12);
+        g.box(0.05, 0.05, 0.02, '#1e1a18', sx * 0.09, 0.06, 0.165);
+      }
+      break;
     case 'cat':
       g.box(0.32, 0.26, 0.28, '#f0a050', 0, 0, 0);
       g.box(0.14, 0.08, 0.06, '#fbe3c8', 0, -0.07, 0.15);
@@ -575,6 +589,10 @@ export interface CarModel {
   wheelR: number;
   /** Each wheel's own radius (the buggy's rear tyres are bigger; their spin centre is offset inside the group). */
   wheelRadii: number[];
+  /** The rider of a bike, the ATV, the tractor or the sofa (null for cars): the game leans it and flings it off after a crash. */
+  rider: THREE.Group | null;
+  /** Where the rider's hip sits, in the vehicle's frame. */
+  riderAt: THREE.Vector3;
   /** Exhaust pipe tips in the car's frame (smoke and nitro flames come from here). */
   exhausts: THREE.Vector3[];
   /** Where the driver's eyes are, for an in-car camera. */
@@ -594,6 +612,8 @@ export interface CarModelOpts {
   envMap: THREE.Texture | null;
   /** 'low' leaves out the small bits. */
   quality?: 'high' | 'low';
+  /** A sidecar on the motorbike. */
+  sidecar?: boolean;
 }
 
 /** Wheel positions (x, z) of the hatchback in the car's frame: front axle at +1.15, rear at −1.35. */
@@ -614,7 +634,7 @@ export function carModelFromColor(color: string, driver: Driver, num: number, sh
 
 // ---- the painted body: geometry with UVs into the paint atlas (style.ts) ----
 
-type V3 = [number, number, number];
+export type V3 = [number, number, number];
 interface Bounds {
   x0: number;
   x1: number;
@@ -623,11 +643,11 @@ interface Bounds {
   z0: number;
   z1: number;
 }
-type Classify = (nx: number, ny: number, nz: number, cx: number, cy: number, cz: number) => Region;
+export type Classify = (nx: number, ny: number, nz: number, cx: number, cy: number, cz: number) => Region;
 const PLAIN: Classify = () => 'plain';
 
 /** Collects the painted panels; each triangle is tagged with a region and gets planar UVs at build time. */
-class PaintGeo {
+export class PaintGeo {
   private pos: number[] = [];
   private regs: Region[] = [];
   bounds = new Map<Region, Bounds>();
@@ -731,7 +751,7 @@ class PaintGeo {
  * A side profile (z, y, halfWidth) extruded and mirrored across x = 0, like Geo.prism, with long edges
  * split so the body has vertices to dent.
  */
-function profileGeo(raw: V3[], step = 0.45): THREE.BufferGeometry {
+export function profileGeo(raw: V3[], step = 0.45): THREE.BufferGeometry {
   const pts: V3[] = [];
   for (let i = 0; i < raw.length; i++) {
     const p = raw[i]!;
@@ -792,7 +812,7 @@ function profileGeo(raw: V3[], step = 0.45): THREE.BufferGeometry {
 }
 
 /** Sorts a profile body's faces into the atlas: sides to the doors, the top to bonnet/deck, ends, underside. */
-function bodyClassify(hoodZ: number, deckZ: number): Classify {
+export function bodyClassify(hoodZ: number, deckZ: number): Classify {
   return (nx, ny, nz, _cx, _cy, cz) => {
     if (nx > 0.7) return 'doorP';
     if (nx < -0.7) return 'doorN';
@@ -801,29 +821,29 @@ function bodyClassify(hoodZ: number, deckZ: number): Classify {
     return nz > 0 ? 'front' : 'back';
   };
 }
-const roofClassify: Classify = (_nx, ny) => (ny > 0.7 ? 'roof' : 'plain');
+export const roofClassify: Classify = (_nx, ny) => (ny > 0.7 ? 'roof' : 'plain');
 
 // ---- body specs ----
 
-interface WheelSpec {
+export interface WheelSpec {
   x: number;
   z: number;
   r: number;
   w: number;
 }
-interface Spot {
+export interface Spot {
   region: Region;
   p: V3;
   size: number;
 }
-interface Mount {
+export interface Mount {
   y: number;
   z: number;
   w: number;
 }
 
 /** What one body tells the shared builder: where everything goes (design units, before CAR_BODY_DEFS.size). */
-interface BodySpec {
+export interface BodySpec {
   wheels: WheelSpec[];
   halfW: number;
   nose: number;
@@ -850,9 +870,22 @@ interface BodySpec {
   /** Front wheel arch for the snorkel: x of the −x side, y of the arch top. */
   snorkel: { x: number; y: number; z: number; top: number; zTop: number };
   open?: boolean;
+  /** A rider who sits on top (bikes, the ATV, the tractor, the sofa) instead of inside: a separate group the game can lean and fling. */
+  rider?: { at: V3; pose: RiderPose; helmet?: boolean };
 }
 
-interface Parts {
+/** Where a rider's hands, knees and feet go (right side, mirrored), relative to the hip; `tilt` leans the back forward. */
+export interface RiderPose {
+  hands: V3;
+  knee: V3;
+  foot: V3;
+  tilt: number;
+  /** Shoulder width and torso height. */
+  sh?: number;
+  torso?: number;
+}
+
+export interface Parts {
   pg: PaintGeo;
   /** Dark trim, chrome, tyres of the frame… (vertex colours). */
   tg: Geo;
@@ -863,11 +896,13 @@ interface Parts {
   brake: Geo;
   style: CarStyle;
   hi: boolean;
+  /** A sidecar on the motorbike (a trinket). */
+  sidecar?: boolean;
 }
 
-const DARK = '#1c1d22';
-const CHROME = '#c9ccd2';
-const GLASS_CAR = '#2a3a55';
+export const DARK = '#1c1d22';
+export const CHROME = '#c9ccd2';
+export const GLASS_CAR = '#2a3a55';
 
 function arches(t: Geo, wheels: WheelSpec[], y: number, halfW: number, flare = 0.1): void {
   for (const w of wheels) {
@@ -1290,9 +1325,9 @@ function buggy(P: Parts): BodySpec {
   };
 }
 
-const BODIES: Record<CarBody, (p: Parts) => BodySpec> = { hatch, buggy, pickup, coupe, monster };
+const BODIES: Record<CarBody, (p: Parts) => BodySpec> = { hatch, buggy, pickup, coupe, monster, ...EXTRA_BODIES };
 
-function beamGeo(a: THREE.Vector3, b: THREE.Vector3, t: number): THREE.BufferGeometry {
+export function beamGeo(a: THREE.Vector3, b: THREE.Vector3, t: number): THREE.BufferGeometry {
   const d = new THREE.Vector3().subVectors(b, a);
   const g = new THREE.BoxGeometry(t, d.length(), t);
   const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
@@ -1532,7 +1567,7 @@ export function carModel(opts: CarModelOpts): CarModel {
   shell.scale.setScalar(S);
   body.add(shell);
 
-  const P: Parts = { pg: new PaintGeo(), tg: new Geo(), glass: new Geo(), lamp: new Geo(), brake: new Geo(), style, hi };
+  const P: Parts = { pg: new PaintGeo(), tg: new Geo(), glass: new Geo(), lamp: new Geo(), brake: new Geo(), style, hi, sidecar: opts.sidecar };
   const spec = BODIES[bodyKind](P);
   addExtras(P, spec);
   const seed = (style.number * 131 + bodyKind.length * 17 + style.paint.charCodeAt(2)) >>> 0;
@@ -1553,9 +1588,11 @@ export function carModel(opts: CarModelOpts): CarModel {
   // the driver (and shoulders, so open cars and big windows look occupied)
   const [hx, hy, hz] = spec.head;
   const shirt = who === 'human' ? style.paint2 : '#4a6fa5';
-  P.tg.box(0.44, 0.3, 0.26, shirt, hx, hy - 0.3, hz - 0.02);
-  P.tg.addColored(driverHead(who, style.paint), mat(hx, hy, hz));
-  P.tg.box(0.08, 0.1, 0.08, '#e8c39e', hx, hy - 0.17, hz);
+  if (!spec.rider) {
+    P.tg.box(0.44, 0.3, 0.26, shirt, hx, hy - 0.3, hz - 0.02);
+    P.tg.addColored(driverHead(who, style.paint), mat(hx, hy, hz));
+    P.tg.box(0.08, 0.1, 0.08, '#e8c39e', hx, hy - 0.17, hz);
+  }
 
   // the painted body
   const paintGeo = keep(P.pg.build());
@@ -1601,6 +1638,18 @@ export function carModel(opts: CarModelOpts): CarModel {
   const trim = new THREE.Mesh(trimGeo, trimMat);
   trim.castShadow = true;
   shell.add(trim);
+
+  // a rider who sits on top: its own group, pivoting at the hip
+  let rider: THREE.Group | null = null;
+  if (spec.rider) {
+    rider = new THREE.Group();
+    rider.position.set(spec.rider.at[0] * S, spec.rider.at[1] * S, spec.rider.at[2] * S);
+    const rm = new THREE.Mesh(keep(riderGeo(who, style, spec.rider.pose, !!spec.rider.helmet)), trimMat);
+    rm.castShadow = true;
+    rm.scale.setScalar(S);
+    rider.add(rm);
+    body.add(rider);
+  }
 
   const glassGeo = keep(P.glass.build());
   const glassMat = keep(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.08, metalness: 0.2, transparent: true, opacity: spec.open ? 0.5 : 0.62, envMap: opts.envMap, envMapIntensity: 1.2, flatShading: true }));
@@ -1672,7 +1721,7 @@ export function carModel(opts: CarModelOpts): CarModel {
   for (const w of spec.wheels) {
     const key = `${w.r}:${w.w}`;
     let geo = wgeos.get(key);
-    if (!geo) wgeos.set(key, (geo = keep(wheelGeo(style.wheels, w.r, w.w, style.rimColor, hi))));
+    if (!geo) wgeos.set(key, (geo = keep(wheelGeo(bodyKind === 'atv' || bodyKind === 'tractor' ? 'offroad' : style.wheels, w.r, w.w, style.rimColor, hi))));
     const steer = new THREE.Group();
     steer.position.set(w.x * S, wheelR * S, w.z * S);
     const spin = new THREE.Group();
@@ -1768,7 +1817,7 @@ export function carModel(opts: CarModelOpts): CarModel {
   const mid = (spec.sill + spec.belt) / 2;
   const dents = [
     { c: new THREE.Vector3(s1 * spec.halfW, mid + 0.1, spec.nose - 0.35), d: new THREE.Vector3(-s1 * 0.7, -0.25, -0.65).normalize() },
-    { c: new THREE.Vector3(s2 * spec.halfW, spec.belt, (spec.wheels[0]!.z + spec.wheels[2]!.z) / 2 + (r() - 0.5) * 0.6), d: new THREE.Vector3(-s2, -0.45, 0).normalize() },
+    { c: new THREE.Vector3(s2 * spec.halfW, spec.belt, (spec.wheels[0]!.z + (spec.wheels[2] ?? spec.wheels[1]!).z) / 2 + (r() - 0.5) * 0.6), d: new THREE.Vector3(-s2, -0.45, 0).normalize() },
     { c: new THREE.Vector3(-s1 * spec.halfW, mid, spec.tail + 0.3), d: new THREE.Vector3(s1 * 0.7, -0.15, 0.7).normalize() },
     { c: new THREE.Vector3(-s2 * spec.halfW * 0.4, spec.belt, spec.nose - 0.25), d: new THREE.Vector3(0, -0.8, -0.6).normalize() },
   ];
@@ -1850,6 +1899,8 @@ export function carModel(opts: CarModelOpts): CarModel {
     wheelR: wheelR * S,
     wheelRadii: spec.wheels.map((w) => w.r * S),
     exhausts: pipes.map(v),
+    rider,
+    riderAt: spec.rider ? v(spec.rider.at) : new THREE.Vector3(),
     eye: v(spec.eye),
     extent: { halfW: spec.halfW * S, front: spec.nose * S, back: spec.tail * S, top: spec.roof.y * S },
     dispose: () => {

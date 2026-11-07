@@ -191,6 +191,9 @@ export class Terrain {
     const mowB = col(G.mowB);
     const farTint = col(G.farTint);
     const iceCol = col('#cfe2f0');
+    const check = G.check ?? null;
+    const checkA = col(check?.a ?? '#ffffff');
+    const checkB = col(check?.b ?? '#ffffff');
     for (let jj = 0; jj < nz; jj++) {
       const z = this.zs[jj]!;
       for (let ii = 0; ii < nx; ii++) {
@@ -200,9 +203,15 @@ export class Terrain {
         pos[k * 3 + 1] = this.hv[k]!;
         pos[k * 3 + 2] = z;
         c.copy(grassA).lerp(grassB, noise2(x / 38, z / 38));
+        if (check) {
+          // a gingham cloth: stripes both ways, a lighter red where one crosses white
+          const sx = Math.floor(x / check.size) % 2 === 0 ? 1 : 0;
+          const sz = Math.floor(z / check.size) % 2 === 0 ? 1 : 0;
+          c.copy(checkB).lerp(checkA, (sx + sz) * 0.5).multiplyScalar(0.94 + 0.1 * noise2(x / 14, z / 14));
+        }
         const n2 = fbm(x / 160 + 2, z / 160 - 3, 3);
-        c.lerp(dry, smooth(0.12, 0.45, n2) * 0.55);
-        c.lerp(grassDark, smooth(0.0, -0.35, n2) * 0.6);
+        c.lerp(dry, smooth(0.12, 0.45, n2) * (check ? 0.12 : 0.55));
+        c.lerp(grassDark, smooth(0.0, -0.35, n2) * (check ? 0.12 : 0.6));
         const fo = forest(x, z, L).d;
         c.lerp(floor, Math.min(1, fo * 1.1));
         const d = this.dRoad[k]!;
@@ -210,9 +219,9 @@ export class Terrain {
         if (i >= 0) {
           const wall = side[k]! > 0 ? t.wallL[i]! : t.wallR[i]!;
           const inRun = 1 - smooth(wall - 0.5, wall + 1.5, d);
-          if (inRun > 0) c.lerp(Math.floor(sNear[k]! / 7) % 2 ? mowA : mowB, inRun * 0.85);
+          if (inRun > 0 && !check) c.lerp(Math.floor(sNear[k]! / 7) % 2 ? mowA : mowB, inRun * 0.85);
           if (t.surf[i] !== Surf.Asphalt) c.lerp(verge, 1 - smooth(t.hw[i]! + 0.5, t.hw[i]! + 4, d));
-          else c.lerp(verge, (1 - smooth(t.hw[i]! + 0.2, t.hw[i]! + 1.6, d)) * 0.7);
+          else c.lerp(verge, (1 - smooth(t.hw[i]! + 0.2, t.hw[i]! + 1.6, d)) * (check ? 0.3 : 0.7));
         }
         const ld = lakeDist(x, z, L);
         if (L.lakeKind === 'sea') {
@@ -456,15 +465,19 @@ export function buildWater(envMap: THREE.Texture | null, L: Layout): Water {
   const frozen = L.lakeKind === 'ice';
   const sea = L.lakeKind === 'sea';
   if (sea) normals.repeat.set(160, 60);
+  const glow = L.waterGlow ?? null;
   const mat = new THREE.MeshStandardMaterial({
-    color: frozen ? '#d4e6f2' : sea ? '#2f8db0' : '#3f7a93',
-    roughness: 0.12,
+    color: L.waterColor ?? (frozen ? '#d4e6f2' : sea ? '#2f8db0' : '#3f7a93'),
+    roughness: glow ? 0.5 : 0.12,
     metalness: 0.0,
     normalMap: normals,
     normalScale: frozen ? new THREE.Vector2(0.06, 0.06) : new THREE.Vector2(0.35, 0.35),
-    envMap,
+    envMap: glow ? null : envMap,
     envMapIntensity: frozen ? 0.8 : 1.1,
-    transparent: !frozen,
+    // lava glows by itself and is opaque; chocolate is thick and dark
+    emissive: glow ?? '#000000',
+    emissiveIntensity: glow ? 0.9 : 0,
+    transparent: !frozen && !glow && !L.waterColor,
     opacity: frozen ? 1 : 0.9,
   });
   const lakeGeo = new THREE.CircleGeometry(1, sea ? 96 : 56);

@@ -61,10 +61,11 @@ describe('map generation', () => {
       }
   });
 
-  it('lets the third act use every course, the city included', () => {
+  it('lets the third act use all of its courses, the city among the crazy ones', () => {
     const seen = new Set<string>();
     for (const seed of seeds) for (const n of allNodes(generateAct(seed, 2))) if (n.course) seen.add(n.course);
     expect(seen.has('city')).toBe(true);
-    expect(seen.size).toBeGreaterThanOrEqual(6);
+    for (const c of ['candy', 'moon', 'kitchen']) expect(seen.has(c)).toBe(true);
+    expect(seen.size).toBeGreaterThanOrEqual(5);
   });
 });

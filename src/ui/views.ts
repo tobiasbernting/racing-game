@@ -1,7 +1,7 @@
 // The run screens, as plain DOM builders: each takes the data and callbacks it needs and returns the
 // element for the card. No state lives here; the App decides what happens on each press.
-import { CAR_BODIES, CAR_DRIVERS, CAR_PAINTS, PART_MAX_LEVEL, CAR_PARTS, type CarBody, type CarDriver, type CarPart } from '../shared/rally.ts';
-import { CAR_BODY_NAMES, CAR_DRIVER_EMOJI, CAR_DRIVER_NAMES, CAR_PART_EMOJI, CAR_PART_NAMES, CAR_PART_TEXT, RALLY_COURSE_NAMES, RIVAL_NAMES } from '../shared/names.ts';
+import { CAR_BODIES, CAR_DRIVERS, CAR_PAINTS, PART_MAX_LEVEL, CAR_PARTS, carStars, newCar, type CarBody, type CarDriver, type CarPart } from '../shared/rally.ts';
+import { CAR_BODY_NAMES, CAR_BODY_TEXT, CAR_DRIVER_EMOJI, CAR_DRIVER_NAMES, CAR_PART_EMOJI, CAR_PART_NAMES, CAR_PART_TEXT, RALLY_COURSE_NAMES, RIVAL_NAMES } from '../shared/names.ts';
 import { RALLY_COURSE_DEFS } from '../shared/rally.ts';
 import { fmtTime } from '../rally/util.ts';
 import { ACTS, NODE_EMOJI, NODE_NAMES, allNodes, type MapNode, type NodeType } from '../run/map.ts';
@@ -88,10 +88,21 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
   const paints = el('div', 'rg-row');
   // built once, only the pressed state changes (so keyboard focus stays where it is)
   const pressed: [HTMLElement, () => boolean][] = [];
+  // one line about the car you stand on: what it is good at, and its stars
+  const desc = el('div', 'rg-bodydesc');
+  const stars = (n: number): string => '★'.repeat(n) + '☆'.repeat(5 - n);
+  const describe = (): void => {
+    const st = carStars(newCar(1, sel.body, ''));
+    desc.replaceChildren(
+      el('span', 'rg-bd-text', `${CAR_BODY_NAMES[sel.body]}: ${CAR_BODY_TEXT[sel.body]}`),
+      el('span', 'rg-bd-stars', `Fart ${stars(st.speed)}  Grepp ${stars(st.grip)}  Tålighet ${stars(st.tough)}`),
+    );
+  };
   const pick = (b: HTMLElement, isOn: () => boolean, set: () => void): void => {
     b.addEventListener('click', () => {
       set();
       pressed.forEach(([x, on]) => x.setAttribute('aria-pressed', String(on())));
+      describe();
       o.onChange(sel);
     });
     pressed.push([b, isOn]);
@@ -117,6 +128,7 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
     pick(x, () => sel.paint === c, () => (sel.paint = c));
     paints.append(x);
   }
+  describe();
   return screen(
     'rg-pick',
     el('h2', 'rg-h', 'Välj bil och förare'),
@@ -124,7 +136,7 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
       'div',
       'rg-pickbody',
       el('div', 'arc-preview rg-preview'),
-      el('div', 'rg-picks', el('div', 'arc-h', 'Bil'), bodies, el('div', 'arc-h', 'Förare'), drivers, el('div', 'arc-h', 'Färg'), paints),
+      el('div', 'rg-picks', el('div', 'arc-h', 'Bil'), bodies, desc, el('div', 'arc-h', 'Förare'), drivers, el('div', 'arc-h', 'Färg'), paints),
     ),
     foot(ghost('← Tillbaka', o.onBack), go('Kör!', () => o.onStart(sel))),
   );

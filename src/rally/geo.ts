@@ -127,6 +127,12 @@ export class Geo {
 
   /** Merge everything into one geometry (the parts are disposed). */
   build(): THREE.BufferGeometry {
+    if (this.parts.length === 0) {
+      // nothing in it (a body without glass): an empty mesh that draws nothing
+      const e = new THREE.BufferGeometry();
+      for (const name of ['position', 'normal', 'color']) e.setAttribute(name, new THREE.Float32BufferAttribute([], 3));
+      return e;
+    }
     const g = this.parts.length === 1 ? this.parts[0]! : mergeGeometries(this.parts, false);
     if (g !== this.parts[0]) for (const p of this.parts) p.dispose();
     this.parts = [];

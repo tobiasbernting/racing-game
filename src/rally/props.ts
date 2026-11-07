@@ -6,8 +6,10 @@ import * as THREE from 'three';
 import type { CourseDef, ScenerySet } from './courses.ts';
 import { Geo, blobTex, canvasTex, mat } from './geo.ts';
 import { forest, lakeDist, streamDist } from './layout.ts';
+import { landmarks, wildTreeKinds, type WildCtx } from './wild.ts';
 import * as M from './models.ts';
 import type { Scenery } from './scenery.ts';
+import type { Variation } from '../shared/variation.ts';
 import type { Terrain } from './terrain.ts';
 import { FenceX, type Track } from './track.ts';
 import { clamp, rng } from './util.ts';
@@ -18,7 +20,7 @@ import { clamp, rng } from './util.ts';
 
 /** The extra fence kinds (5..9), each `len` long along x, standing on y = 0. `lenOnly` skips the geometry. */
 export function themeFencePiece(kind: number, lenOnly = false): { geo: THREE.BufferGeometry; len: number } {
-  const lens: Record<number, number> = { [FenceX.Snow]: 2.6, [FenceX.Tyres]: 1.9, [FenceX.Rope]: 3.0, [FenceX.Logs]: 3.2, [FenceX.Barrier]: 3.0 };
+  const lens: Record<number, number> = { [FenceX.Snow]: 2.6, [FenceX.Tyres]: 1.9, [FenceX.Rope]: 3.0, [FenceX.Logs]: 3.2, [FenceX.Barrier]: 3.0, [FenceX.Candy]: 2.8, [FenceX.Cubes]: 2.4, [FenceX.Rocks]: 3.0 };
   const len = lens[kind] ?? 3;
   if (lenOnly) return { geo: null as unknown as THREE.BufferGeometry, len };
   const g = new Geo();
@@ -40,6 +42,24 @@ export function themeFencePiece(kind: number, lenOnly = false): { geo: THREE.Buf
       const sag = Math.sin(((k + 0.5) / 4) * Math.PI) * 0.22;
       g.box(len / 4 + 0.05, 0.05, 0.05, '#e6d8b0', x0 + len / 8, 0.95 - sag, 0);
     }
+  } else if (kind === FenceX.Candy) {
+    // a candy cane post with a pink rope of marshmallows
+    for (let k = 0; k < 6; k++) g.cyl(0.1, 0.1, 0.2, 6, k % 2 ? '#ffffff' : '#e8412c', -len / 2, 0.1 + k * 0.2, 0);
+    g.cyl(0.1, 0.1, 0.2, 6, '#ffffff', -len / 2 + 0.1, 1.15, 0, 0, 0, Math.PI / 2);
+    for (let k = 0; k < 4; k++) g.ball(0.16, k % 2 ? '#ffd1e8' : '#fff4fa', -len / 2 + 0.35 + k * 0.6, 0.55, 0, 1.1, 0.9, 0.9);
+  } else if (kind === FenceX.Cubes) {
+    // sugar cubes, a few on top of each other
+    for (const [x, y, rot, c] of [
+      [-0.7, 0.2, 0.2, '#fffaf0'],
+      [0.0, 0.2, -0.15, '#f6efe0'],
+      [0.7, 0.2, 0.3, '#fffaf0'],
+      [-0.35, 0.58, 0.1, '#f6efe0'],
+      [0.35, 0.58, -0.25, '#fffaf0'],
+    ] as const)
+      g.box(0.62, 0.38, 0.5, c, x, y, 0, 0, rot, 0);
+  } else if (kind === FenceX.Rocks) {
+    // a low wall of grey moon rocks
+    for (let k = 0; k < 5; k++) g.ball(0.38 + r() * 0.16, k % 2 ? '#8e909a' : '#a2a4ae', -len / 2 + (k + 0.5) * (len / 5), 0.22, (r() - 0.5) * 0.2, 1.0, 0.65, 0.9);
   } else if (kind === FenceX.Logs) {
     // a pile of logs at the forest edge
     for (let k = 0; k < 3; k++) g.cyl(0.24, 0.24, len, 7, k === 1 ? '#7a5a3a' : '#6a4c30', 0, 0.24, -0.25 + k * 0.25, 0, 0, Math.PI / 2);
@@ -335,6 +355,8 @@ const WIND_PATCH = `#include <begin_vertex>
 
 /** Tree kinds per scenery set: near (4), mid (3), far (2). */
 function treeKinds(set: ScenerySet): THREE.BufferGeometry[] {
+  const wild = wildTreeKinds(set);
+  if (wild) return wild;
   const midPine = new Geo().cone(2.3, 7.6, 5, '#2f5b33', 0, 4.4, 0).cyl(0.15, 0.25, 1.6, 4, '#4a3526', 0, 0.8, 0).build();
   const midBirch = new Geo().ball(1.9, '#80ad48', 0, 5.6, 0, 1, 1.2, 1).cyl(0.1, 0.15, 4.6, 4, '#e6e2d8', 0, 2.3, 0).build();
   const midOak = new Geo().ball(2.8, '#507f33', 0, 5.0, 0, 1.15, 0.9, 1.1).cyl(0.25, 0.38, 3.2, 4, '#4a3526', 0, 1.6, 0).build();
@@ -364,13 +386,16 @@ function treeKinds(set: ScenerySet): THREE.BufferGeometry[] {
   return [M.pine(), M.birch(), M.oak(), M.bush(), midPine, midBirch, midOak, farPine, farRound];
 }
 
-export function buildThemeScenery(track: Track, terrain: Terrain, course: CourseDef, quality: 'high' | 'low', timeU: { value: number }, lit: boolean): Scenery {
+export function buildThemeScenery(track: Track, terrain: Terrain, course: CourseDef, quality: 'high' | 'low', timeU: { value: number }, lit: boolean, vary: Variation | null = null): Scenery {
   const group = new THREE.Group();
   const disposables: { dispose(): void }[] = [];
   const high = quality === 'high';
   const set = course.theme.scenery;
   const L = course.layout;
-  const r = rng(20261031 + set.length * 97);
+  const r = rng(20261031 + set.length * 97 + (vary ? (vary.seed & 0xffff) * 13 : 0));
+  const density = vary?.density ?? 1;
+  const tint = vary?.tint ?? [1, 1, 1];
+  const anims: ((time: number, focus: THREE.Vector3) => void)[] = [];
   const keep = <T extends { dispose(): void }>(x: T): T => {
     disposables.push(x);
     return x;
@@ -619,6 +644,10 @@ export function buildThemeScenery(track: Track, terrain: Terrain, course: Course
     }
   }
 
+  if (set === 'desert' || set === 'volcano' || set === 'candy' || set === 'moon' || set === 'kitchen') {
+    landmarks(set, { track, terrain, L, r, high, group, stat, density, keep, statAt, roadside, blocked, anim: anims });
+  }
+
   // ---- trees, in tiles so the far ones can be skipped (the farm's scheme, the set's kinds) ----
   const kinds = treeKinds(set).map(keep);
   const tiles = new Map<string, { kind: number; m: THREE.Matrix4; c: THREE.Color }[]>();
@@ -630,7 +659,7 @@ export function buildThemeScenery(track: Track, terrain: Terrain, course: Course
     let list = tiles.get(key);
     if (!list) tiles.set(key, (list = []));
     const v = 0.82 + r() * 0.3;
-    list.push({ kind, m: mat(x, y, z, 0, r() * Math.PI * 2, 0, s, s * (0.9 + r() * 0.25), s), c: new THREE.Color(v, v * (0.95 + r() * 0.1), v * (0.9 + r() * 0.1)) });
+    list.push({ kind, m: mat(x, y, z, 0, r() * Math.PI * 2, 0, s, s * (0.9 + r() * 0.25), s), c: new THREE.Color(v * tint[0], v * (0.95 + r() * 0.1) * tint[1], v * (0.9 + r() * 0.1) * tint[2]) });
   };
   const roadFar = (x: number, z: number): number => {
     let best = Infinity;
@@ -640,10 +669,10 @@ export function buildThemeScenery(track: Track, terrain: Terrain, course: Course
     }
     return Math.sqrt(best);
   };
-  const clearance = set === 'forest' ? 3.2 : set === 'city' ? 6 : 5;
+  const clearance = set === 'forest' ? 3.2 : set === 'city' ? 6 : set === 'kitchen' ? 9 : set === 'candy' ? 6.5 : 5;
   const nearD = high ? 115 : 85;
   const nearR = 560;
-  const cell = high ? 6.4 : 9.5;
+  const cell = (high ? 6.4 : 9.5) / Math.sqrt(density);
   for (let x = cx - nearR; x < cx + nearR; x += cell)
     for (let z = cz - nearR; z < cz + nearR; z += cell) {
       const px = x + r() * cell;
@@ -695,15 +724,24 @@ export function buildThemeScenery(track: Track, terrain: Terrain, course: Course
 
   // ---- rocks ----
   const rockGeo = keep(M.rock());
+  const rocky = set !== 'city' && set !== 'kitchen' && set !== 'candy' && set !== 'moon';
   if (set === 'ice') {
     const c = rockGeo.getAttribute('color') as THREE.BufferAttribute;
     for (let i = 0; i < c.count; i++) if (i % 3 === 0 || r() < 0.4) c.setXYZ(i, 0.93, 0.95, 0.98);
   }
+  if (set === 'volcano' || set === 'desert') {
+    const c = rockGeo.getAttribute('color') as THREE.BufferAttribute;
+    const col = new THREE.Color(set === 'volcano' ? '#2c2624' : '#c27c46');
+    for (let i = 0; i < c.count; i++) {
+      const k = 0.75 + 0.5 * ((i * 37) % 11) / 11;
+      c.setXYZ(i, col.r * k, col.g * k, col.b * k);
+    }
+  }
   const rocks: THREE.Matrix4[] = [];
-  for (let k = 0; k < 160 && rocks.length < (high ? 60 : 30); k++) {
+  for (let k = 0; k < 160 && rocks.length < Math.round((high ? 60 : 30) * density); k++) {
     const x = cx + (r() - 0.5) * 900;
     const z = cz + (r() - 0.5) * 760;
-    if (blocked(x, z, 24) || set === 'city') continue;
+    if (blocked(x, z, 24) || !rocky) continue;
     const s = 0.6 + r() * 1.6;
     rocks.push(mat(x, terrain.visual(x, z) - 0.2 * s, z, 0, r() * 6, 0, s, s * (0.7 + r() * 0.5), s));
   }
@@ -837,6 +875,7 @@ export function buildThemeScenery(track: Track, terrain: Terrain, course: Course
       fanShirt.instanceMatrix.needsUpdate = true;
       fanRest.instanceMatrix.needsUpdate = true;
       if (beam) beam.rotation.y = time * 0.6;
+      for (const f of anims) f(time, focus);
       for (let k = 0; k < neons.length; k++) {
         // one sign in five flickers now and then
         const fl = k % 5 === 2 && Math.sin(time * 13 + k) > 0.92 ? 0.35 : 1;
