@@ -654,7 +654,14 @@ body {
 .rg-toggle small { font-size: 12px; font-weight: 700; opacity: 0.8; }
 .rg-toggle[aria-pressed='true'] { background: #5fb04a; border-color: #cdf5b8; }
 
-/* pick */
+/* pick: a filter on the lean and a grid of twenty vehicles */
+.rg-filter { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: center; margin: 2px 0 6px; }
+.rg-filter .rg-chipbtn { min-height: 44px; min-width: 44px; padding: 4px 12px; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 6px; flex: 0 1 auto; white-space: nowrap; }
+.rg-filter .rg-chipbtn small { display: inline; font-size: 12px; opacity: 0.8; }
+.rg-bodygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; max-height: min(38vh, 320px); overflow-y: auto; touch-action: pan-y; padding: 2px 6px 8px 2px; scrollbar-width: thin; }
+.rg-bodygrid .rg-chipbtn { min-height: 48px; min-width: 0; padding: 4px 6px; }
+.rg-bodygrid .rg-chipbtn.long { font-size: 13px; letter-spacing: 0; }
+.rg-bodygrid [hidden] { display: none; }
 .rg-pickbody { flex: 1 1 auto; min-height: 0; display: flex; gap: 14px; align-items: stretch; }
 .rg-preview { flex: 1 1 40%; height: auto; margin: 0; min-height: 0; }
 .rg-picks { flex: 1 1 60%; min-height: 0; overflow-y: auto; touch-action: pan-y; padding: 0 4px 4px; }
@@ -688,9 +695,9 @@ body {
 @media (max-height: 420px) {
   .rg-pick > .rg-h { font-size: 20px; margin: 0; }
   .rg-pick .arc-h { font-size: 12px; margin: 2px 0; }
-  .rg-pick .rg-chipbtn { min-height: 34px; padding: 1px 8px; font-size: 13px; }
+  .rg-pick .rg-chipbtn { min-height: 44px; padding: 1px 8px; font-size: 13px; }
   .rg-pick .rg-chipbtn small { font-size: 10px; line-height: 1.1; }
-  .rg-pick .rg-swatch { transform: scale(0.85); margin: -3px; }
+  .rg-pick .rg-swatch { transform: none; margin: 0; }
   .rg-kit-text { display: none; }
   .rg-kit-stars { font-size: 12px; gap: 0 8px; }
   .rg-kit-row { grid-template-columns: 62px minmax(0, 1fr); gap: 6px; }
@@ -901,8 +908,14 @@ div.rg-tcard { cursor: default; }
   /* the pick screen on a phone held sideways: the vehicle list on the left, its kit beside it (no endless scrolling) */
   .rg-picks { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); column-gap: 12px; align-content: start; }
   .rg-picks > * { grid-column: 1; }
-  .rg-picks > .rg-bodydesc { grid-column: 2; grid-row: 1 / span 6; margin-top: 0; }
+  .rg-picks > .rg-bodydesc { grid-column: 2; grid-row: 1 / span 8; margin-top: 0; position: sticky; top: 0; align-self: start; }
   .rg-picks .rg-row { gap: 6px; }
+  /* the list is as long as it is and the whole panel scrolls, with the kit card staying put beside it */
+  .rg-bodygrid { max-height: none; overflow: visible; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; padding: 0 4px 6px 0; }
+  .rg-filter { gap: 4px; flex-wrap: nowrap; }
+  .rg-filter .rg-chipbtn { padding: 2px 6px; font-size: 12px; gap: 3px; flex: 1 1 auto; justify-content: center; }
+  .rg-filter .rg-chipbtn small { display: none; }
+  .rg-bodygrid .rg-chipbtn.long { font-size: 11px; }
   .rg-kit-stars { margin: 3px 0 4px; }
   .rg-cards { gap: 6px; }
   .rg-tcard { padding: 4px 8px; gap: 0; border-radius: 14px; border-width: 2px; }

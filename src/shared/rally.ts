@@ -101,17 +101,17 @@ export const CAR_BODY_DEFS: Record<CarBody, CarBodyDef> = {
   // the snöskoter: grips on snow, ice and sand like tarmac, a bit nervous on the road itself
   snowmobile: { id: 'snowmobile', price: 2600, power: 1.1, grip: 0.9, tough: 0.8, size: 0.95, feel: feel({ mass: 0.7, steer: 1.2, yaw: 0.75, lean: 0.35, punch: 1.1, drag: 0.85, rough: 1.2, landing: 0.9, loose: 1, halfW: 0.6, halfL: 1.25, bumpR: 0.65, bumpAt: 0.9 }) },
   // the gokart: tiny, glued to the road and the best handling there is, but every bump hurts
-  kart: { id: 'kart', price: 3500, power: 0.95, grip: 1.3, tough: 0.55, size: 0.75, feel: feel({ mass: 0.5, steer: 1.4, yaw: 0.55, top: 40, drag: 0.8, rough: 0.6, landing: 1.6, lean: 0.15, halfW: 0.55, halfL: 0.9, bumpR: 0.6, bumpAt: 0.55 }) },
+  kart: { id: 'kart', price: 3500, power: 0.95, grip: 1.3, tough: 0.55, size: 0.75, feel: feel({ mass: 0.5, steer: 1.4, yaw: 0.55, top: 36, drag: 0.8, rough: 0.6, landing: 1.6, lean: 0.15, halfW: 0.55, halfL: 0.9, bumpR: 0.6, bumpAt: 0.55 }) },
   // the golfbil: slow, light, quiet and happy on the grass
-  golf: { id: 'golf', price: 1200, power: 0.5, grip: 1.0, tough: 0.8, size: 0.9, feel: feel({ mass: 0.9, steer: 1.1, yaw: 0.9, top: 19, rough: 1.3, roll: 0.5, punch: 0.8, landing: 0.9, halfW: 0.8, halfL: 1.25, bumpR: 0.8, bumpAt: 0.8 }) },
+  golf: { id: 'golf', price: 1200, power: 0.6, grip: 1.0, tough: 0.8, size: 0.9, feel: feel({ mass: 0.9, steer: 1.1, yaw: 0.9, top: 22, rough: 1.3, roll: 0.5, punch: 0.8, landing: 0.9, halfW: 0.8, halfL: 1.25, bumpR: 0.8, bumpAt: 0.8 }) },
   // the åkgräsklippare: a ride-on mower, much faster on grass than on the road
-  mower: { id: 'mower', price: 1000, power: 0.6, grip: 1.0, tough: 0.9, size: 0.9, feel: feel({ mass: 0.8, steer: 1.2, yaw: 0.8, top: 17, rough: 1.4, roll: 0.08, grass: 1.45, punch: 0.85, landing: 0.9, halfW: 0.8, halfL: 1.15, bumpR: 0.8, bumpAt: 0.75 }) },
+  mower: { id: 'mower', price: 1000, power: 0.65, grip: 1.0, tough: 0.9, size: 0.9, feel: feel({ mass: 0.8, steer: 1.2, yaw: 0.8, top: 20, rough: 1.4, roll: 0.08, grass: 1.45, punch: 0.85, landing: 0.9, halfW: 0.8, halfL: 1.15, bumpR: 0.8, bumpAt: 0.75 }) },
   // the husbil: a camper van, big and slow
   camper: { id: 'camper', price: 3800, power: 0.85, grip: 0.85, tough: 1.7, size: 1.35, feel: feel({ mass: 3.2, steer: 0.75, yaw: 1.8, top: 29, rough: 1.1, punch: 0.85, drag: 1.5, slip: 0.5, landing: 0.5, halfW: 1.25, halfL: 2.3, bumpR: 1.25, bumpAt: 1.7 }) },
   // the limousin: long and fast on the straights, hopeless in a tight bend, and once it slides it keeps sliding
-  limo: { id: 'limo', price: 4500, power: 1.15, grip: 0.8, tough: 1.0, size: 1.2, feel: feel({ mass: 1.8, steer: 0.55, yaw: 2.0, punch: 1.15, drag: 0.85, slide: 1, landing: 0.9, halfW: 1.0, halfL: 3.0, bumpR: 1.0, bumpAt: 2.0 }) },
+  limo: { id: 'limo', price: 4500, power: 1.3, grip: 0.88, tough: 1.0, size: 1.2, feel: feel({ mass: 1.8, steer: 0.68, yaw: 1.75, punch: 1.35, drag: 0.72, slide: 1, landing: 0.9, halfW: 1.0, halfL: 3.0, bumpR: 1.0, bumpAt: 2.0 }) },
   // the kundvagn med raketmotor: light, twitchy and wobbly; the rocket does the rest
-  cart: { id: 'cart', price: 4200, power: 1.0, grip: 0.8, tough: 0.45, size: 0.8, feel: feel({ mass: 0.4, steer: 1.5, yaw: 0.5, top: 15, drag: 1.1, landing: 1.3, punch: 1.0, halfW: 0.55, halfL: 0.85, bumpR: 0.6, bumpAt: 0.5 }) },
+  cart: { id: 'cart', price: 4200, power: 1.0, grip: 0.8, tough: 0.45, size: 0.8, feel: feel({ mass: 0.4, steer: 1.5, yaw: 0.5, top: 18, drag: 1.1, landing: 1.3, punch: 1.0, halfW: 0.55, halfL: 0.85, bumpR: 0.6, bumpAt: 0.5 }) },
 };
 
 // ---------------------------------------------------------------------------

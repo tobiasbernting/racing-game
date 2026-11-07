@@ -39,7 +39,7 @@ export const GEARBOXES: Record<CarBody, GearBox> = {
   // the kart: four close, instant gears
   kart: box([14, 25, 36, 48], 0.05),
   // the golf cart: an electric motor with three smooth steps
-  golf: box([8, 13.5, 21], 0.1),
+  golf: box([8, 13.5, 24], 0.1),
   // the mower: four small gears with a long last one for the grass
   mower: box([6, 11, 17, 27], 0.2),
   // the camper: five slow, clunky gears

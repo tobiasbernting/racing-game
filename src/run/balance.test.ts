@@ -2,7 +2,7 @@
 // scaled kit (upgrades, modifiers, archetype) and the catch-up, and the two run side by side (racesim.ts). A made-up
 // player walks whole runs through the real run rules, building a car as they go.
 import { describe, expect, it } from 'vitest';
-import { racePrize } from '../shared/rally.ts';
+import { CAR_BODIES, racePrize, type CarBody } from '../shared/rally.ts';
 import { HUMAN_FACTOR, type HumanSkill } from '../shared/pace.ts';
 import { buyHeart, buyTrinket, canUpgrade, healPrice, partOfChoice, trinketPrice, workshopUpgrade } from './economy.ts';
 import { choiceAllowed, EVENTS } from './events.ts';
@@ -124,7 +124,7 @@ const winRate = (p: Profile, calm: boolean, runs = 100): number => {
 };
 
 /** A run that has bought everything: the best car, every part at 3, every trinket at its highest stack. */
-function allIn(act: number, body: 'hatch' | 'coupe' | 'tractor' = 'coupe'): RunState {
+function allIn(act: number, body: CarBody = 'coupe'): RunState {
   const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
   r.act = act;
   r.car.parts = { engine: 3, tyres: 3, suspension: 3, brakes: 3, turbo: 3, armour: 3 };
@@ -133,7 +133,7 @@ function allIn(act: number, body: 'hatch' | 'coupe' | 'tractor' = 'coupe'): RunS
 }
 
 /** A strong build the way a run really ends up with one: the best parts and a dozen of the best trinkets. */
-function strongRun(act: number, body: 'hatch' | 'coupe' | 'tractor' = 'coupe'): RunState {
+function strongRun(act: number, body: CarBody = 'coupe'): RunState {
   const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
   r.act = act;
   r.car.parts = { engine: 3, tyres: 3, suspension: 1, brakes: 2, turbo: 2, armour: 3 };
@@ -326,6 +326,66 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
     expect(costsHeart(5, 6, true, true)).toBe(false);
     expect(costsHeart(6, 6, true, true)).toBe(true);
     expect(costsHeart(2, 4, false, true)).toBe(true);
+  });
+});
+
+describe('every vehicle in the balance simulation', { timeout: 120_000 }, () => {
+  /** A run as a plain player has it in act 3: some parts and the trinkets that come with the vehicle. */
+  const plainRun = (body: CarBody): RunState => {
+    const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
+    r.act = 2;
+    r.car.parts = { engine: 2, tyres: 2, suspension: 1, brakes: 1, turbo: 1, armour: 1 };
+    return r;
+  };
+  const plans = lastActPlans(null, 240);
+  const rate = (run: RunState, skill: HumanSkill): { wins: number; place: number } => {
+    const m: PlayerModel = { skill, aggression: 0.6 };
+    const stats = playerStats(run, m);
+    const rg = new Rng(11);
+    let wins = 0;
+    let place = 0;
+    for (const plan of plans) {
+      const r = simulateRace(plan, run, m, rg, stats);
+      if (r.rank === 1) wins++;
+      place += r.rank;
+    }
+    return { wins: wins / plans.length, place: place / plans.length };
+  };
+
+  it('no vehicle dominates, none is worse than the moppe, and the rocket cart is wild but not the best', () => {
+    const table: Record<string, { plain: number; strong: number; place: number }> = {};
+    for (const b of CAR_BODIES) {
+      const plain = rate(plainRun(b), 'good');
+      const strong = rate(strongRun(2, b), 'good');
+      table[b] = { plain: plain.wins, strong: strong.wins, place: plain.place };
+    }
+    console.log(CAR_BODIES.map((b) => `${b}: plain wins ${table[b]!.plain.toFixed(2)} (place ${table[b]!.place.toFixed(2)}), strong wins ${table[b]!.strong.toFixed(2)}`).join('\n'));
+    const NEW = ['epa', 'icecream', 'garbage', 'snowmobile', 'kart', 'golf', 'mower', 'camper', 'limo', 'cart'] as const;
+    const OLD = CAR_BODIES.filter((b) => !(NEW as readonly string[]).includes(b));
+    // no new vehicle wins more than the best of the old ones (a hair of noise aside), with a plain build or with a strong one
+    for (const key of ['plain', 'strong'] as const) {
+      const oldBest = Math.max(...OLD.map((b) => table[b]![key]));
+      for (const b of NEW) expect(table[b]![key], `${b} ${key}`).toBeLessThanOrEqual(oldBest + 0.03);
+      expect(Math.max(...CAR_BODIES.map((b) => table[b]![key]))).toBeLessThan(0.93);
+    }
+    // the cart is not the best vehicle in either build
+    for (const key of ['plain', 'strong'] as const) {
+      const best = Math.max(...CAR_BODIES.filter((b) => b !== 'cart').map((b) => table[b]![key]));
+      expect(table.cart![key]).toBeLessThanOrEqual(best);
+    }
+    // the slow ones are slow on purpose, like the moppe, but not worse than it: nobody is hopelessly last
+    for (const b of NEW) expect(table[b]!.place, b).toBeLessThanOrEqual(table.moped!.place + 0.1);
+    // and the quick ones (kart, snowmobile) are in the pack of the quick old ones, not above it
+    for (const b of ['kart', 'snowmobile'] as const) expect(table[b]!.place, b).toBeGreaterThanOrEqual(Math.min(...OLD.map((o) => table[o]!.place)) - 0.15);
+  });
+
+  it('the ten newest vehicles race a lap in a believable time: none is faster than the sportbil by more than 3 percent or slower than 1.4 times the car', () => {
+    const plain = (b: CarBody): number => playerStats(plainRun(b), { skill: 'good', aggression: 0.5 }).lap('farm');
+    const hatch = plain('hatch');
+    for (const b of ['epa', 'icecream', 'garbage', 'snowmobile', 'kart', 'golf', 'mower', 'camper', 'limo', 'cart'] as const) {
+      expect(plain(b) / hatch, b).toBeGreaterThan(plain('coupe') / hatch - 0.03);
+      expect(plain(b) / hatch, b).toBeLessThan(1.45);
+    }
   });
 });
 void ACTS;

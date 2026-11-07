@@ -10,7 +10,7 @@ import { Loop } from '../arcade/kit.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { AWNING, CHAOS_TEXT, DODGE, DRAFT, EPA_BURST, HOLE_IN_ONE, HOP, ICE_CANNON, JINGLE, KART_SLIDE, KICKSTART, MOW, PASSIVE_RAM, POUND, POWDER, RAMMER, REPAIR, ROCKET, SCAVENGE, SLINGSHOT, SOFTLAND, VIP, WHEELIE_ROCKET, WOBBLE, chaosPick, chargeOf, draftTarget, kitOf, pivotDir } from '../shared/abilities.ts';
 import { rivalById, rivalCast } from '../shared/rivals.ts';
-import { LASTLAP_BOOST, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
+import { LASTLAP_BOOST, archetypeBodies, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
 import { KIND_AGGRO, pointsTable, type RaceKind } from '../shared/kinds.ts';
 import { BIG_HIT, RESPAWN_HP, TakedownLedger, WRECK_SECONDS, impactDamage, maxHpOf, ramPowerOf } from './combat.ts';
 import type { GameContext, GameInstance } from '../arcade/types.ts';
@@ -161,12 +161,7 @@ function pickColors(player: string, n: number): string[] {
 
 /** The body a rival of this temper drives: rammers like heavy things, racers quick light ones. */
 function archetypeBody(seed: number, k: number, spec: RivalSpec): CarBody {
-  const table: Record<string, [CarBody, number][]> = {
-    rammer: [['pickup', 2], ['tractor', 1.4], ['hatch', 1], ['monster', spec.role === 'rival' ? 0.3 : 0.9], ['sofa', 0.5], ['garbage', 1.3], ['camper', 1.1]],
-    racer: [['coupe', 2], ['buggy', 1.5], ['moto', 1.2], ['atv', 1], ['hatch', 1], ['kart', 1.4], ['limo', 1.1], ['snowmobile', 1]],
-    mixed: [['hatch', 2], ['buggy', 1], ['pickup', 1], ['coupe', 1], ['atv', 1], ['moped', 0.5], ['sofa', 0.5], ['icecream', 0.7], ['golf', 0.6], ['mower', 0.6], ['cart', 0.4], ['epa', 0.3]],
-  };
-  const list = table[spec.archetype]!;
+  const list = archetypeBodies(spec.archetype, spec.role);
   let x = seededUnit(seed, k + 40) * list.reduce((a, [, w]) => a + w, 0);
   for (const [b, w] of list) {
     x -= w;

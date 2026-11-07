@@ -409,7 +409,7 @@ export class Car {
       capR = Math.max(capR, rearMax * 0.25);
       if (c.handbrake && va > 2) capR *= 0.5;
       // the limousine: once the tail has stepped out, the grip stays gone and it slides on
-      if (F.slide > 0) capR *= 1 - 0.38 * F.slide * smooth(0.12, 0.45, this.rearSlip);
+      if (F.slide > 0) capR *= 1 - 0.5 * F.slide * smooth(0.12, 0.45, this.rearSlip);
       const fyF = -capF * tyre(af, 11);
       const fyR = -capR * tyre(ar, 14);
       this.fyRear = fyR;
@@ -455,7 +455,7 @@ export class Car {
       if (!c.handbrake && Math.abs(vLong) > 4) {
         const b = Math.atan2(vLat, Math.abs(vLong));
         const want = yawKin;
-        const k = this.assist * 7 * smooth(0.06, 0.35, Math.abs(b)) * (1 - 0.7 * F.slide);
+        const k = this.assist * 7 * smooth(0.06, 0.35, Math.abs(b)) * (1 - 0.85 * F.slide);
         this.yawRate += (want - this.yawRate) * (1 - Math.exp(-dt * k));
       }
       this.vx = vLong * sinH + vLat * cosH;

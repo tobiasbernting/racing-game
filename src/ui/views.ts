@@ -12,7 +12,7 @@ import { fmtTime } from '../rally/util.ts';
 import { ACTS, NODE_EMOJI, NODE_NAMES, allNodes, type MapNode, type NodeType } from '../run/map.ts';
 import { isUnlocked, unlockedTrinkets, type Meta } from '../run/meta.ts';
 import { challengeFor, progressText } from '../run/unlocks.ts';
-import { LEAN_EMOJI, LEAN_NAMES, LEAN_TEXT, kitOf } from '../shared/abilities.ts';
+import { LEANS, LEAN_EMOJI, LEAN_NAMES, LEAN_TEXT, kitOf, type Lean } from '../shared/abilities.ts';
 import { canUpgrade, healPrice, repairPrice, rerollPrice, trinketPrice } from '../run/economy.ts';
 import { EVENTS, choiceAllowed, eventById } from '../run/events.ts';
 import { currentNode, currentPlan } from '../run/flow.ts';
@@ -132,6 +132,7 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
   // built once, only the pressed state changes (so keyboard focus stays where it is)
   const pressed: [HTMLElement, () => boolean][] = [];
   const desc = el('div', 'rg-bodydesc');
+  let applyFilterLater = (): void => {};
   const start = go('Kör!', () => {
     if (isUnlocked(meta, sel.body)) o.onStart(sel);
   });
@@ -146,20 +147,49 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
       set();
       pressed.forEach(([x, on]) => x.setAttribute('aria-pressed', String(on())));
       describe();
+      applyFilterLater();
       o.onChange(sel);
     });
     pressed.push([b, isOn]);
     b.setAttribute('aria-pressed', String(isOn()));
   };
+  // twenty vehicles: a filter on the lean (Alla, Ram, Race, Blandat) over a grid you can scroll
+  type LeanFilter = 'all' | Lean;
+  let filter: LeanFilter = 'all';
+  const chips: [CarBody, HTMLElement][] = [];
+  const applyFilter = (): void => {
+    for (const [b, x] of chips) x.hidden = filter !== 'all' && kitOf(b).lean !== filter && sel.body !== b;
+  };
+  const filterRow = el('div', 'rg-filter');
+  filterRow.setAttribute('role', 'group');
+  filterRow.setAttribute('aria-label', 'Visa fordon');
+  const filters: [LeanFilter, string][] = [['all', 'Alla'], ...LEANS.map((l): [LeanFilter, string] => [l, `${LEAN_EMOJI[l]} ${LEAN_NAMES[l]}`])];
+  const filterBtns: [HTMLElement, LeanFilter][] = [];
+  for (const [f, label] of filters) {
+    const x = btn('rg-chipbtn rg-filterbtn', label);
+    x.setAttribute('aria-pressed', String(f === filter));
+    x.addEventListener('click', () => {
+      filter = f;
+      for (const [fb, ff] of filterBtns) fb.setAttribute('aria-pressed', String(ff === f));
+      applyFilter();
+    });
+    filterBtns.push([x, f]);
+    filterRow.append(x);
+  }
+  bodies.className = 'rg-bodygrid';
   for (const b of CAR_BODIES) {
     const locked = !isUnlocked(meta, b);
     const ch = challengeFor(b);
-    const x = btn(`rg-chipbtn${locked ? ' locked' : ''}`, locked ? `🔒 ${CAR_BODY_NAMES[b]}` : CAR_BODY_NAMES[b]);
+    const name = CAR_BODY_NAMES[b];
+    const x = btn(`rg-chipbtn${locked ? ' locked' : ''}${name.length >= 11 ? ' long' : ''}`, locked ? `🔒 ${name}` : name);
     if (locked && ch) x.append(el('small', null, `${Math.min(ch.goal, meta.progress[ch.id] ?? 0)}/${ch.goal}`));
     else x.append(el('small', null, `${LEAN_EMOJI[kitOf(b).lean]} ${LEAN_NAMES[kitOf(b).lean]}`));
     pick(x, () => sel.body === b, () => (sel.body = b));
+    chips.push([b, x]);
     bodies.append(x);
   }
+  applyFilterLater = applyFilter;
+  const openCount = CAR_BODIES.filter((b) => isUnlocked(meta, b)).length;
   for (const d of CAR_DRIVERS) {
     const x = btn('rg-chipbtn', `${CAR_DRIVER_EMOJI[d]} ${CAR_DRIVER_NAMES[d]}`);
     pick(x, () => sel.driver === d, () => (sel.driver = d));
@@ -180,7 +210,7 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
       'div',
       'rg-pickbody',
       el('div', 'arc-preview rg-preview'),
-      el('div', 'rg-picks', el('div', 'arc-h', 'Bil'), bodies, desc, el('div', 'arc-h', 'Förare'), drivers, el('div', 'arc-h', 'Färg'), paints),
+      el('div', 'rg-picks', el('div', 'arc-h', `Bil · ${openCount} av ${CAR_BODIES.length} upplåsta`), filterRow, bodies, desc, el('div', 'arc-h', 'Förare'), drivers, el('div', 'arc-h', 'Färg'), paints),
     ),
     foot(ghost('← Tillbaka', o.onBack), start),
   );
