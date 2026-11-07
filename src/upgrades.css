@@ -16,6 +16,10 @@
 .up-tier { font-size: 12px; font-weight: 800; opacity: 0.8; white-space: nowrap; }
 .rg-tag.up-combo { position: static; margin-top: 4px; background: #15120d; color: #ffd23f; border-radius: 4px; padding: 3px 8px; font-size: 12px; letter-spacing: 0.02em; }
 
+.rg-rhead { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.rg-reward .rg-rhead { margin-top: auto; }
+.rg-reward .rg-rhead .rg-h { margin-top: 0; }
+.up-leave { display: none; }
 .rg-rtabs { flex: none; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .rg-rtab { min-width: 150px; }
 .rg-rhint { flex: none; opacity: 0.8; font-size: 13px; }
@@ -111,7 +115,7 @@
 
 .up-detail {
   flex: none;
-  min-height: 62px;
+  min-height: 40px;
   display: flex;
   gap: 10px;
   align-items: center;
@@ -121,6 +125,7 @@
   color: var(--ink, #15120d);
   box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.55);
 }
+.up-detail.has { min-height: 62px; }
 .up-d-i { font-size: 34px; line-height: 1; }
 .up-d-t { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 14px; line-height: 1.2; }
 .up-d-t b { font-size: 16px; }
@@ -131,7 +136,7 @@
 .up-open { opacity: 0.8; font-size: 12px; }
 .up-combo-tag { background: #15120d; color: #ffd23f; border-radius: 4px; padding: 2px 6px; font-size: 12px; }
 .up-hint { font-size: 13px; opacity: 0.8; padding: 4px; }
-.up-buy.rg-go { min-height: 46px; padding: 4px 14px; font-size: 16px; flex: none; }
+.up-buy.rg-go { min-height: 46px; padding: 4px 12px 4px 26px; font-size: 15px; letter-spacing: 0; flex: none; white-space: nowrap; }
 .up-buy.rg-go:disabled { opacity: 0.5; filter: grayscale(0.6); box-shadow: none; }
 
 .up-combos { display: flex; flex-direction: column; gap: 6px; }
@@ -179,19 +184,20 @@
   .up-tab .up-tn { display: none; }
   .up-tab[aria-selected='true'] .up-tn { display: block; font-size: 10px; }
   .up-te { font-size: 18px; }
-  .up-treetext { font-size: 12px; }
-  .up-treetext small { display: none; }
+  .up-treetext { display: none; }
+  .rg-work .rg-foot .rg-go { min-height: 44px; font-size: 18px; padding: 2px 20px; }
   .up-line { padding: 3px 6px; gap: 2px 6px; grid-template-columns: minmax(96px, 24%) 1fr; }
   .up-le { font-size: 18px; }
   .up-lh { font-size: 12px; }
   .up-node { min-height: 44px; flex-basis: 104px; font-size: 12px; }
-  .up-detail { min-height: 52px; padding: 3px 8px; gap: 8px; }
+  .up-detail { min-height: 36px; padding: 3px 8px; gap: 8px; }
+  .up-detail.has { min-height: 50px; }
   .up-d-i { font-size: 26px; }
   .up-d-t { font-size: 12px; }
   .up-d-t b { font-size: 14px; }
   .up-d-t span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .up-d-a { max-width: 150px; font-size: 12px; }
-  .up-buy.rg-go { min-height: 44px; font-size: 14px; padding: 2px 8px; }
+  .up-buy.rg-go { min-height: 44px; font-size: 14px; padding: 2px 8px 2px 24px; }
   .up-preview { min-height: 90px; }
   .up-vehicle { font-size: 11px; }
   .up-mix { min-height: 26px; }
@@ -199,11 +205,22 @@
   .up-c-i { font-size: 22px; }
   .rg-rtab { min-width: 130px; min-height: 44px; }
   .rg-rhint { display: none; }
+  .rg-rhead { flex-direction: row; justify-content: center; gap: 14px; }
+  .rg-reward .rg-rhead .rg-h { margin: 0; font-size: 20px; }
+  .rg-reward .up-card .rg-tem { font-size: 34px; }
+  .rg-reward .up-card .rg-tname { font-size: 16px; }
+  .rg-reward .up-card .rg-ttext { font-size: 13px; }
+  .rg-reward .up-card { padding: 12px 8px 6px; }
+  /* the workshop: the way out lives in the status bar, and the heading is a thin line */
+  .up-leave { display: inline-block; }
+  .rg-work .rg-foot { display: none; }
+  .rg-workbody > .rg-shophead { min-height: 0; }
+  .rg-workbody > .rg-shophead .rg-h { font-size: 16px; padding: 0 10px; }
   /* the workshop: the tree on the left, repair and paint in a column on the right (no room for a row below) */
   .rg-workbody { display: grid; grid-template-columns: minmax(0, 1fr) 216px; grid-template-rows: auto minmax(0, 1fr); gap: 4px 10px; justify-content: stretch; }
   .rg-workbody > .rg-shophead { grid-column: 1 / -1; }
   .rg-workbody > .up-panel { grid-column: 1; grid-row: 2; }
-  .rg-workbody > .rg-workrow { grid-column: 2; grid-row: 2; flex-direction: column; align-items: stretch; justify-content: flex-start; overflow-y: auto; gap: 6px; }
+  .rg-workbody > .rg-workrow { grid-column: 2; grid-row: 2; flex-direction: column; align-items: stretch; justify-content: flex-start; flex-wrap: nowrap; overflow-y: auto; gap: 6px; }
   .rg-workbody .rg-note { display: none; }
   .rg-workbody .rg-paintbox .rg-row { gap: 6px; }
   .rg-workbody .rg-swatch { width: 44px; height: 44px; }

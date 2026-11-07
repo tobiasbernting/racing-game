@@ -472,7 +472,7 @@ export function rewardView(run: RunState, scr: Extract<Screen, { kind: 'reward' 
   };
   draw();
   const hint = both ? el('small', 'rg-rhint', 'Du får EN av dem. Bilen växer av uppgraderingar, prylar ändrar reglerna.') : null;
-  return screen('rg-reward', statusBar(run), el('h2', 'rg-h', title), both ? tabs : null, hint, upGrid, trinketGrid, foot(ghost('Nej tack (+30 kr)', () => o.onPick(-1))));
+  return screen('rg-reward', statusBar(run), el('div', 'rg-rhead', el('h2', 'rg-h', title), both ? tabs : null), hint, upGrid, trinketGrid, foot(ghost('Nej tack (+30 kr)', () => o.onPick(-1))));
 }
 
 // ---- shop ----
@@ -521,7 +521,7 @@ export function workshopView(run: RunState, scr: Extract<Screen, { kind: 'worksh
   repair.disabled = scr.used || run.car.damage <= 0;
   return screen(
     'rg-work',
-    statusBar(run),
+    statusBar(run, btn('rg-icon wide up-leave', scr.used ? 'Klar → karta' : 'Strunt i det', o.onLeave)),
     el(
       'div',
       'rg-workbody',

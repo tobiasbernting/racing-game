@@ -101,13 +101,13 @@ const RAM: LineDef[] = [
     emoji: '🛡️',
     weight: 1.2,
     tiers: [
-      { name: 'Pansarplåt', text: 'Grannens bastudörr på sidorna. Du tål 14 % mer och har lite mer hälsa i Blodbad.' },
+      { name: 'Pansarplåt', text: 'Grannens bastudörr på sidorna. Du tål 14 % mer och har 10 % mer hälsa i Blodbad.' },
       { name: 'Dubbelpansar', text: 'Två bastudörrar. Ännu 14 % tåligare. Taket är numera mest en ursäkt.' },
       { name: 'Bunkerdörren', text: 'Plåt som ett bankvalv. Ännu 14 % tåligare, och du ser ut som ett skafferi på hjul.' },
     ],
     tune(t, n) {
       t.tough *= Math.pow(0.86, n);
-      t.hp *= Math.pow(1.08, n);
+      t.hp *= Math.pow(1.1, n);
     },
   },
   {
@@ -136,7 +136,7 @@ const RAM: LineDef[] = [
       { name: 'Spikgaller', text: 'Spikar på alla hörn och på hjulen. Dina smällar får ännu mer kläm. Tvättstugan klagar.' },
     ],
     tune(t, n) {
-      t.shove += n === 1 ? 0.45 : 1;
+      t.shove += n === 1 ? 0.5 : 1.1;
     },
   },
   {
@@ -146,11 +146,11 @@ const RAM: LineDef[] = [
     emoji: '🔨',
     weight: 1,
     tiers: [
-      { name: 'Slägga', text: 'Smällarna gör 30 % mer skada på andra bilar (Blodbad) och puttar lite hårdare.' },
-      { name: 'Rivningsklot', text: 'Smällarna gör ännu 30 % mer skada. Bilar som ser dig börjar plötsligt ha bråttom.' },
+      { name: 'Slägga', text: 'Smällarna gör 35 % mer skada på andra bilar (Blodbad) och puttar lite hårdare.' },
+      { name: 'Rivningsklot', text: 'Smällarna gör ännu 35 % mer skada. Bilar som ser dig börjar plötsligt ha bråttom.' },
     ],
     tune(t, n) {
-      t.spike *= Math.pow(1.3, n);
+      t.spike *= Math.pow(1.35, n);
       t.shove += 0.15 * n;
     },
   },
@@ -280,11 +280,11 @@ const RACE: LineDef[] = [
     emoji: '⏱️',
     weight: 0.9,
     tiers: [
-      { name: 'Stor ventil', text: 'Nitron varar 25 % längre och sparkar lite hårdare.' },
-      { name: 'Jättestor ventil', text: 'Nitron varar ännu 25 % längre. Det luktar bränt, men fint.' },
+      { name: 'Stor ventil', text: 'Nitron varar 20 % längre och sparkar lite hårdare.' },
+      { name: 'Jättestor ventil', text: 'Nitron varar ännu 20 % längre. Det luktar bränt, men fint.' },
     ],
     tune(t, n) {
-      t.nitroSeconds *= Math.pow(1.25, n);
+      t.nitroSeconds *= Math.pow(1.2, n);
       t.nitroPower *= Math.pow(1.08, n);
     },
   },
@@ -295,11 +295,11 @@ const RACE: LineDef[] = [
     emoji: '🌀',
     weight: 1,
     tiers: [
-      { name: 'Sladdstyrning', text: 'Sladdar laddar mini-turbon 40 % fortare.' },
-      { name: 'Sladdkungen', text: 'Ännu 40 % fortare, och varje sladd slutar med en extra liten spark.' },
+      { name: 'Sladdstyrning', text: 'Sladdar laddar mini-turbon 30 % fortare.' },
+      { name: 'Sladdkungen', text: 'Ännu 30 % fortare, och varje sladd slutar med en extra liten spark.' },
     ],
     tune(t, n) {
-      t.driftRate *= Math.pow(1.4, n);
+      t.driftRate *= Math.pow(1.3, n);
     },
     hooks: {
       drift(c, _s, tier) {
@@ -321,7 +321,7 @@ const RACE: LineDef[] = [
     ],
     tune(t, n) {
       t.top *= Math.pow(1.08, n);
-      t.power *= Math.pow(1.03, n);
+      t.power *= Math.pow(1.02, n);
       t.grip *= Math.pow(1.01, n);
     },
   },
@@ -334,8 +334,8 @@ const RACE: LineDef[] = [
     cap: true,
     tiers: [{ name: 'Formelbilen', text: 'Allt klickar: mer effekt, starkare nitro, och varje boost får en extra spark.' }],
     tune(t) {
-      t.power *= 1.05;
-      t.nitroPower *= 1.1;
+      t.power *= 1.03;
+      t.nitroPower *= 1.06;
     },
     hooks: {
       boost(c, kind) {

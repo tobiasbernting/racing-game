@@ -1594,6 +1594,12 @@ function hash3(x: number, y: number, z: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/** The measurements and the (not yet built) geometry of a body, without any drawing: what the shared builder gets from each body (tests and the upgrade looks use it). */
+export function bodySpecOf(body: CarBody, style: CarStyle = defaultStyle(), hi = true): { spec: BodySpec; P: Parts } {
+  const P: Parts = { pg: new PaintGeo(), tg: new Geo(), glass: new Geo(), lamp: new Geo(), brake: new Geo(), style, hi };
+  return { spec: BODIES[BODIES[body] ? body : 'hatch'](P), P };
+}
+
 /** A car for a body and a style, front along +z. The arcade default is the red hatchback. */
 export function carModel(opts: CarModelOpts): CarModel {
   const style = opts.style ?? defaultStyle();

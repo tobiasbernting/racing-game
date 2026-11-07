@@ -149,11 +149,11 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
   let myWrecks = 0;
   const take: Record<string, number> = {};
   if (carnage) {
-    const lam = 0.35 + m.aggression * (1.1 + 2.4 * (stats.ram - 1) + 0.5 * (stats.mass - 1) + 0.4 * (stats.mass > 2 ? 1 : 0)) * (0.88 + 0.12 * stats.dmg);
+    const lam = 0.35 + m.aggression * (1.1 + 2.4 * (stats.ram - 1) + 0.5 * (stats.mass - 1) + 0.4 * (stats.mass > 2 ? 1 : 0)) * (0.8 + 0.2 * stats.dmg);
     myTake = poisson(rg, Math.min(6, lam));
     for (const sp of field.rivals) take[`ai${sp.slot}`] = poisson(rg, 0.15 + 0.5 * sp.aggro * sp.ram);
     const hunt = field.rivals.reduce((a, sp) => a + sp.aggro * sp.ram, 0);
-    myWrecks = poisson(rg, (0.25 + 0.3 * hunt * (stats.tough / Math.sqrt(stats.hp))) / (0.7 + 0.3 * stats.mass));
+    myWrecks = poisson(rg, (0.25 + 0.3 * hunt * (stats.tough / Math.pow(stats.hp, 0.6))) / (0.7 + 0.3 * stats.mass));
     for (let k = 0; k < myWrecks && field.rivals.length; k++) {
       const sp = field.rivals[rg.int(0, field.rivals.length - 1)]!;
       take[`ai${sp.slot}`] = (take[`ai${sp.slot}`] ?? 0) + 1;

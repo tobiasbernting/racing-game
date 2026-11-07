@@ -508,6 +508,10 @@ const rally = (ctx: GameContext): GameInstance => {
         return s;
       };
       (window as unknown as { __rallyDebug: unknown }).__rallyDebug = {
+        /** The race api and the hook bus: a test fires a trick, a mine or a shockwave by hand. */
+        api,
+        bus: mods.bus,
+        look: () => ({ ramUpT, flameT, decoyT, airT, flipA, nearOn }),
         tumble: () => knock(player(), 99, 1),
         honk: () => honk(player()),
         swap: (b: CarBody) => swapPlayerBody(b),

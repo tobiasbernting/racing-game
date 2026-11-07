@@ -116,6 +116,7 @@ export function treePanel(run: RunState, o: TreePanelOpts): HTMLElement {
   const drawDetail = (): void => {
     detail.replaceChildren();
     const u = sel ? upgradeById(sel) : null;
+    detail.classList.toggle('has', !!u && tab !== 'combos');
     if (!u || tab === 'combos') {
       detail.append(el('span', 'up-hint', o.mode === 'buy' ? 'Tryck på en uppgradering för att läsa om den.' : 'Tryck på en uppgradering för att läsa om den. Fyllda är dina.'));
       return;
@@ -250,8 +251,8 @@ function mixBar(run: RunState): HTMLElement {
 export function buildScreen(run: RunState, o: { onClose(): void }): HTMLElement {
   const left = el('div', 'up-left', el('div', 'up-preview'), mixBar(run), el('small', 'up-vehicle', `${kitOf(run.car.body).active.emoji} ${CAR_BODY_NAMES[run.car.body]} · ${run.up.length} ${run.up.length === 1 ? 'uppgradering' : 'uppgraderingar'}`));
   const right = treePanel(run, { mode: 'view' });
-  const close = btn('rg-go', 'Tillbaka till kartan', o.onClose);
-  return el('div', 'rg-screen up-build', statusBar(run), el('div', 'up-buildbody', left, right), el('div', 'rg-foot', close));
+  const close = btn('rg-icon wide up-close', '← Till kartan', o.onClose);
+  return el('div', 'rg-screen up-build', statusBar(run, close), el('div', 'up-buildbody', left, right));
 }
 
 /** The workshop's tree panel (taking nodes) with its heading, for workshopView. */

@@ -276,6 +276,15 @@ export function addUpgradeLook(P: Parts, s: BodySpec, look: Look | undefined): v
     tg.add(new THREE.CylinderGeometry(0.1, 0.1, 0.02, 10), GOLD, mat(x, topY + 0.26, z + 0.215, Math.PI / 2));
     if (interest >= 3) tg.ball(0.14, '#b8956a', x + 0.26, topY + 0.14, z + 0.04, 1, 0.9, 1);
   }
+  const bounty = L('girig.bounty');
+  if (bounty > 0) {
+    // a little gold pennant on a post by the nose: the bounty hunter's flag
+    const x = -hw * 0.75;
+    const z = rider ? noseZ - 0.9 : zFront - 0.35;
+    rod(V(x, s.belt, z), V(x, s.belt + 0.55, z), 0.015, DARK);
+    tg.box(0.02, 0.16, 0.26 + 0.08 * bounty, GOLD, x, s.belt + 0.46, z - 0.14);
+    tg.ball(0.045, GOLD2, x, s.belt + 0.58, z, 1, 1, 1, 0);
+  }
   if (L('girig.cap') > 0) {
     // a gold ornament on the nose
     tg.ball(0.1, GOLD, 0, s.belt + 0.08 + (rider ? 0.5 : 0), rider ? noseZ - 0.8 : s.screen.z0 + 0.4, 1, 1, 1.4, 1);

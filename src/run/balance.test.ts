@@ -300,6 +300,90 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
     expect(wonFromThirdRam / thirdRam).toBeGreaterThan((wonFromThirdClean / Math.max(1, thirdClean)) * 2);
   });
 
+  it('a pure Ram build and a pure Race build are both viable: Ram wins its runs through Blodbad, Race through Rally, and each has the better of the other on its own ground', () => {
+    const byKind = (st: Strategy): { win: Record<string, number>; n: Record<string, number>; run: number } => {
+      const win: Record<string, number> = { rally: 0, mixed: 0, carnage: 0 };
+      const n: Record<string, number> = { rally: 0, mixed: 0, carnage: 0 };
+      let wins = 0;
+      for (let i = 0; i < 100; i++) {
+        const r = playRun(3000 + i, profile('good', st), false);
+        if (r.run.status === 'won') wins++;
+        for (const x of r.races) {
+          if (x.boss) continue;
+          n[x.kind]!++;
+          if (x.place === 1) win[x.kind]!++;
+        }
+      }
+      return { win, n, run: wins / 100 };
+    };
+    const ram = byKind('ram');
+    const race = byKind('race');
+    const rate = (b: ReturnType<typeof byKind>, k: string): number => b.win[k]! / Math.max(1, b.n[k]!);
+    console.log('ram: runs won', ram.run, 'rally', rate(ram, 'rally').toFixed(2), 'mixed', rate(ram, 'mixed').toFixed(2), 'blodbad', rate(ram, 'carnage').toFixed(2), '| race: runs won', race.run, 'rally', rate(race, 'rally').toFixed(2), 'mixed', rate(race, 'mixed').toFixed(2), 'blodbad', rate(race, 'carnage').toFixed(2));
+    // both can win a run, and neither is the only way to win one
+    expect(ram.run).toBeGreaterThan(0.12);
+    expect(ram.run).toBeLessThan(0.7);
+    expect(race.run).toBeGreaterThan(0.3);
+    expect(race.run).toBeLessThan(0.7);
+    // the ram build is at home in Blodbad, the race build in Rally
+    // (Blodbad is the harder race for everybody, so the sign of the comparison is between the builds, not between the kinds)
+    expect(rate(ram, 'rally') - rate(ram, 'carnage')).toBeLessThan(rate(race, 'rally') - rate(race, 'carnage') - 0.1);
+    expect(rate(ram, 'carnage')).toBeGreaterThan(rate(race, 'carnage') + 0.05);
+    expect(rate(race, 'rally')).toBeGreaterThan(rate(ram, 'rally') + 0.05);
+  });
+
+  it('the finished builds of the trees, one per path, are a fight in act 3 and nobody is lapped by any of them', () => {
+    const build = (body: CarBody, lines: string[]): RunState => {
+      const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
+      r.act = 2;
+      for (const l of lines) {
+        const def = UPGRADES.filter((u) => u.line === l);
+        for (const u of def) takeNode(r.up, u.id);
+      }
+      r.trinkets = [['kanelbullar', 3], ['dubbdack', 3], ['alghorn', 3], ['jattehjul', 3], ['kastrull', 3], ['tvattbjorn', 2]].map(([id, n]) => ({ id: id as string, n: n as number }));
+      return r;
+    };
+    const builds: [string, RunState][] = [
+      ['Ram', build('pickup', ['ram.plates', 'ram.ballast', 'ram.spikes', 'ram.hammer', 'ram.shock', 'ram.boost', 'ram.cap', 'race.engine'])],
+      ['Race', build('coupe', ['race.engine', 'race.grip', 'race.nitro', 'race.long', 'race.drift', 'race.aero', 'race.cap', 'race.brakes'])],
+      ['Stunt', build('hatch', ['stunt.air', 'stunt.flip', 'stunt.near', 'stunt.wheel', 'stunt.cap', 'stunt.susp', 'race.engine', 'race.grip'])],
+      ['Fuffens', build('buggy', ['fuffens.oil', 'fuffens.mine', 'fuffens.smoke', 'fuffens.fake', 'fuffens.cap', 'race.engine', 'race.grip'])],
+      ['Girig', build('hatch', ['girig.interest', 'girig.bounty', 'girig.ins', 'girig.disc', 'girig.gold', 'girig.cap', 'race.engine', 'race.grip'])],
+    ];
+    const plans = lastActPlans(null, 240);
+    for (const [name, run] of builds) {
+      const m: PlayerModel = { skill: 'good', aggression: name === 'Ram' ? 1 : 0.5 };
+      const stats = playerStats(run, m);
+      const rg = new Rng(9);
+      let wins = 0;
+      let lapped = 0;
+      for (const plan of plans) {
+        const r = simulateRace(plan, run, m, rg, stats);
+        if (r.rank === 1) wins++;
+        if (r.lapped) lapped++;
+      }
+      console.log(`${name} (${run.car.body}) in act 3: wins ${wins}/${plans.length}`);
+      expect(lapped, name).toBe(0);
+      expect(wins / plans.length, name).toBeLessThan(0.97);
+    }
+    // the Race build with its upgrades is quicker than the same car without them, and the Ram build wins Blodbad more often than Rally
+    const raceBuild = builds[1]![1];
+    const bare = build('coupe', []);
+    bare.trinkets = raceBuild.trinkets;
+    const m: PlayerModel = { skill: 'good', aggression: 0.3 };
+    expect(playerStats(raceBuild, m).lap('farm')).toBeLessThan(playerStats(bare, m).lap('farm'));
+    const ramBuild = builds[0]![1];
+    const carnage = lastActPlans('carnage', 300);
+    const rally = lastActPlans('rally', 300);
+    const mr: PlayerModel = { skill: 'good', aggression: 1 };
+    const sr = playerStats(ramBuild, mr);
+    const rate = (ps: typeof carnage): number => {
+      const rg = new Rng(4);
+      return ps.filter((p) => simulateRace(p, ramBuild, mr, rg, sr).rank === 1).length / ps.length;
+    };
+    expect(rate(carnage)).toBeGreaterThan(rate(rally));
+  });
+
   it('a win is a pick of three, second place a pick of two plain ones, and in Blodbad the hearts follow the rank on points', () => {
     const base = (): RunState => {
       const r = newRun({ seed: 3, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 99 });
