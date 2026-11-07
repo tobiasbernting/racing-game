@@ -5,7 +5,7 @@ import { CAR_DRIVERS, CAR_PARTS, PART_MAX_LEVEL, defaultStyle, isCarBody, newCar
 import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { ACTS, findNode, actMap } from './map.ts';
 import { cleanMeta, defaultMeta, type Meta } from './meta.ts';
-import { emptyRunStats, validPaint, type RunState, type Screen } from './state.ts';
+import { emptyRunStats, validPaint, type RunEnd, type RunState, type Screen } from './state.ts';
 import { MAX_STACK, isTrinket, perksOf, type Owned } from './trinkets.ts';
 import { eventById } from './events.ts';
 
@@ -91,6 +91,23 @@ function cleanScreen(raw: unknown, act: number, seed: number): Screen | null {
   }
 }
 
+function cleanEndScreen(raw: unknown, act: number, seed: number): Screen | null {
+  const s = cleanScreen(raw, act, seed);
+  return s?.kind === 'postrace' ? s : null;
+}
+
+function cleanEnd(raw: unknown): RunEnd | undefined {
+  if (!isObj(raw)) return undefined;
+  const bodies = Array.isArray(raw.unlockedBodies) ? raw.unlockedBodies.filter(isCarBody) : [];
+  return {
+    won: raw.won === true,
+    trophies: num(raw.trophies, 0, 999, 0),
+    total: num(raw.total, 0, 9999, 0),
+    unlockedBodies: bodies,
+    unlockedTrinkets: Array.isArray(raw.unlockedTrinkets) ? raw.unlockedTrinkets.filter(isTrinket) : [],
+  };
+}
+
 /** A stored run (or junk) becomes a valid RunState, or null when there is nothing worth continuing. */
 export function parseRun(raw: unknown): RunState | null {
   if (!isObj(raw)) return null;
@@ -127,10 +144,12 @@ export function parseRun(raw: unknown): RunState | null {
     kronor: num(raw.kronor, 0, 9_999_999, 0),
     trinkets,
     car: cleanCar(raw.car),
-    screen: status === 'running' ? cleanScreen(raw.screen, act, seed) : null,
+    // a finished run keeps the card that told how the last race went, so a reload still shows it
+    screen: status === 'running' ? cleanScreen(raw.screen, act, seed) : cleanEndScreen(raw.screen, act, seed),
     stats,
     status,
     nodesDone: num(raw.nodesDone, 0, 999, 0),
+    end: status === 'running' ? undefined : cleanEnd(raw.end),
   };
 }
 

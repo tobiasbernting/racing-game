@@ -71,6 +71,15 @@ export type Screen =
 
 export type RunStatus = 'running' | 'won' | 'dead';
 
+/** How a finished run paid out. Set once, when the trophies go to the meta progress, so a reload never counts twice. */
+export interface RunEnd {
+  won: boolean;
+  trophies: number;
+  total: number;
+  unlockedBodies: CarBody[];
+  unlockedTrinkets: string[];
+}
+
 export interface RunState {
   v: 1;
   seed: number;
@@ -91,6 +100,8 @@ export interface RunState {
   stats: RunStats;
   status: RunStatus;
   nodesDone: number;
+  /** Present once a finished run has been counted. */
+  end?: RunEnd;
 }
 
 export interface NewRunOpts {

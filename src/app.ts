@@ -16,9 +16,12 @@ import { BODY_UNLOCK, trophiesFor, unlockedBodies, unlockedTrinkets, type Meta }
 import { newSeed } from './run/rng.ts';
 import { allNodes, type NodeType } from './run/map.ts';
 import { clearRun, loadMeta, loadRun, saveMeta, saveRun } from './run/save.ts';
-import { mapOf, newRun, type RunState } from './run/state.ts';
+import { mapOf, newRun, trinketCount, type RunState } from './run/state.ts';
 import { btn, arrowNav, el } from './ui/dom.ts';
-import { bagView, collectionView, eventView, mapView, menuView, overView, pickView, postraceView, preraceView, rewardView, shopView, titleView, workshopView, type OverInfo, type PickSel } from './ui/views.ts';
+import { confettiRain, pryl, sfx } from './ui/juice.ts';
+import { saveSettings, settings } from './settings.ts';
+import { trinketById } from './run/trinkets.ts';
+import { bagView, collectionView, eventView, mapView, menuView, overView, pickView, postraceView, preraceView, rewardView, settingsView, shopView, titleView, workshopView, type PickSel } from './ui/views.ts';
 
 type State = 'menu' | 'loading' | 'playing' | 'paused' | 'result';
 /** Quick race (one race, the old front end) or a run (the roguelite). */
@@ -48,8 +51,8 @@ export class App {
   private mode: Mode = 'quick';
   private meta: Meta = loadMeta();
   private runState: RunState | null = null;
-  /** The end-of-run summary, kept so a redraw does not count the run twice. */
-  private over: { run: RunState; info: OverInfo } | null = null;
+  private fpsEl: HTMLElement | null = null;
+  private fpsStop: (() => void) | null = null;
   /** The car and driver being picked for a new run. */
   private sel: PickSel;
 
@@ -86,7 +89,12 @@ export class App {
     // the page never scrolls or zooms
     this.root.addEventListener('contextmenu', (e) => e.preventDefault());
     this.root.addEventListener('gesturestart', (e) => e.preventDefault());
-    this.title();
+    this.deviceSetup();
+    this.applySettings();
+    // a run that ended (and was counted) before a reload shows its last card again; otherwise the title
+    const saved = loadRun();
+    if (saved && saved.status !== 'running') this.resumeRun(saved);
+    else this.title();
     // so a test (or a curious grown-up) can reach the app
     (window as unknown as { __app: App }).__app = this;
   }
@@ -137,13 +145,131 @@ export class App {
       if (!AC) return;
       this.audio = new AC();
       this.master = this.audio.createGain();
-      this.master.gain.value = 0.8;
+      this.master.gain.value = settings.volume;
       this.master.connect(this.audio.destination);
       void this.audio.resume().catch(() => {});
     } catch {
       this.audio = null;
       this.master = null;
     }
+  }
+
+  /** Volume, the FPS counter: whatever the settings panel changed. */
+  private applySettings(): void {
+    if (this.master) this.master.gain.value = settings.volume;
+    if (settings.fps && !this.fpsStop) this.startFps();
+    else if (!settings.fps && this.fpsStop) this.fpsStop();
+  }
+
+  private startFps(): void {
+    const box = (this.fpsEl ??= el('div', 'arc-fps', '-- fps'));
+    this.root.append(box);
+    let frames = 0;
+    let t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number): void => {
+      frames++;
+      if (now - t0 >= 500) {
+        box.textContent = `${Math.round((frames * 1000) / (now - t0))} fps`;
+        frames = 0;
+        t0 = now;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    this.fpsStop = () => {
+      cancelAnimationFrame(raf);
+      box.remove();
+      this.fpsStop = null;
+    };
+  }
+
+  /** Fullscreen where the browser lets us (not iPhone Safari: there the home screen app is the way). */
+  private fullscreenState(): boolean | null {
+    const d = document as Document & { webkitFullscreenEnabled?: boolean; webkitFullscreenElement?: Element | null };
+    if (!(d.fullscreenEnabled || d.webkitFullscreenEnabled)) return null;
+    return !!(d.fullscreenElement || d.webkitFullscreenElement);
+  }
+
+  private toggleFullscreen(): void {
+    const d = document as Document & { webkitExitFullscreen?: () => void; webkitFullscreenElement?: Element | null };
+    const e = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+    try {
+      if (d.fullscreenElement || d.webkitFullscreenElement) void (d.exitFullscreen?.() ?? d.webkitExitFullscreen?.());
+      else {
+        const r = e.requestFullscreen?.({ navigationUI: 'hide' }) ?? e.webkitRequestFullscreen?.();
+        void Promise.resolve(r)
+          .then(() => {
+            // a phone plays sideways
+            const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+            if (this.touch && Math.min(screen.width, screen.height) < 700) return o?.lock?.('landscape');
+          })
+          .catch(() => {});
+      }
+    } catch {
+      // not allowed here: nothing to do
+    }
+  }
+
+  /** The first touch: audio wakes up and a phone or tablet goes fullscreen; no zoom, no callouts, ever. */
+  private deviceSetup(): void {
+    const first = (e: Event): void => {
+      this.ensureAudio();
+      this.applySettings();
+      const touchy = (e as PointerEvent).pointerType === 'touch' || this.touch;
+      if (touchy && this.fullscreenState() === false && !matchMedia('(display-mode: standalone)').matches) this.toggleFullscreen();
+      if (e.type !== 'keydown' || this.audio) {
+        for (const t of ['pointerup', 'keydown'] as const) window.removeEventListener(t, first, true);
+      }
+    };
+    for (const t of ['pointerup', 'keydown'] as const) window.addEventListener(t, first, true);
+    // the audio can fall asleep again (a call, the tab in the background): wake it with the next touch
+    window.addEventListener('pointerdown', () => void this.audio?.resume().catch(() => {}), true);
+    // no double-tap zoom, no pinch, no long-press menus
+    let lastTap = 0;
+    this.root.addEventListener(
+      'touchend',
+      (e) => {
+        const now = Date.now();
+        if (now - lastTap < 350 && (e.target as HTMLElement).closest?.('button') === null) e.preventDefault();
+        lastTap = now;
+      },
+      { passive: false },
+    );
+    this.root.addEventListener('dblclick', (e) => e.preventDefault());
+    this.root.addEventListener('dragstart', (e) => e.preventDefault());
+    this.root.addEventListener('selectstart', (e) => e.preventDefault());
+    for (const t of ['gesturechange', 'gestureend']) this.root.addEventListener(t, (e) => e.preventDefault());
+    document.addEventListener('fullscreenchange', () => {
+      if (this.card.querySelector('.rg-settings')) this.openSettings(this.settingsBack);
+    });
+  }
+
+  private settingsBack: () => void = () => {};
+
+  /** The settings panel; `back` redraws whatever it was opened from. */
+  private openSettings(back: () => void): void {
+    this.settingsBack = back;
+    this.showScreen(
+      settingsView({
+        settings,
+        calm: this.meta.calm,
+        fullscreen: this.fullscreenState(),
+        onChange: () => {
+          saveSettings();
+          this.applySettings();
+        },
+        onCalm: (on) => {
+          this.meta.calm = on;
+          saveMeta(this.meta);
+        },
+        onFullscreen: () => this.toggleFullscreen(),
+        onClose: () => {
+          saveSettings();
+          back();
+        },
+      }),
+    );
   }
 
   // ---- menu ----
@@ -334,18 +460,25 @@ export class App {
     this.set('paused');
     this.inst.pause();
     this.input.clear();
+    this.pauseCard();
+  }
+
+  private pauseCard(): void {
     const cont = el('button', 'arc-go', 'Fortsätt');
     cont.addEventListener('click', () => this.resume());
     const again = el('button', 'arc-btn', this.mode === 'run' ? 'Starta om loppet' : 'Starta om');
     again.addEventListener('click', () => void this.start());
     const quit = el('button', 'arc-btn', this.mode === 'run' ? 'Till kartan' : 'Till titeln');
     quit.addEventListener('click', () => (this.mode === 'run' ? this.showRun() : this.title()));
-    this.show(el('div', 'arc-panel', el('h1', 'arc-title', 'Paus'), cont, el('div', 'arc-stack', again, quit)));
+    const opts = el('button', 'arc-btn', '⚙️ Inställningar');
+    opts.addEventListener('click', () => this.openSettings(() => this.pauseCard()));
+    this.show(el('div', 'arc-panel', el('h1', 'arc-title', 'Paus'), cont, el('div', 'arc-stack', opts, again, quit)));
     cont.focus({ preventScroll: true });
   }
 
   private resume(): void {
     if (this.state !== 'paused' || !this.inst) return;
+    saveSettings();
     this.hideCard();
     this.input.clear();
     this.set('playing');
@@ -390,7 +523,6 @@ export class App {
     this.set('menu');
     this.touchEl.replaceChildren();
     this.stage.replaceChildren();
-    this.over = null;
     this.meta = loadMeta();
     const saved = loadRun();
     this.showScreen(
@@ -408,6 +540,8 @@ export class App {
           saveMeta(this.meta);
           this.title();
         },
+        onSettings: () => this.openSettings(() => this.title()),
+        homeHint: this.touch && this.fullscreenState() === null && !matchMedia('(display-mode: standalone)').matches && /iPhone|iPad|iPod/.test(navigator.userAgent),
       }),
     );
   }
@@ -442,7 +576,7 @@ export class App {
     this.meta.driver = s.driver;
     this.meta.paint = s.paint;
     saveMeta(this.meta);
-    this.over = null;
+    clearRun();
     this.commit(newRun({ seed: newSeed(), calm: this.meta.calm, body: s.body, driver: s.driver, paint: s.paint, trophies: this.meta.trophies }));
   }
 
@@ -454,8 +588,12 @@ export class App {
 
   /** Takes the new state of the run: saves it, notes the trinkets seen, ends the run when it is over. */
   private commit(r: RunState): void {
+    const prev = this.runState && this.runState.seed === r.seed ? this.runState : null;
     this.mode = 'run';
     this.runState = r;
+    // a new trinket: the fanfare
+    const had = new Map(prev?.trinkets.map((t) => [t.id, t.n]));
+    const got = r.trinkets.find((t) => t.n > (had.get(t.id) ?? 0));
     const seen = new Set(this.meta.seen);
     const before = seen.size;
     r.trinkets.forEach((t) => seen.add(t.id));
@@ -468,6 +606,15 @@ export class App {
     if (r.status === 'running') saveRun(r);
     else this.endRun(r);
     this.showRun();
+    if (got && prev && trinketCount(r) > trinketCount(prev)) this.fanfare(got.id);
+  }
+
+  /** NY PRYL! A banner, confetti and a little tune over the next screen. */
+  private fanfare(id: string): void {
+    const d = trinketById(id);
+    if (!d) return;
+    sfx.fanfare(this.audio, this.master);
+    pryl(this.card, d.emoji, d.name);
   }
 
   /** Draws whatever the run is doing now: the map, or the node it is in. */
@@ -491,7 +638,7 @@ export class App {
           run: r,
           onEnter: (id) => this.commit(enterNode(r, id)),
           onBag: () => this.showScreen(bagView(r, { onClose: () => this.showRun() })),
-          onMenu: () => this.showScreen(menuView(r, { onClose: () => this.showRun(), onTitle: () => this.title() })),
+          onMenu: () => this.mapMenu(r),
         }),
       );
       return;
@@ -501,7 +648,11 @@ export class App {
         this.showScreen(preraceView(r, { onGo: () => void this.start(), onBack: next(backToMap) }));
         break;
       case 'postrace':
-        this.showScreen(postraceView(r, scr, { onNext: () => (r.status !== 'running' ? this.showOver(r) : this.commit(continueAfterRace(r))) }));
+        this.showScreen(postraceView(r, scr, { onNext: () => (r.status !== 'running' ? this.showOver(r) : this.commit(continueAfterRace(r))), onCount: () => sfx.tick(this.audio, this.master) }));
+        if (scr.summary.finished && scr.summary.place === 1) {
+          sfx.win(this.audio, this.master);
+          confettiRain(this.card, 110, 2.4);
+        }
         break;
       case 'reward':
         this.showScreen(rewardView(r, scr, { onPick: (i) => this.commit(pickReward(r, i)) }));
@@ -534,9 +685,13 @@ export class App {
     }
   }
 
-  /** The run is over (lost or won): the trophies go to the meta progress once, and the save is cleared. */
+  private mapMenu(r: RunState): void {
+    this.showScreen(menuView(r, { onClose: () => this.showRun(), onTitle: () => this.title(), onSettings: () => this.openSettings(() => this.mapMenu(r)) }));
+  }
+
+  /** The run is over (lost or won): the trophies go to the meta progress once (the run remembers it in `end`), and the run stays saved until its summary has been left, so a reload shows it again. */
   private endRun(r: RunState): void {
-    if (this.over?.run === r) return;
+    if (r.end) return;
     const won = r.status === 'won';
     const gain = trophiesFor({ bossesBeaten: r.stats.bossesBeaten, won, races: r.stats.races });
     const old = this.meta.trophies;
@@ -548,14 +703,23 @@ export class App {
     const seen = new Set(this.meta.seen);
     trinkets.forEach((id) => seen.add(id));
     this.meta = { ...this.meta, trophies: total, runs: this.meta.runs + 1, wins: this.meta.wins + (won ? 1 : 0), bestAct: Math.max(this.meta.bestAct, won ? 3 : r.act + 1), seen: [...seen] };
+    r.end = { won, trophies: gain, total, unlockedBodies: bodies, unlockedTrinkets: trinkets };
     saveMeta(this.meta);
-    clearRun();
-    this.over = { run: r, info: { won, trophies: gain, total, unlockedBodies: bodies, unlockedTrinkets: trinkets } };
+    saveRun(r);
   }
 
   private showOver(r: RunState): void {
     this.endRun(r);
-    this.showScreen(overView(r, this.over!.info, { onAgain: () => this.pickScreen(), onTitle: () => this.title() }));
+    this.stage.replaceChildren();
+    const leave = (next: () => void) => () => {
+      clearRun();
+      next();
+    };
+    this.showScreen(overView(r, r.end!, { onAgain: leave(() => this.pickScreen()), onTitle: leave(() => this.title()) }));
+    if (r.end!.won) {
+      sfx.win(this.audio, this.master);
+      confettiRain(this.card, 160, 3.2);
+    }
   }
 
   private runOptions(run: RunState): RallyOptions {

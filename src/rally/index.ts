@@ -16,6 +16,7 @@ import { courseFor } from './variant.ts';
 import { canRain, variationFor } from '../shared/variation.ts';
 import { Coins } from './coins.ts';
 import { Confetti, Particles, Skids } from './fx.ts';
+import { settings } from '../settings.ts';
 import { blobTex } from './geo.ts';
 import { Hud, type Racer } from './hud.ts';
 import { lakeDist } from './layout.ts';
@@ -1777,7 +1778,7 @@ const rally = (ctx: GameContext): GameInstance => {
     if (nitroT > 0 && phase === 'race') fov += 7;
     camFov = dt === 0 ? fov : damp(camFov, fov, 3, dt);
     camera.position.copy(camPos);
-    if (shake > 0) {
+    if (shake > 0 && settings.shake) {
       const t = timeU.value;
       camera.position.x += Math.sin(t * 61) * shake * 0.25;
       camera.position.y += Math.sin(t * 47 + 1) * shake * 0.2;
