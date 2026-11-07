@@ -556,7 +556,7 @@ export const TRINKETS: TrinketDef[] = [
         }
         c.api.fart(2);
         c.api.gas(1 + c.n);
-        c.api.say('trollkarl', ['BAJSRAKET! Fart!', 'Osynlig! (lukten syns)', 'Hittade kronor i toan', 'Skitbomb: ledaren platt'][k]);
+        c.api.say('trollkarl', ['BAJSRAKET! Fart!', 'Osynlig! (lukten syns)', 'Hittade kronor i toan', 'Stinkbomb: ledaren platt'][k]);
       },
     },
   },

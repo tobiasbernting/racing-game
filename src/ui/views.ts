@@ -68,7 +68,7 @@ export function titleView(o: TitleOpts): HTMLElement {
     'div',
     'rg-title-left',
     el('h1', 'arc-title', 'Galna Rallyt'),
-    el('p', 'arc-sub', 'Kör som en galning. Samla skräp. Kuka bossarna.'),
+    el('p', 'arc-sub', 'Kör som en galning. Samla skräp. Krossa bossarna.'),
     el('div', 'rg-deco', ...['🏎️', '💨', '🌭', '🧦', '💩'].map((e) => el('span', null, e))),
     el('div', 'rg-trophy', `🏆 ${o.meta.trophies}`, el('small', null, o.meta.runs ? ` · ${plural(o.meta.runs, 'runda', 'rundor')} krossade` : ' · inga rundor än. Visa vad du går för.')),
   );
@@ -436,7 +436,7 @@ export function workshopView(run: RunState, scr: Extract<Screen, { kind: 'worksh
       el('div', 'rg-parts', ...parts),
       el('div', 'rg-workrow', repair, el('div', 'rg-paintbox', el('span', 'arc-h', '🎨 Måla om (gratis)'), paints)),
     ),
-    foot(go(scr.used ? 'Klar – till kartan' : 'Skit i det', o.onLeave)),
+    foot(go(scr.used ? 'Klar – till kartan' : 'Strunt i det', o.onLeave)),
   );
 }
 
@@ -469,7 +469,7 @@ export function bagView(run: RunState, o: { onClose(): void }): HTMLElement {
         const d = trinketById(t.id)!;
         return trinketCard(d, { n: undefined, note: t.n > 1 ? `×${t.n}` : undefined });
       })
-    : [el('p', 'rg-note', 'Tomt. Vinn dödslopp, kuka bossar eller handla i kiosken.')];
+    : [el('p', 'rg-note', 'Tomt. Vinn dödslopp, krossa bossar eller handla i kiosken.')];
   return screen('rg-bag', statusBar(run), el('h2', 'rg-h', '🎒 Ditt skräp'), el('div', 'rg-cards bag', ...rows), foot(go('Stäng', o.onClose)));
 }
 
@@ -581,7 +581,7 @@ export function overView(run: RunState, info: OverInfo, o: { onAgain(): void; on
       el(
         'div',
         'rg-overleft',
-        el('h1', 'arc-title', info.won ? 'DU KUKADE ALLA!' : 'Rundan är slut. Du dog.'),
+        el('h1', 'arc-title', info.won ? 'DU KROSSADE ALLA!' : 'Rundan är slut. Du dog.'),
         el('p', 'arc-sub', info.won ? '🏆 Alla bossar ligger i diket. Du är kung.' : `Du kom till akt ${run.act + 1} av ${ACTS} (${ACT_NAMES[Math.min(run.act, ACTS - 1)]}). Inte illa. Inte bra.`),
         el('div', 'rg-overcar', `🚗 ${CAR_BODY_NAMES[run.car.body]} med ${CAR_DRIVER_EMOJI[run.car.style.driver ?? 'human']} ${CAR_DRIVER_NAMES[run.car.style.driver ?? 'human']}`),
         el('div', 'rg-trophy big', `+${info.trophies} 🏆`, el('small', null, ` (totalt ${info.total})`)),

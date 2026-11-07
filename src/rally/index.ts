@@ -2035,7 +2035,7 @@ const rally = (ctx: GameContext): GameInstance => {
       finishAdj = mods.bus.finish(info);
     }
     hud.msg('MÅL!', 1800, 'gold');
-    hud.subtitle(carnage ? `Du körde i mål som ${ordinal(finishPlace)}. Nu räknas poängen…` : finishPlace === 1 ? `🏆 Du kukade dem! ${fmtTime(finishTime)}` : `Du kom ${ordinal(finishPlace)}. ${fmtTime(finishTime)}`);
+    hud.subtitle(carnage ? `Du körde i mål som ${ordinal(finishPlace)}. Nu räknas poängen…` : finishPlace === 1 ? `🏆 Du kom först! ${fmtTime(finishTime)}` : `Du kom ${ordinal(finishPlace)}. ${fmtTime(finishTime)}`);
     hud.wrongWay(false);
     audio.fanfare(finishPlace === 1);
     audio.cheer(1);
