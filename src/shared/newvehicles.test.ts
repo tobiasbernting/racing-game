@@ -11,6 +11,7 @@ import { STARTERS } from '../run/meta.ts';
 import { CHALLENGES, challengeFor } from '../run/unlocks.ts';
 import { newRun } from '../run/state.ts';
 import { trinketById } from '../run/trinkets.ts';
+import { abilityOf, buildView } from '../run/summary.ts';
 import * as THREE from 'three';
 import { KITS, LEANS, kitOf } from './abilities.ts';
 import { archetypeBodies } from './field.ts';
@@ -139,6 +140,17 @@ describe('the ten new vehicles', () => {
     for (const a of ['rammer', 'racer', 'mixed'] as const) for (const [b, w] of archetypeBodies(a, 'elite')) {
       expect(CAR_BODIES).toContain(b);
       expect(w).toBeGreaterThan(0);
+    }
+  });
+
+  it('show up on the result screen with their own ability, passive and lean', () => {
+    for (const b of NEW) {
+      const r = newRun({ seed: 3, calm: false, body: b, driver: 'human', paint: '#e8412c', trophies: 0 });
+      const a = abilityOf(r);
+      expect(a.name).toBe(kitOf(b).active.name);
+      expect(a.passive.name).toBe(kitOf(b).passive.name);
+      expect(a.vehicle).toBe(CAR_BODY_NAMES[b]);
+      expect(buildView(r).ability.name).toBe(a.name);
     }
   });
 
