@@ -109,7 +109,7 @@ run strong, which is right; the rivals and courses must keep up. Design directio
   trinket, and leans toward ram or race.
 - **Manual shifting** as an option (default automatic, per device): gear display, rev bar, shift light,
   limiter, a small boost for a perfect shift; each vehicle has its own gearbox.
-- **Heat levels** after a win: undecided, revisit in phase 10.
+- **Heat levels** after a win: undecided, revisit in phase 12.
 
 6. **Two directions + difficulty**: Rally/Blandat/Blodbad nodes and courses, health and takedowns, ramming
    physics, Blodbad points, rival archetypes, rival scaling (upgrades, trinkets, driving, catch-up), harder
@@ -118,14 +118,27 @@ run strong, which is right; the rivals and courses must keep up. Design directio
    courses (oil, potholes, a narrower road, three laps in act 3), soft caps, win rewards (pick 1 of 3, 2nd place a pick of 2),
    a stricter hearts rule in normal mode, a race-time balance simulation, and a lower, see-through gas cloud. Tone: chaos, not toilets.
 
-7. **Vehicles with abilities**: passives, active ability button, starting trinkets, ram/race lean, 5
-   starters, unlocks by wins and challenges, manual shifting.
-8. **Ten new vehicles**: e.g. EPA-traktor, glassbil, sopbil, snöskoter, gokart, golfbil, åkgräsklippare,
-   husbil, limousin, kundvagn med raketmotor.
-9. **The car grows**: pick 1 of 3 upgrades after races, the Ram/Race trees and the Fuffens/Stunt/Girig side
-   paths, visible mods on the car, combos, stunt ramps on courses.
-10. **Derby arena + balance**: last-car-standing arena for elites and bosses, playtest-driven balance, maybe
-    heat levels.
+6b. **Run result screen**: shown on a win and a loss: fun stats with a headline stat, a timeline of every node and
+    placing, every reward and upgrade with where it came from, the build mix, abilities, unlocks earned.
+7. **Mobile controls** (touch devices only; desktop unchanged; see docs/mobile-controls-research.md): schemes
+   Lätt (auto-throttle, default), Pedaler (gas + brake buttons) and Proffs (pedals + manual shifting); manual
+   shifting also on keyboard/gamepad; a layout with room for the ability button and nitro, tablet insets,
+   left-handed mirror, button size/opacity, maybe drag-to-move; haptics where the browser allows; tilt last and
+   off by default (or skipped).
+8. **Vehicles with abilities**: passives, active ability button, starting trinkets, ram/race lean, 5 starters
+   (rallybil, sandbuggy, pickup, moppe, traktor), 15 to unlock by a mix of wins and challenges.
+9. **Art direction**: grittier, Tape to Tape-inspired: stronger contrast and colour grade, light outlines,
+   dirt/scratches/damage on cars, drivers with helmets and race gear, courses with attitude (scrapyards, tyre
+   walls, rowdy crowds, made-up sponsor boards), sparks and explosions, sticker/poster menus, rival collector cards.
+10. **Ten new vehicles**, in the new style: e.g. EPA-traktor, glassbil, sopbil, snöskoter, gokart, golfbil,
+    åkgräsklippare, husbil, limousin, kundvagn med raketmotor.
+11. **The car grows**: pick 1 of 3 upgrades, the Ram/Race trees and the Fuffens/Stunt/Girig side paths, visible
+    mods on the car, cross-path combos, stunt ramps on courses; every run should feel different.
+12. **Derby arena + balance**: last-car-standing arena for elites and bosses, playtest-driven balance, maybe heat
+    levels.
+
+**House rules for all text**: Swedish; no swearing or vulgar words (enforced by src/language.test.ts); toilet
+humour only as an occasional random item, never the focus: the humour is unpredictable chaos.
 
 Homelab (in parallel with phase 1): a `racing-game` role like Glantan's (private GHCR image,
 `ghcr-login`, Watchtower, Traefik `rally.moderskepp.lan`, LAN only, Uptime Kuma labels), its playbook,
