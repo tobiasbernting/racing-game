@@ -1,6 +1,6 @@
 # Galna Rallyt
 
-Ett 3D-rallyspel i webbläsaren (three.js): kom först i mål mot en gäng galna förare på tolv banor. Spelet är gjort för en vuxen och en tioåring som spelar tillsammans: absurt, fräckt och gärna lite äckligt (prutt, kebab och korvkanoner). Det är
+Ett 3D-rallyspel i webbläsaren (three.js): kom först i mål mot en gäng galna förare på tolv banor. Spelet är gjort för en vuxen och en tioåring som spelar tillsammans: absurt, oförutsägbart och bonkers: ingen runda blir den andra lik, det beror på vilka prylar du råkar få (korvkanoner, flygande kor, plats­byten mitt i farten, en och annan prutt). Det är
 en egen fristående version av rallyt från Lilla Gården och ska bli en roguelite (se [PLAN.md](PLAN.md)).
 Fas 1 var porten (ett lopp på dator, surfplatta och mobil), fas 2 gjorde det till en roguelite: en runda är tre
 akter med varsin förgrenad karta och en boss, och på vägen samlar man galna prylar. Fas 3 (den här) lägger till
@@ -20,7 +20,7 @@ Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
 - **Hjärtan och kronor**: kommer man sist (nedersta tredjedelen) eller bryter förlorar man ett hjärta; vid 0 är rundan slut.
   Loppen ger kronor (pris + mynt på banan + prylbonus, skalat per akt) som går till kiosken (prylar, laga bilen, läka
   hjärta, nya varor) och verkstaden (en gratis uppgradering av en del, eller måla om).
-- **Prylar** (`src/run/trinkets.ts`, 48 st): vanlig/ovanlig/legendarisk, samma pryl två gånger gör den starkare. Varje pryl är
+- **Prylar** (`src/run/trinkets.ts`, 52 st): vanlig/ovanlig/legendarisk, samma pryl två gånger gör den starkare. Varje pryl är
   data: `tune` ändrar siffror när loppet startar, `hooks` reagerar på tick/boost/sladd/stöt/varv/pickup/mål, `perk` ändrar
   rundan (rabatt, hjärtan, fler val). Loppet får dem som `RallyOptions.mods` (`src/rally/mods.ts`); bossarnas trick går via
   `RallyOptions.twist`. Lägg till en pryl genom att lägga till en rad i listan.
@@ -71,6 +71,43 @@ Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
   kostar ett hjärta, bossar läker två hjärtan. Ett hjärta i kiosken kostar ungefär ett lopps lön och är en fjärdedel billigare på
   sista hjärtat.
 
+## Tre sorters lopp, rivaler som växer och Blodbad (fas 6)
+
+- **Loppets sort** (`src/shared/kinds.ts`, satt per plats i `src/run/map.ts` från rundans frö): varje lopp, utmaning, dödslopp och
+  boss är antingen 🏁 **Rally** (ren racing, lätt plåtskada, rivalerna håller sig på sin sida), ⚖️ **Blandat** (racing med knuffar:
+  några rivaler går på dig men ingen åker ut) eller 💥 **Blodbad** (hälsa, vrak och poäng). Sorten syns som en liten bricka på kartan,
+  i teckenförklaringen och på kortet före loppet med en rad om vad den betyder. Ungefär 35 / 40 / 25 % över en runda: mest Rally i
+  akt 1 och mest Blodbad i akt 3. Dödslopp lutar åt Blodbad, "slå klockan" är alltid Rally, och bossarna kör efter humör (Sura Bengt
+  och Kapten Kanin Blodbad, Ingrid Blandat, Frost-Frida Rally).
+- **Blodbad**: alla bilar har hälsa (din syns som en stapel nere till höger, rivalernas som små staplar över huvudet). Smällar tar hälsa
+  efter hastighet, vikt och rammarkraft (`src/rally/combat.ts`): traktorn och monstertruck puttar, moppen studsar. Vid 0 är bilen
+  **vrak**: den vältar, ryker och ligger ute i ca 3 sekunder och är sedan tillbaka på vägen med det mesta av hälsan (ingen blir utslagen
+  för gott). Den som gjorde den sista stora smällen inom 2 sekunder får en **takedown** (en liten rad i sidan, inte mitt på skärmen).
+  **Poängen**: placering ger 10 / 7 / 5 / 3 / 2 / 1 och varje takedown 3 p. Mest poäng vinner loppet, så en rammare kan vinna från
+  tredje plats. Hjärtat, priset och belöningen följer placeringen **på poäng**. Resultatkortet räknar upp hur poängen blev till.
+- **Rivaler** (`src/shared/rivals.ts`, `src/shared/field.ts`, `src/rally/ai.ts`): tolv rivaler, fyra av varje sort. 🔨 **Rammare** (Doris,
+  Måns, Roffe, Mormor): sidosmäller, blockerar och jagar vrak. ⚡ **Racer** (Tord, Kenta, Fru Fartkvick, Egon): ren linje, sena
+  bromspunkter, nitro på raksträckor. 🔀 **Blandad** (Gunnar, Lasse, Sixten, Kjell): rent tills du kommer för nära. Sorten på loppet
+  väljer vilka som kommer: Rally mest racers, Blodbad mest rammare.
+- **Rivalerna växer** (kurvan står i `field.test.ts`): uppgraderingar efter hur långt in i rundan man är (akt och rad), en full uppsättning
+  från akt 3 rad 2, egna modifierare (ordinarie rivaler 1-2 från akt 2, dödslopp 3, bossar fler och extra regler: "Sista varvet +8 %" och
+  "läker sig själv" i Blodbad) som små ikoner på kortet före loppet, skarpare körning (racinglinje, bromspunkter, nitro) och en
+  försiktig catch-up för den som ligger långt bakom dig (aldrig för den som ligger före, och aldrig förbi dig). Söndagsåkare skalar
+  mycket mindre och får svagare catch-up.
+- **Svårare banor**: akt 3 körs över tre varv, fler hinder (höbalar, oljeflaskor som snurrar dig, potthål), något smalare väg och
+  tajtare mål i klockutmaningar. Rivaler med Oljeläckan släpper egna fläckar.
+- **Tak mot skenande staplar** (`capTune` i `src/rally/mods.ts`, `maxStack` på prylarna): kraft, grepp, nitrolängd och antal, sladdturbo,
+  knuff, tålighet, mynt, kronor och bilens totala kraft och grepp har mjuka tak (linjärt till ett knä, sedan mot ett max). Nitro
+  räcker högst 12 sekunder per lopp. Prylar som skenar (Pruttboost, Chilikorven, Dino-Dieseln …) slutar ge mer efter 2-3 exemplar.
+- **Byte efter varje vinst**: vinner du (i Blodbad: mest poäng) väljer du 1 av 3 (prylar, ibland en uppgradering), lutat mot sorten
+  (efter Blodbad fler rammar-prylar, efter Rally fler fart-prylar). Tvåan får ett tröstpris: 1 av 2 skräp-prylar. Dödslopp och bossar ger
+  fortfarande alltid ett val, med bättre odds.
+- **Humor**: kaos, inte toalett. Högst tre prylar handlar om prutt och bajs (Pruttboost är sällsynt, Bajsraketen legendarisk); bara de pruttar och lämnar det gröna molnet. Resten har egna effekter (konfetti, gnistor, glitter, studsar). Nya slumpprylar: Platsbytar-Pelle, Kon från ovan, Slumpväxeln och Tombolan. Inga svordomar: `src/language.test.ts` skannar alla texter.
+- **Prylarnas vägar** (`path` på alla 52): `ram`, `race`, `fuffens`, `stunt`, `girig`, `kaos`. Fas 9 bygger på dem.
+- **Balanssimuleringen** (`src/run/balance.test.ts`, `src/run/racesim.ts`, `src/shared/pace.ts`) räknar med varvtider i stället för tärningar:
+  spelarens varv från bil, delar, prylar och skicklighet, varje rivals varv från dess skalade kit, och loppet körs sida vid sida
+  med catch-up, hinder, kontakt och (i Blodbad) takedowns. Varvtidsmodellen är anpassad mot den riktiga fysiken (`src/rally/pace.test.ts`).
+
 ## Utveckling
 
 ```sh
@@ -87,8 +124,8 @@ GameContext), `src/run/` (rena regler för rundan: karta, prylar, ekonomi, händ
 och `src/app.ts` (skalet: paus, pekkontroller, flödet mellan skärmar och lopp). Ett lopp startas med `RallyOptions`
 (`src/rally/options.ts`) och rapporterar `RallyResult` via `onDone`.
 
-Dev-bygget har också `window.__rallyDebug` (`tumble()`, `honk()`, `swap(kropp)`) under ett lopp. För tester finns `window.__app` med `fakeFinish()` (avslutar loppet direkt med ett påhittat resultat), `debugRun()`,
-`debugEnter(typ)` och `debugMeta()`. I dev-bygget finns dessutom `?rallydebug&rallyauto&rallyturbo=30&rallygo` som låter
+Dev-bygget har också `window.__rallyDebug` (`tumble()`, `honk()`, `swap(kropp)`, `takedown(n)`, `hurt(n, hp)`) under ett lopp. För tester finns `window.__app` med `fakeFinish()` (avslutar loppet direkt med ett påhittat resultat), `debugRun()`,
+`debugEnter(typ, sort?)` och `debugMeta()`. I dev-bygget finns dessutom `?rallydebug&rallyauto&rallyturbo=30&rallygo` som låter
 datorn köra bilen i hög hastighet.
 
 ## Deploy

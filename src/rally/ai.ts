@@ -14,6 +14,16 @@ export interface Personality {
   /** A slow weave across the road (m). */
   wobble: number;
   phase: number;
+  /** 0..1 how late they brake (shorter look-ahead for the speed profile). */
+  late?: number;
+  /** 0..1 appetite for going at other cars. */
+  aggro?: number;
+}
+
+/** What a driver is set on doing to another car: ramming it (head on, or a side-swipe when alongside) or blocking it from in front. */
+export interface Aim {
+  car: Car;
+  mode: 'ram' | 'block';
 }
 
 const tmp = { x: 0, y: 0, z: 0 };
@@ -40,6 +50,10 @@ export class Driver {
   private dodge = 0;
   stuckT = 0;
   lostT = 0;
+  /** Set by the race: who to go for (or block) this frame, if anyone. */
+  aim: Aim | null = null;
+  /** Extra courage while boosting (a share of the target speed). */
+  surge = 0;
 
   constructor(public p: Personality) {}
 
@@ -74,14 +88,37 @@ export class Driver {
       }
     }
     this.dodge = damp(this.dodge, block < Infinity && v > blockV - 1 ? clamp(want, -6, 6) : 0, block < Infinity ? 1.6 : 0.8, dt);
+    // set on a car: steer onto it (ram) or stay in front of it (block) instead of passing round
+    const aim = this.aim && this.aim.car !== car ? this.aim : null;
+    let aimOff: number | null = null;
+    let aimSpeed = 0;
+    if (aim) {
+      const t = aim.car;
+      const ds = track.wrapDist(t.proj.s - p.s);
+      if (aim.mode === 'ram' && ds > -4 && ds < 26 && Math.abs(t.proj.d - p.d) < 9) {
+        aimOff = t.proj.d;
+        aimSpeed = Math.max(0, t.vLong) + (ds > 2 ? 10 : 3);
+        // never dodge the one we are going for
+        if (block < Infinity && Math.abs(blockV - t.vLong) < 0.01) this.dodge = damp(this.dodge, 0, 6, dt);
+      } else if (aim.mode === 'block' && ds < -1.5 && ds > -16 && Math.abs(t.proj.d - p.d) < 7) {
+        aimOff = t.proj.d;
+      }
+    }
 
     const ahead = 6.5 + v * 0.48;
-    const off = this.lineAt(track, p.s + ahead, time);
+    let off = this.lineAt(track, p.s + ahead, time);
+    if (aimOff !== null) {
+      const hw = track.at(track.hw, p.s + ahead);
+      off = clamp(aimOff, -hw + 1.2, hw - 1.2);
+    }
     out.steer = steerTo(car, track, ahead, off);
     // speed: the profile a little ahead, scaled by courage and the rubber band
-    const look = 3 + v * 0.18;
-    let target = track.at(track.vmax, p.s + look) * this.p.skill * speedMul;
-    if (block < 9 && blockV < v) target = Math.min(target, blockV + 0.5 + block * 0.25);
+    // a driver who brakes late looks less far down the road for the next bend
+    const look = (3 + v * 0.18) * (1 - 0.4 * (this.p.late ?? 0));
+    let target = track.at(track.vmax, p.s + look) * this.p.skill * speedMul * (1 + this.surge);
+    if (block < 9 && blockV < v && aimOff === null) target = Math.min(target, blockV + 0.5 + block * 0.25);
+    // going for a car: a little faster than it, but not so fast that the next bend wins
+    if (aimOff !== null && aimSpeed > 0) target = Math.max(target, Math.min(aimSpeed, track.at(track.vmax, p.s + look) * 1.05));
     // off the road: take it easy
     if (Math.abs(p.d) > track.at(track.hw, p.s) + 0.5) target = Math.min(target, 16);
     const err = target - v;

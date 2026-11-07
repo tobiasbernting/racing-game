@@ -162,6 +162,10 @@ export interface RaceApi {
   slowBehind(radius: number, k: number, dt: number): void;
   /** Shove computer cars close to the player (m/s outward). */
   shove(radius: number, strength: number): void;
+  /** Swap places with the closest car ahead (false when nobody is close enough). */
+  swapAhead(): boolean;
+  /** Drop a hay bale or an oil slick on the road in front of the closest rival ahead (false when there is none). */
+  dropAhead(kind: 'hay' | 'oil'): boolean;
   /** Swap the player's vehicle for another one at random (a poof and a new body). */
   swapVehicle(): void;
   /** Add kr straight away (shown as a pop-up). */
@@ -288,3 +292,43 @@ export interface RaceTwist {
   /** Hay bales on the road per lap: they spin whoever hits them. */
   hay?: number;
 }
+
+/**
+ * Linear up to `knee`, then closing in on `max` without ever reaching it: a soft cap, so the tenth copy of
+ * something still adds a little but no single stack breaks the game.
+ */
+export function softCap(x: number, knee: number, max: number): number {
+  if (x <= knee) return x;
+  const room = max - knee;
+  return knee + room * (1 - Math.exp(-(x - knee) / room));
+}
+
+/** Soft caps on what trinkets can add together (the player's parts come on top, and are capped by their levels). */
+export function capTune(t: ModTune): ModTune {
+  t.power = softCap(t.power, 1.25, 1.5);
+  t.grip = softCap(t.grip, 1.1, 1.22);
+  t.offroad = softCap(t.offroad, 1.3, 1.6);
+  t.size = softCap(t.size, 1.3, 1.7);
+  t.wheels = softCap(t.wheels, 1.8, 2.4);
+  t.gravity = Math.max(0.4, t.gravity);
+  t.nitroSeconds = softCap(t.nitroSeconds, 1.6, 2.4);
+  t.nitroPower = softCap(t.nitroPower, 1.3, 1.6);
+  t.charges = Math.round(softCap(t.charges, 2, 3) * 100) / 100;
+  t.driftRate = softCap(t.driftRate, 3, 5);
+  t.magnet = Math.min(30, t.magnet);
+  t.coinValue = softCap(t.coinValue, 2, 3);
+  t.launch = Math.min(5, t.launch);
+  t.jump = Math.min(12, t.jump);
+  t.shove = softCap(t.shove, 1.5, 3);
+  t.top = Math.min(1.5, t.top);
+  t.tough = Math.max(0.45, t.tough);
+  return t;
+}
+
+/** The most nitro charges a race can have in all (the turbo part and trinkets together), and the seconds of nitro in all. */
+export const MAX_CHARGES = 5;
+export const MAX_NITRO_SECONDS = 12;
+
+/** The most the car's power and grip can come to in all (body, parts and trinkets together): soft caps. */
+export const capPower = (x: number): number => softCap(x, 1.3, 1.5);
+export const capGrip = (x: number): number => softCap(x, 1.12, 1.22);

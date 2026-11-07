@@ -3,13 +3,15 @@
 import { CAR_PARTS, PART_MAX_LEVEL, type CarPart } from '../shared/rally.ts';
 import { Rng } from './rng.ts';
 import { addKronor, addTrinket, healHeart, type RunState, type Screen, type ShopItem } from './state.ts';
-import { RARITIES, TRINKET_PRICE, perksOf, trinketById, type Rarity } from './trinkets.ts';
+import { RARITIES, TRINKET_PRICE, perksOf, stackCap, trinketById, type Rarity } from './trinkets.ts';
+import { KIND_PATH, type RaceKind } from '../shared/kinds.ts';
 import { unlockedTrinkets } from './meta.ts';
 
 type ShopScreen = Extract<Screen, { kind: 'shop' }>;
 
 /** How likely each rarity is, by where the trinket comes from (act 0..2 shifts a little towards rare). */
-const ODDS: Record<'shop' | 'race' | 'elite' | 'boss' | 'event', Record<Rarity, number>> = {
+const ODDS: Record<'shop' | 'race' | 'elite' | 'boss' | 'event' | 'consolation', Record<Rarity, number>> = {
+  consolation: { common: 100, rare: 0, legendary: 0 },
   shop: { common: 62, rare: 31, legendary: 7 },
   race: { common: 70, rare: 27, legendary: 3 },
   elite: { common: 40, rare: 45, legendary: 15 },
@@ -18,8 +20,9 @@ const ODDS: Record<'shop' | 'race' | 'elite' | 'boss' | 'event', Record<Rarity, 
 };
 
 /** Up to `n` different trinkets from the unlocked pool, by rarity odds. */
-export function drawTrinkets(run: RunState, rg: Rng, n: number, source: keyof typeof ODDS): string[] {
-  const pool = unlockedTrinkets(run.pool);
+export function drawTrinkets(run: RunState, rg: Rng, n: number, source: keyof typeof ODDS, lean?: 'ram' | 'race' | null): string[] {
+  // a trinket already at its highest stack adds nothing, so it is not offered again
+  const pool = unlockedTrinkets(run.pool).filter((t) => (run.trinkets.find((o) => o.id === t.id)?.n ?? 0) < stackCap(t));
   const out: string[] = [];
   const odds = ODDS[source];
   const actBoost = 1 + run.act * 0.25;
@@ -28,14 +31,32 @@ export function drawTrinkets(run: RunState, rg: Rng, n: number, source: keyof ty
     let cands = pool.filter((t) => t.rarity === rarity && !out.includes(t.id));
     if (cands.length === 0) cands = pool.filter((t) => !out.includes(t.id));
     if (cands.length === 0) break;
-    out.push(rg.pick(cands).id);
+    // after Blodbad the ram things come up more, after Rally the speed things
+    out.push(lean ? rg.weighted(cands, (t) => (t.path === lean ? 2.4 : 1)).id : rg.pick(cands).id);
   }
   return out;
 }
 
-export function rewardChoices(run: RunState, nodeId: string, source: 'race' | 'elite' | 'boss' | 'event'): string[] {
-  return drawTrinkets(run, Rng.for(run.seed, nodeId, 'reward', source), 3 + perksOf(run.trinkets).choices, source);
+/** The reward for a race: three trinkets (a part upgrade may take one slot after a win), or two plain ones as a consolation. */
+export function rewardChoices(run: RunState, nodeId: string, source: 'race' | 'elite' | 'boss' | 'event' | 'consolation', kind?: RaceKind): string[] {
+  const rg = Rng.for(run.seed, nodeId, 'reward', source);
+  const lean = kind ? KIND_PATH[kind] : null;
+  if (source === 'consolation') return drawTrinkets(run, rg, 2, 'consolation', lean);
+  const out = drawTrinkets(run, rg, 3 + perksOf(run.trinkets).choices, source, lean);
+  // one of the options can be a part upgrade (Rally leans on the speed parts, Blodbad on armour)
+  if (source !== 'event' && kind && out.length >= 3) {
+    const open = CAR_PARTS.filter((p) => canUpgrade(run, p));
+    if (open.length && rg.chance(0.55)) {
+      const want = kind === 'carnage' ? ['armour', 'engine'] : kind === 'rally' ? ['tyres', 'engine', 'turbo', 'brakes'] : ['engine', 'tyres', 'armour'];
+      const pref = open.filter((p) => want.includes(p));
+      out[out.length - 1] = `part:${rg.pick(pref.length ? pref : open)}`;
+    }
+  }
+  return out;
 }
+
+/** An offered id that is a part upgrade, or null. */
+export const partOfChoice = (id: string): CarPart | null => (id.startsWith('part:') && (CAR_PARTS as readonly string[]).includes(id.slice(5)) ? (id.slice(5) as CarPart) : null);
 
 // ---- the shop ----
 

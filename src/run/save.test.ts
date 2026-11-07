@@ -185,3 +185,34 @@ describe('a finished run stays saved until its summary is left', () => {
     expect(parseRun({ ...JSON.parse(JSON.stringify(r)), end: undefined })?.end).toBeUndefined();
   });
 });
+
+describe('a save from before phase 6', () => {
+  it('still loads: a race card without kinds or points, stats without takedowns, a reward without a source we know', () => {
+    const run = newRun({ seed: 11, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 3 });
+    const first = reachable(run)[0]!;
+    const old = JSON.parse(JSON.stringify({ ...run, screen: { kind: 'postrace', nodeId: first.id, summary: { place: 1, n: 4, finished: true, time: 90000, heartLost: false, prize: 100, coins: 5, bonus: 0, total: 110, medal: null, reward: true } } }));
+    delete old.stats.takedowns;
+    delete old.stats.wrecks;
+    const back = parseRun(old)!;
+    expect(back.stats.takedowns).toBe(0);
+    expect(back.stats.wrecks).toBe(0);
+    expect(back.screen?.kind).toBe('postrace');
+    if (back.screen?.kind === 'postrace') {
+      expect(back.screen.summary.rewardKind).toBe('win');
+      expect(back.screen.summary.kind).toBeUndefined();
+    }
+  });
+
+  it('round trips the new card fields and a reward that offers a part upgrade or a consolation', () => {
+    const run = newRun({ seed: 12, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 3 });
+    const id = reachable(run)[0]!.id;
+    run.screen = { kind: 'postrace', nodeId: id, summary: { place: 1, n: 4, finished: true, time: 90000, heartLost: false, hearts: 0, prize: 100, coins: 5, bonus: 0, total: 110, medal: null, reward: true, rewardKind: 'win', kind: 'carnage', points: 14, takedowns: 3, wrecked: 1, roadPlace: 3 } };
+    expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
+    run.screen = { kind: 'reward', nodeId: id, choices: ['gummianka', 'part:armour', 'bananskal'], source: 'race' };
+    expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
+    run.screen = { kind: 'reward', nodeId: id, choices: ['gummianka', 'bananskal'], source: 'consolation' };
+    expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
+    run.screen = { kind: 'reward', nodeId: id, choices: ['part:finnsinte', 'bananskal'], source: 'race' };
+    expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual({ kind: 'reward', nodeId: id, choices: ['bananskal'], source: 'race' });
+  });
+});

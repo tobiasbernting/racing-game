@@ -3,11 +3,11 @@
 // save after every step and tests can walk a whole run.
 import type { RallyResult } from '../rally/options.ts';
 import { ACTS, type MapNode } from './map.ts';
-import { makeStock, rewardChoices } from './economy.ts';
+import { canUpgrade, makeStock, partOfChoice, rewardChoices } from './economy.ts';
 import { eventById, pickEventId, resolveChoice } from './events.ts';
 import { goalMet, planRace, type RacePlan } from './plan.ts';
 import { Rng } from './rng.ts';
-import { actScale, addKronor, addTrinket, copyRun, costsHeart, healHeart, loseHeart, nodeOf, reachable, type RaceSummary, type RunState } from './state.ts';
+import { actScale, addKronor, addTrinket, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, type RaceSummary, type RunState } from './state.ts';
 import { perksOf } from './trinkets.ts';
 
 /** Trophies and the end screen come from here when status is not 'running'. */
@@ -64,12 +64,15 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
   const r = copyRun(run);
   const node = nodeOf(r, run.screen.nodeId)!;
   const plan = planRace(node, r.calm);
-  const heartLost = costsHeart(res.place, res.n, res.finished, r.calm);
+  const lost = heartsLost(res.place, res.n, res.finished, r.calm, node.type === 'boss');
+  const heartLost = lost > 0;
   const met = plan.goal ? goalMet(plan.goal, res) : null;
   const raw = res.kronor + res.coins + (res.bonus ?? 0);
   const total = scaleKronor(r, raw, plan.prize * (met ? 1.5 : 1));
   addKronor(r, total);
-  if (heartLost) loseHeart(r);
+  for (let k = 0; k < lost; k++) loseHeart(r);
+  // winning a boss race gives a heart back (in lugnt läge finishNode pays two whatever the placing)
+  if (!r.calm && node.type === 'boss' && res.finished && res.place === 1 && r.status === 'running') healHeart(r, 1);
   r.car.damage = Math.max(0, Math.round(res.damage * 0.85));
   const st = r.stats;
   st.races++;
@@ -86,15 +89,21 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     st.quacks += res.stats.quacks;
     st.jumps += res.stats.jumps;
   }
-  // a trinket to pick: always after an elite or a boss, after a good race now and then, after a met challenge
+  if (res.takedowns) st.takedowns += res.takedowns;
+  if (res.wrecked) st.wrecks += res.wrecked;
+  // the reward: every win (in Blodbad: most points) is a pick of three, second place a smaller pick of two, an
+  // elite or a boss always pays, and a challenge pays when its goal is met
   let reward = false;
+  let rewardKind: RaceSummary['rewardKind'];
   if (r.status === 'running') {
-    if (node.type === 'elite' || node.type === 'boss') reward = true;
-    else if (node.type === 'challenge') reward = met === true;
-    else {
-      const good = res.finished && res.place <= Math.ceil(res.n / 2);
-      reward = Rng.for(r.seed, node.id, 'bonus').chance(good ? 0.4 : 0.15) && res.finished;
-    }
+    const won = res.finished && res.place === 1 && res.n > 1;
+    const second = res.finished && res.place === 2 && res.n > 2;
+    if (won) rewardKind = 'win';
+    else if (node.type === 'boss') rewardKind = 'boss';
+    else if (node.type === 'elite') rewardKind = 'elite';
+    else if (node.type === 'challenge' && met === true) rewardKind = 'win';
+    else if (second) rewardKind = 'second';
+    reward = !!rewardKind;
   }
   const summary: RaceSummary = {
     place: res.place,
@@ -102,6 +111,7 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     finished: res.finished,
     time: res.time,
     heartLost,
+    hearts: lost,
     prize: res.kronor,
     coins: res.coins,
     bonus: res.bonus ?? 0,
@@ -109,6 +119,12 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     goal: plan.goal && met !== null ? { text: plan.goal.text, met } : undefined,
     medal: res.medal,
     reward,
+    rewardKind,
+    kind: plan.kind,
+    points: res.points,
+    roadPlace: res.roadPlace,
+    takedowns: res.takedowns,
+    wrecked: res.wrecked,
   };
   r.screen = { kind: 'postrace', nodeId: node.id, summary };
   return r;
@@ -122,8 +138,11 @@ export function continueAfterRace(run: RunState): RunState {
   if (!summary.reward) return finishNode(run);
   const r = copyRun(run);
   const node = nodeOf(r, nodeId)!;
-  const source = node.type === 'boss' ? 'boss' : node.type === 'elite' ? 'elite' : 'race';
-  r.screen = { kind: 'reward', nodeId, choices: rewardChoices(r, nodeId, source), source };
+  const source = summary.rewardKind === 'second' ? 'consolation' : node.type === 'boss' ? 'boss' : node.type === 'elite' ? 'elite' : 'race';
+  const choices = rewardChoices(r, nodeId, source, node.kind);
+  // nothing left to offer (every trinket maxed): a little kronor instead
+  if (!choices.length) { addKronor(r, 40); return finishNode(r); }
+  r.screen = { kind: 'reward', nodeId, choices, source };
   return r;
 }
 
@@ -133,7 +152,11 @@ export function pickReward(run: RunState, index: number): RunState {
   const r = copyRun(run);
   const scr = run.screen;
   const id = scr.choices[index];
-  if (id) addTrinket(r, id);
+  const part = id ? partOfChoice(id) : null;
+  if (part) {
+    if (canUpgrade(r, part)) r.car.parts[part] = (r.car.parts[part] ?? 0) + 1;
+    else addKronor(r, 40);
+  } else if (id) addTrinket(r, id);
   else addKronor(r, 30);
   return finishNode(r);
 }
@@ -162,7 +185,7 @@ export function finishNode(run: RunState): RunState {
   if (node?.type === 'boss') {
     r.stats.bossesBeaten++;
     // a boss pays one heart back (two in lugnt läge)
-    healHeart(r, r.calm ? 2 : 1);
+    if (r.calm) healHeart(r, 2);
     r.act++;
     r.at = null;
     r.path = [];

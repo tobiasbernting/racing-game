@@ -1,7 +1,7 @@
 {
   "name": "Galna Rallyt",
   "short_name": "Galna Rallyt",
-  "description": "Galna Rallyt: ett vansinnigt rallyspel. Kör, samla skräp, prutta bort rivalerna och kuka bossarna.",
+  "description": "Galna Rallyt: ett vansinnigt rallyspel där ingen runda blir den andra lik. Kör, samla galna prylar och krossa bossarna.",
   "lang": "sv",
   "start_url": "./",
   "scope": "./",

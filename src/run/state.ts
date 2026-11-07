@@ -4,7 +4,8 @@ import type { RaceStats } from '../rally/mods.ts';
 import { CAR_PAINTS, newCar, type CarDriver, type CarBody, type GarageCar } from '../shared/rally.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { ACTS, actMap, findNode, type ActMap, type MapNode } from './map.ts';
-import { MAX_STACK, perksOf, type Owned } from './trinkets.ts';
+import { MAX_STACK, perksOf, stackCap, trinketById, type Owned } from './trinkets.ts';
+import type { RaceKind } from '../shared/kinds.ts';
 
 export const START_HEARTS = 3;
 export const CALM_HEARTS = 5;
@@ -17,6 +18,9 @@ export interface RunStats extends RaceStats {
   bossesBeaten: number;
   /** Best placing so far (1 = first), 0 before the first race. */
   bestPlace: number;
+  /** Wrecked cars you took down, and times you were wrecked yourself. */
+  takedowns: number;
+  wrecks: number;
 }
 
 export const emptyRunStats = (): RunStats => ({
@@ -35,6 +39,8 @@ export const emptyRunStats = (): RunStats => ({
   kronorEarned: 0,
   bossesBeaten: 0,
   bestPlace: 0,
+  takedowns: 0,
+  wrecks: 0,
 });
 
 /** What a race came to, shown on the card after it. */
@@ -45,6 +51,8 @@ export interface RaceSummary {
   /** ms */
   time: number;
   heartLost: boolean;
+  /** How many hearts it cost (0, 1 or 2). */
+  hearts?: number;
   prize: number;
   coins: number;
   bonus: number;
@@ -54,6 +62,15 @@ export interface RaceSummary {
   medal: 'gold' | 'silver' | 'bronze' | null;
   /** Is a trinket to pick next? */
   reward: boolean;
+  /** What the reward is: a pick of three for a win, two plain ones for second place, or the elite and boss pick. */
+  rewardKind?: 'win' | 'second' | 'elite' | 'boss';
+  /** Rally, Blandat or Blodbad; in Blodbad also the points, takedowns and wrecks of the player. */
+  kind?: RaceKind;
+  points?: number;
+  /** Where the player crossed the line on the road (Blodbad is scored on points, not on this). */
+  roadPlace?: number;
+  takedowns?: number;
+  wrecked?: number;
 }
 
 export interface ShopItem {
@@ -64,7 +81,7 @@ export interface ShopItem {
 export type Screen =
   | { kind: 'prerace'; nodeId: string }
   | { kind: 'postrace'; nodeId: string; summary: RaceSummary }
-  | { kind: 'reward'; nodeId: string; choices: string[]; source: 'race' | 'elite' | 'boss' | 'event' }
+  | { kind: 'reward'; nodeId: string; choices: string[]; source: 'race' | 'elite' | 'boss' | 'event' | 'consolation' }
   | { kind: 'shop'; nodeId: string; stock: ShopItem[]; rerolls: number; healed: boolean; repaired: boolean }
   | { kind: 'workshop'; nodeId: string; used: boolean; note: string }
   | { kind: 'event'; nodeId: string; eventId: string; outcome: { text: string; lines: string[] } | null };
@@ -140,7 +157,7 @@ export const ownedN = (r: RunState, id: string): number => r.trinkets.find((t) =
 /** Adds one trinket (same id: stacks, up to MAX_STACK). Perks that act at once (hearts) apply here. */
 export function addTrinket(r: RunState, id: string): void {
   const have = r.trinkets.find((t) => t.id === id);
-  if (have) have.n = Math.min(MAX_STACK, have.n + 1);
+  if (have) have.n = Math.min(MAX_STACK, stackCap(trinketById(id)), have.n + 1);
   else r.trinkets.push({ id, n: 1 });
   const before = r.maxHearts;
   r.maxHearts = (r.calm ? 5 : 3) + perksOf(r.trinkets).maxHearts;
@@ -172,13 +189,18 @@ export function healHeart(r: RunState, n = 1): boolean {
 export const KRONOR_SCALE = [1, 1.3, 1.7] as const;
 export const actScale = (act: number): number => KRONOR_SCALE[Math.min(act, KRONOR_SCALE.length - 1)]!;
 
-/** Finishing in the bottom third, or not at all, costs a heart. In lugnt läge only a DNF or dead last does. */
-export function costsHeart(place: number, n: number, finished: boolean, calm = false): boolean {
-  if (!finished) return true;
-  if (n <= 1) return false;
-  if (calm) return place >= n;
-  const bottom = Math.max(1, Math.round(n / 3));
-  return place > n - bottom;
+/**
+ * Hearts a race costs. Normal: the bottom half costs one, not finishing two, and losing a boss race (anything but
+ * first, or most points in Blodbad) two. In lugnt läge only a DNF or dead last costs one, bosses included.
+ */
+export function heartsLost(place: number, n: number, finished: boolean, calm = false, boss = false): number {
+  if (calm) return !finished || (n > 1 && place >= n) ? 1 : 0;
+  if (!finished) return 2;
+  if (n <= 1) return 0;
+  if (boss && place > 1) return 2;
+  return place > n / 2 ? 1 : 0;
 }
+
+export const costsHeart = (place: number, n: number, finished: boolean, calm = false, boss = false): boolean => heartsLost(place, n, finished, calm, boss) > 0;
 
 export const validPaint = (p: string): boolean => (CAR_PAINTS as readonly string[]).includes(p);

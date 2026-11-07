@@ -150,8 +150,8 @@ export const EVENTS: EventDef[] = [
   {
     id: 'regnbage',
     emoji: '🌈',
-    title: 'Regnbågen kräks glitter',
-    text: 'En regnbåge landar i en vattenpöl och spyr glitter. Något guldigt glimmar i botten.',
+    title: 'Regnbågen tappar glitter',
+    text: 'En regnbåge landar i en vattenpöl och välter ut en hel säck glitter. Något guldigt glimmar i botten.',
     choices: [
       {
         label: 'Hoppa i pölen',

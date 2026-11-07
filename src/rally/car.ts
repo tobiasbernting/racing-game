@@ -120,6 +120,8 @@ export class Car {
   tumbleT = 0;
   /** Multiplier on the body's top speed (a trinket's fan). */
   topK = 1;
+  /** Ram power: 1 is a plain bumper, more shoves whoever it hits harder (see combat.ts). */
+  ram = 1;
   /** Free roam: no run-off fences, only the real walls; the grass rolls a little easier. */
   roam = false;
   /** What the ground off the road is at a point (grass when not set): snow, sand, ice on the lake. */
@@ -506,13 +508,32 @@ export class Car {
   }
 }
 
-/** Bump cars apart: two circles per car, soft impulses weighted by mass, a little spin from off-centre hits. */
-export function collideCars(cars: Car[], onHit: (a: number, b: number, j: number) => void): void {
+/** What the hardest contact of a bump between two cars looked like, for the damage and the sparks. */
+export interface HitInfo {
+  /** The impulse (mass times speed change) of the hardest contact. */
+  j: number;
+  /** How fast each car was driving into the other (m/s). */
+  closeA: number;
+  closeB: number;
+  /** Where they met. */
+  x: number;
+  z: number;
+  y: number;
+}
+
+const hitInfo: HitInfo = { j: 0, closeA: 0, closeB: 0, x: 0, z: 0, y: 0 };
+
+/**
+ * Bump cars apart: two circles per car, impulses weighted by mass (a tractor shoves, a moped bounces off), a
+ * little spin from off-centre hits, and a push of its own from a car with ram power. Cars that are ghosts or
+ * tumbling pass through, but are eased apart so nobody ends up inside another car when it wears off.
+ */
+export function collideCars(cars: Car[], onHit: (a: number, b: number, j: number, info: HitInfo) => void): void {
   for (let i = 0; i < cars.length; i++)
     for (let k = i + 1; k < cars.length; k++) {
       const a = cars[i]!;
       const b = cars[k]!;
-      if (a.ghost > 0 || b.ghost > 0 || a.tumbleT > 0.35 || b.tumbleT > 0.35) continue;
+      const soft = a.ghost > 0 || b.ghost > 0 || a.tumbleT > 0.35 || b.tumbleT > 0.35;
       const dx0 = b.x - a.x;
       const dz0 = b.z - a.z;
       const reach = 25 * Math.max(a.size, b.size) ** 2;
@@ -523,6 +544,7 @@ export function collideCars(cars: Car[], onHit: (a: number, b: number, j: number
       const mb = fb.mass;
       const rr = (fa.bumpR * a.size + fb.bumpR * b.size) * 1.0;
       let hit = 0;
+      hitInfo.j = 0;
       for (const oa0 of [-fa.bumpAt, fa.bumpAt])
         for (const ob0 of [-fb.bumpAt, fb.bumpAt]) {
           const oa = oa0 * a.size;
@@ -538,6 +560,19 @@ export function collideCars(cars: Car[], onHit: (a: number, b: number, j: number
           nx /= dist;
           nz /= dist;
           const depth = rr - dist;
+          if (soft) {
+            // a ghost drifts out of whoever it overlaps: a slow nudge, no impulse
+            const nudge = depth * 0.06;
+            if (a.ghost > 0) {
+              a.x -= nx * nudge;
+              a.z -= nz * nudge;
+            }
+            if (b.ghost > 0) {
+              b.x += nx * nudge;
+              b.z += nz * nudge;
+            }
+            continue;
+          }
           // the heavy one barely gives way
           const wa = mb / (ma + mb);
           const wb = ma / (ma + mb);
@@ -558,19 +593,41 @@ export function collideCars(cars: Car[], onHit: (a: number, b: number, j: number
           const vbz = b.vz - b.yawRate * rbx;
           const vrel = (vbx - vax) * nx + (vbz - vaz) * nz;
           if (vrel >= 0) continue;
-          // an impulse between two masses (equal masses: the old half-and-half)
-          const j = (-(1 + 0.25) * vrel) / (1 / ma + 1 / mb);
+          // an impulse between two masses; a little livelier than before so light cars bounce off heavy ones
+          const j = (-(1 + 0.32) * vrel) / (1 / ma + 1 / mb);
           a.vx -= (j * nx) / ma;
           a.vz -= (j * nz) / ma;
           b.vx += (j * nx) / mb;
           b.vz += (j * nz) / mb;
+          const closeA = Math.max(0, vax * nx + vaz * nz);
+          const closeB = Math.max(0, -(vbx * nx + vbz * nz));
+          // ram power: the rammer's own extra shove into whoever it hits
+          if (a.ram > 1 && closeA > 1) {
+            const push = (0.3 * (a.ram - 1) * closeA * 2 * ma) / (ma + mb);
+            b.vx += nx * push;
+            b.vz += nz * push;
+          }
+          if (b.ram > 1 && closeB > 1) {
+            const push = (0.3 * (b.ram - 1) * closeB * 2 * mb) / (ma + mb);
+            a.vx -= nx * push;
+            a.vz -= nz * push;
+          }
           const spin = 0.22 * (MASS / IZ);
           // torque = J · perp(r), perp(x, z) = (z, −x)
           a.yawRate += ((-j * nx * raz + j * nz * rax) * spin) / (ma * fa.yaw);
           b.yawRate += ((j * nx * rbz - j * nz * rbx) * spin) / (mb * fb.yaw);
           // what the lighter one feels, as a speed change
-          hit = Math.max(hit, j / Math.min(ma, mb));
+          const h = j / Math.min(ma, mb);
+          if (h > hit) {
+            hit = h;
+            hitInfo.j = j;
+            hitInfo.closeA = closeA;
+            hitInfo.closeB = closeB;
+            hitInfo.x = cx;
+            hitInfo.z = cz;
+            hitInfo.y = (a.y + b.y) / 2;
+          }
         }
-      if (hit > 0.3) onHit(i, k, hit);
+      if (hit > 0.3) onHit(i, k, hit, hitInfo);
     }
 }
