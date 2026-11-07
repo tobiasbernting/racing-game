@@ -8,9 +8,9 @@ import * as THREE from 'three';
 import { CAR_BODIES, CAR_BODY_DEFS, NITRO_SECONDS, RACE_DNF_PRIZE, cleanRules, newCar, raceMedal, racePrize, type CarBody, type GarageCar } from '../shared/rally.ts';
 import { Loop } from '../arcade/kit.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
-import { CHAOS_TEXT, DODGE, HOP, KICKSTART, PASSIVE_RAM, POUND, RAMMER, SLINGSHOT, SOFTLAND, WHEELIE_ROCKET, chaosPick, chargeOf, draftTarget, kitOf, pivotDir } from '../shared/abilities.ts';
+import { AWNING, CHAOS_TEXT, DODGE, DRAFT, EPA_BURST, HOLE_IN_ONE, HOP, ICE_CANNON, JINGLE, KART_SLIDE, KICKSTART, MOW, PASSIVE_RAM, POUND, POWDER, RAMMER, REPAIR, ROCKET, SCAVENGE, SLINGSHOT, SOFTLAND, VIP, WHEELIE_ROCKET, WOBBLE, chaosPick, chargeOf, draftTarget, kitOf, pivotDir } from '../shared/abilities.ts';
 import { rivalById, rivalCast } from '../shared/rivals.ts';
-import { LASTLAP_BOOST, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
+import { LASTLAP_BOOST, archetypeBodies, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
 import { KIND_AGGRO, pointsTable, type RaceKind } from '../shared/kinds.ts';
 import { BIG_HIT, RESPAWN_HP, TakedownLedger, WRECK_SECONDS, impactDamage, maxHpOf, ramPowerOf } from './combat.ts';
 import type { GameContext, GameInstance } from '../arcade/types.ts';
@@ -32,6 +32,7 @@ import { lakeDist } from './layout.ts';
 import { carModel, type CarModel, type Driver as Face } from './models.ts';
 import { MAX_CHARGES, MAX_NITRO_SECONDS, capGrip, capPower, emptyStats, noMods, type FinishAdjust, type FinishInfo, type RaceApi, type TickState } from './mods.ts';
 import { Obstacles } from './obstacles.ts';
+import { Shots } from './shots.ts';
 import { rallyOptions } from './options.ts';
 import { buildPickups, pickupAt, placePickups, type Pickup, type PickupMeshes } from './pickups.ts';
 import { buildThemeScenery, Weather } from './props.ts';
@@ -109,6 +110,8 @@ interface Entrant {
   /** Seconds until a computer car uses its vehicle's ability, and how far its front wheel is lifted (a bike on boost). */
   abilNext: number;
   wheelie: number;
+  /** Seconds left blinded by a snow cloud: slower and wandering. */
+  blindT: number;
 }
 
 /** Anyone on the track, for the standings, the minimap and the name tags. */
@@ -158,12 +161,7 @@ function pickColors(player: string, n: number): string[] {
 
 /** The body a rival of this temper drives: rammers like heavy things, racers quick light ones. */
 function archetypeBody(seed: number, k: number, spec: RivalSpec): CarBody {
-  const table: Record<string, [CarBody, number][]> = {
-    rammer: [['pickup', 2], ['tractor', 1.4], ['hatch', 1], ['monster', spec.role === 'rival' ? 0.3 : 0.9], ['sofa', 0.5]],
-    racer: [['coupe', 2], ['buggy', 1.5], ['moto', 1.2], ['atv', 1], ['hatch', 1]],
-    mixed: [['hatch', 2], ['buggy', 1], ['pickup', 1], ['coupe', 1], ['atv', 1], ['moped', 0.5], ['sofa', 0.5]],
-  };
-  const list = table[spec.archetype]!;
+  const list = archetypeBodies(spec.archetype, spec.role);
   let x = seededUnit(seed, k + 40) * list.reduce((a, [, w]) => a + w, 0);
   for (const [b, w] of list) {
     x -= w;
@@ -220,7 +218,7 @@ const rally = (ctx: GameContext): GameInstance => {
   const abilityOn = !!opts && !rules?.sameCars;
   const kit = abilityOn ? kitOf(myCar.body) : null;
   /** The hatchback's passive gives a nitro slot of its own (a perfect drift fills it). */
-  const nitroSlots = (): number => myTune.charges + (kit?.passive.id === 'nitroTopUp' ? 1 : 0);
+  const nitroSlots = (): number => myTune.charges + (kit?.passive.id === 'nitroTopUp' || kit?.active.id === 'kartSlide' ? 1 : 0);
   /** The handling a body gets from the player's parts and trinkets (the body can change mid-race with a trinket). */
   const tuneForBody = (body: CarBody): Tune => {
     const t = tuneFor({ ...myCar, body }, !!rules?.sameCars, !!rules?.nitro);
@@ -329,6 +327,7 @@ const rally = (ctx: GameContext): GameInstance => {
   let weather: Weather | null = null;
   let coins: Coins | null = null;
   const obstacles = new Obstacles();
+  const shots = new Shots();
   let pickups: Pickup[] = [];
   let pickupMeshes: PickupMeshes | null = null;
   let shadowTex: THREE.Texture;
@@ -408,8 +407,8 @@ const rally = (ctx: GameContext): GameInstance => {
       scene.add(coins.mesh);
       disposers.push(() => coins?.dispose());
     }
-    scene.add(obstacles.group);
-    disposers.push(() => obstacles.dispose());
+    scene.add(obstacles.group, shots.group);
+    disposers.push(() => obstacles.dispose(), () => shots.dispose());
     if (twist?.hay) obstacles.placeHay(track, twist.hay, opts?.seed ?? 20261030);
     else if (field && field.hazards.hay) obstacles.placeHay(track, field.hazards.hay, opts?.seed ?? 20261030);
     if (field) obstacles.placeHazards(track, field.hazards, opts?.seed ?? 20261030);
@@ -510,8 +509,14 @@ const rally = (ctx: GameContext): GameInstance => {
         honk: () => honk(player()),
         swap: (b: CarBody) => swapPlayerBody(b),
         gas: (n = 2) => api.gas(n),
-        /** Stop the loop on the frame just drawn (for a screenshot of a passing effect). */
+        /** Stop the loop on the frame just drawn (for a screenshot of a passing effect), and start it again. */
         freeze: () => loop?.pause(),
+        thaw: () => loop?.resume(),
+        /** Bring the player to a halt where it stands (for a close look at the model). */
+        park: () => {
+          const c = meE!.car;
+          c.vx = c.vz = c.yawRate = 0;
+        },
         /** Put the player on the road `gap` m behind the n-th rival, in its lane, rolling at `speed` m/s. */
         behind: (n = 0, gap = 9, speed = 20) => {
           const v = entrants.filter((e) => e !== meE)[n];
@@ -522,6 +527,23 @@ const rally = (ctx: GameContext): GameInstance => {
           meE.car.vz = Math.cos(h) * speed;
           meE.lastS = meE.car.proj.s;
           meE.u = v.u - gap;
+        },
+        /** Put the player `gap` m in front of the n-th rival (in its lane), rolling at `speed` m/s, so it has a car behind it. */
+        ahead: (n = 0, gap = 12, speed = 20) => {
+          const v = entrants.filter((e) => e !== meE)[n];
+          if (!v || !meE) return;
+          meE.car.place(v.car.proj.s + gap, v.car.proj.d, ground);
+          const h = meE.car.heading;
+          meE.car.vx = Math.sin(h) * speed;
+          meE.car.vz = Math.cos(h) * speed;
+          meE.lastS = meE.car.proj.s;
+          meE.u = v.u + gap;
+        },
+        /** Lay a hazard on the road `dist` m in front of the player. */
+        hazard: (kind: 'hay' | 'oil' | 'pothole' | 'banana' | 'glass' | 'tent', dist = 22, lat = 0) => {
+          const c = meE!.car;
+          const p = track.point(c.proj.s + dist, c.proj.d + lat);
+          obstacles.add(kind, p.x, p.y, p.z, null, track.heading(c.proj.s + dist));
         },
         /** Use the vehicle's ability now (ignores the cooldown). */
         ability: () => {
@@ -550,7 +572,7 @@ const rally = (ctx: GameContext): GameInstance => {
           const pr = track.project(sm.x, sm.z, -1, { i: 0, u: 0, s: 0, d: 0 });
           return warp(pr.s - back);
         },
-        abilityState: () => ({ cd: abilCd, kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, nitro: nitroLeft, uses: stats.abilityUses }),
+        abilityState: () => ({ cd: abilCd, kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, nitro: nitroLeft, uses: stats.abilityUses, junk, burst: burstT }),
         /** Wreck the n-th rival at once, crediting the player with the takedown. */
         takedown: (n = 0) => {
           const v = entrants.filter((e) => e !== meE)[n];
@@ -683,6 +705,7 @@ const rally = (ctx: GameContext): GameInstance => {
         dirt: 0,
         abilNext: 9 + Math.random() * 10,
         wheelie: 0,
+        blindT: 0,
       };
       e.maxHp = maxHpOf(car.feel.mass, spec?.hp ?? 1) * (isMe ? 1 + 0.08 * (myCar.parts.armour ?? 0) : 1);
       e.hp = e.maxHp;
@@ -744,6 +767,17 @@ const rally = (ctx: GameContext): GameInstance => {
   let dodgeT = 0;
   let chargeT = 0;
   let rocketT = 0;
+  /** phase 10: the EPA burst running, the garbage truck's load, the kart's slipstream, the next jingle, the VIP lane, the blades, the cart's wobble clock */
+  let burstT = 0;
+  let junk = 0;
+  let draftT = 0;
+  let jingleT = 4;
+  let vipT = 0;
+  let mowT = 0;
+  let drafting = false;
+  let rocketKick = 0;
+  /** Where a snow cloud hangs: centre, heading and seconds left (rivals driving into it are blinded). */
+  const clouds: { x: number; z: number; h: number; t: number }[] = [];
   let loadCd = 0;
   let landCd = 0;
   let abilKey = '';
@@ -1057,7 +1091,7 @@ const rally = (ctx: GameContext): GameInstance => {
       if (sliding || me.ctl.handbrake) {
         drift.grace = 0;
         if (sliding) {
-          drift.t += dt * mt.driftRate;
+          drift.t += dt * mt.driftRate * (kit?.passive.id === 'longSlide' ? 1.35 : 1);
           stats.driftSeconds += dt;
           drift.pts += beta * c.speed * dt * 6;
         }
@@ -1102,7 +1136,7 @@ const rally = (ctx: GameContext): GameInstance => {
     hud.setNitro(Math.floor(nitroLeft), nitroSlots(), nitroT > 0);
     hud.setStyle(opts ? stylePts : 0);
     // flames and speed lines while the nitro burns
-    const burn = nitroT > 0 ? 1 : driftBoostT > 0 ? 0.5 : 0;
+    const burn = nitroT > 0 || rocketT > 0 && kit?.active.id === 'rocket' || burstT > 0 ? 1 : driftBoostT > 0 ? 0.5 : 0;
     me.model.setNitro(burn);
     hud.speedLines(nitroT > 0 ? 0.8 : driftBoostT > 0 ? 0.35 : 0);
     if (burn > 0 && Math.random() < (high ? 1 : 0.6)) {
@@ -1117,6 +1151,7 @@ const rally = (ctx: GameContext): GameInstance => {
   function handling(e: Entrant, dt: number, isMe: boolean): void {
     const c = e.car;
     e.mudT = Math.max(0, e.mudT - dt);
+    e.blindT = Math.max(0, e.blindT - dt);
     e.slickT = Math.max(0, e.slickT - dt);
     e.padT = Math.max(0, e.padT - dt);
     if (pickups.length && !c.air) {
@@ -1264,6 +1299,17 @@ const rally = (ctx: GameContext): GameInstance => {
     }
   }
 
+  const tmpGolf = new THREE.Vector3();
+  const colPink = new THREE.Color('#ff8fc8');
+  const colWhite = new THREE.Color('#fff7e0');
+  const colGrassBright = new THREE.Color('#79d84a');
+  /** The garbage truck's load: each piece is a little armour on top of what the truck has. */
+  const baseDmg = myTune.dmgMul;
+  function setJunk(n: number): void {
+    junk = clamp(n, 0, SCAVENGE.max);
+    myTune.dmgMul = baseDmg * (1 - SCAVENGE.armour * junk);
+  }
+
   /** Uses the active. Returns false when it fizzled (the slingshot with nobody to pull on), so no use is counted. */
   function useAbility(me: Entrant): boolean {
     if (!kit) return false;
@@ -1387,6 +1433,167 @@ const rally = (ctx: GameContext): GameInstance => {
         audio.boom();
         hud.toast('🚜 RAMMBOCK!');
         break;
+      case 'epaBurst':
+        api.boost(EPA_BURST.boost, EPA_BURST.strength);
+        burstT = EPA_BURST.boost;
+        c.launch = Math.max(c.launch, 0.7);
+        shake = Math.max(shake, 0.3);
+        sparks(c.x - sinH * 2.4, c.y, c.z - cosH * 2.4, high ? 16 : 8);
+        ring(c, 14, 6, colSmoke);
+        hud.toast('⚠️ Gasa på EPA! Spärren är av');
+        break;
+      case 'iceCannon': {
+        const p = c.proj;
+        const hw = track.at(track.hw, p.s);
+        const from = new THREE.Vector3(c.x + sinH * 0.5, c.y + 3.4, c.z + cosH * 0.5);
+        for (let i = 0; i < ICE_CANNON.range.length; i++) {
+          const s = p.s + ICE_CANNON.range[i]!;
+          const d = clamp(p.d + (i - 1) * ICE_CANNON.spread + (Math.random() - 0.5) * 1.2, -hw + 1.6, hw - 1.6);
+          const to = track.point(s, d);
+          const at = new THREE.Vector3(to.x, to.y + 0.1, to.z);
+          shots.fire('scoop', from, at, 0.5 + i * 0.14, {
+            colour: i,
+            height: 4.5,
+            land: () => {
+              obstacles.add('glass', at.x, at.y, at.z, c);
+              stats.hazards++;
+              for (let k = 0; k < (high ? 10 : 5); k++) particles.emit({ x: at.x, y: at.y + 0.3, z: at.z, vx: (Math.random() - 0.5) * 6, vy: 2 + Math.random() * 3, vz: (Math.random() - 0.5) * 6, life: 0.7, size0: 0.4, size1: 0.2, color: i % 2 ? colPink : colWhite, alpha: 1, drag: 1, gravity: 9 });
+            },
+          });
+        }
+        audio.boing();
+        hud.toast('🍦 Glasskanon! Hal väg framför dig');
+        break;
+      }
+      case 'dump': {
+        const n = Math.max(3, junk + 2);
+        for (let k = 0; k < n; k++) {
+          const back = 4.8 + k * 0.9;
+          const side = (k % 2 ? 1 : -1) * (0.6 + Math.random() * 1.6);
+          obstacles.add(k % 3 === 2 ? 'banana' : 'hay', c.x - sinH * back + cosH * side, c.y, c.z - cosH * back - sinH * side, c);
+        }
+        if (junk >= 3) obstacles.add('oil', c.x - sinH * 5.2, c.y, c.z - cosH * 5.2, c);
+        stats.hazards += n;
+        for (let k = 0; k < (high ? 14 : 7); k++) {
+          colDebris.set(['#e8412c', '#2f8a3c', '#e8c862', '#8a8d95', '#f4f1ea'][k % 5]!);
+          debris.emit(c.x - sinH * 3, c.y + 1.4, c.z - cosH * 3, -sinH * (3 + Math.random() * 5) + (Math.random() - 0.5) * 4, 2 + Math.random() * 3, -cosH * (3 + Math.random() * 5) + (Math.random() - 0.5) * 4, 0.3, 0.2, 0.3, colDebris, 4);
+        }
+        audio.hay(10);
+        shake = Math.max(shake, 0.25);
+        hud.toast(`🗑️ Tömning! ${n} bitar skräp bakom dig`);
+        setJunk(0);
+        break;
+      }
+      case 'powder': {
+        clouds.push({ x: c.x - sinH * (POWDER.reach * 0.5), z: c.z - cosH * (POWDER.reach * 0.5), h: c.heading, t: POWDER.blind + 1 });
+        while (clouds.length > 3) clouds.shift();
+        // a white burst thrown out to the sides (the dust fade keeps it off the lens) and a long cloud left on the road behind
+        for (let k = 0; k < (high ? 46 : 22); k++) {
+          const side = (Math.random() < 0.5 ? -1 : 1) * (2 + Math.random() * 5);
+          const back = 1 + Math.random() * 3;
+          particles.emit({ x: c.x - sinH * back + cosH * side * 0.4, y: c.y + 0.6 + Math.random() * 1.2, z: c.z - cosH * back - sinH * side * 0.4, vx: cosH * side * 1.1 - sinH * 2, vy: 0.5 + Math.random() * 1.6, vz: -sinH * side * 1.1 - cosH * 2, life: 1.8 + Math.random() * 1.2, size0: 1.2, size1: 5.5, color: colSnow, alpha: 0.85, drag: 1.4, gravity: -0.1 });
+        }
+        for (let k = 0; k < (high ? 40 : 20); k++) {
+          const back = 4 + Math.random() * POWDER.reach * 0.8;
+          const side = (Math.random() - 0.5) * POWDER.width;
+          particles.emit({ x: c.x - sinH * back + cosH * side, y: c.y + 0.5 + Math.random() * 1.8, z: c.z - cosH * back - sinH * side, vx: (Math.random() - 0.5) * 1.5, vy: 0.2 + Math.random() * 0.6, vz: (Math.random() - 0.5) * 1.5, life: 2.6 + Math.random() * 1.4, size0: 2, size1: 6.5, color: colSnow, alpha: 0.7, drag: 1.2, gravity: -0.05 });
+        }
+        let n = 0;
+        for (const o of around()) if (o.fwd < 0 && o.fwd > -POWDER.reach && Math.abs(o.lat) < POWDER.width) n++;
+        audio.poof();
+        hud.toast(n ? `❄️ Pudersvans! ${n} ${n === 1 ? 'bil ser' : 'bilar ser'} ingenting` : '❄️ Pudersvans!');
+        break;
+      }
+      case 'kartSlide': {
+        const dir = pivotDir(me.ctl.steer, wrapAngle(th - c.heading));
+        c.yawRate += dir * KART_SLIDE.yaw;
+        c.vx += cosH * dir * KART_SLIDE.side;
+        c.vz -= sinH * dir * KART_SLIDE.side;
+        // a perfect drift at once: the charge of the biggest tier, paid out when the slide ends
+        drift.on = true;
+        drift.t = 2.45;
+        drift.tier = 3;
+        drift.pts = 200;
+        drift.grace = 0;
+        if (nitroLeft < nitroSlots()) nitroLeft = Math.min(nitroSlots(), Math.floor(nitroLeft) + 1);
+        shake = Math.max(shake, 0.3);
+        ring(c, 12, 5, colSmoke);
+        audio.slip();
+        audio.chime();
+        hud.toast(dir > 0 ? '🏁 Gokartsladd vänster! Nitro +1' : '🏁 Gokartsladd höger! Nitro +1');
+        break;
+      }
+      case 'holeInOne': {
+        let lead: Entrant | null = null;
+        for (const e of entrants) if (e !== me && !e.finished && e.wreckT <= 0 && e.u > me.u && e.u - me.u < HOLE_IN_ONE.reach && (!lead || e.u > lead.u)) lead = e;
+        if (!lead) {
+          abilCd = SLINGSHOT.miss;
+          hud.toast('⛳ Ingen framför dig att slå på. Du leder!');
+          return false;
+        }
+        const target = lead;
+        const from = new THREE.Vector3(c.x + sinH * 0.8, c.y + 1.7, c.z + cosH * 0.8);
+        audio.tock();
+        shots.fire('ball', from, new THREE.Vector3(target.car.x, target.car.y + 0.8, target.car.z), HOLE_IN_ONE.flight + Math.min(0.8, (target.u - me.u) / 120), {
+          height: 7,
+          follow: () => tmpGolf.set(target.car.x + target.car.vx * 0.15, target.car.y + 0.8, target.car.z + target.car.vz * 0.15),
+          land: () => {
+            const tc = target.car;
+            const lat = (tc.x - c.x) * Math.cos(c.heading) - (tc.z - c.z) * Math.sin(c.heading);
+            const sg = Math.abs(lat) < 0.3 ? (Math.random() < 0.5 ? 1 : -1) : Math.sign(lat);
+            const hc = Math.cos(tc.heading);
+            const hs = Math.sin(tc.heading);
+            tc.vx += hc * sg * HOLE_IN_ONE.push;
+            tc.vz -= hs * sg * HOLE_IN_ONE.push;
+            tc.yawRate += sg * 3.2;
+            tc.vy += 3;
+            target.squashT = Math.max(target.squashT, HOLE_IN_ONE.squash);
+            stats.squashed++;
+            audio.boing();
+            sparkleAt(tc.x, tc.y + 0.5, tc.z, 14, 1.2);
+            hud.toast(`⛳ HOLE IN ONE! ${target.name} fick bollen i sidan`);
+          },
+        });
+        hud.toast(`⛳ Fore! Siktar på ${target.name}`);
+        break;
+      }
+      case 'mow': {
+        const r = obstacles.clearAhead(c.x, c.z, c.heading, MOW.reach, MOW.width);
+        mowT = 2.0;
+        api.boost(MOW.boost, MOW.strength);
+        for (const q of r.at) for (let k = 0; k < 6; k++) particles.emit({ x: q.x, y: q.y + 0.5, z: q.z, vx: (Math.random() - 0.5) * 6, vy: 2 + Math.random() * 3, vz: (Math.random() - 0.5) * 6, life: 0.8, size0: 0.35, size1: 0.2, color: colGrassBright, alpha: 1, drag: 1, gravity: 8 });
+        audio.hay(7);
+        shake = Math.max(shake, 0.25);
+        hud.toast(r.n ? `🌿 Gräsklippning! ${r.n} ${r.n === 1 ? 'fälla' : 'fällor'} klippta` : '🌿 Gräsklippning!');
+        break;
+      }
+      case 'awning': {
+        for (const sx of [-1, 1]) obstacles.add('tent', c.x - sinH * 6 + cosH * sx * 2.5, c.y, c.z - cosH * 6 - sinH * sx * 2.5, c, c.heading);
+        stats.hazards += 2;
+        audio.hay(10);
+        ring(c, 14, 4, colHay);
+        shake = Math.max(shake, 0.2);
+        hud.toast('⛺ Tältet fälls ut! Ingen kommer förbi');
+        break;
+      }
+      case 'vip':
+        c.ghost = Math.max(c.ghost, VIP.seconds);
+        vipT = VIP.seconds;
+        api.boost(VIP.boost, VIP.strength);
+        sparkleAt(c.x, c.y, c.z, 18, 1.5);
+        audio.chime();
+        hud.toast('🕶️ VIP-fil! Rakt genom alla');
+        break;
+      case 'rocket':
+        api.boost(ROCKET.boost, ROCKET.strength);
+        rocketT = ROCKET.boost;
+        c.launch = Math.max(c.launch, 0.9);
+        shake = Math.max(shake, 0.55);
+        audio.rocket(ROCKET.boost);
+        sparks(c.x - sinH * 1.8, c.y, c.z - cosH * 1.8, high ? 24 : 12);
+        ring(c, 16, 6, colHot);
+        hud.toast('🛒 Raketen! Håll i dig');
+        break;
       case 'cushionChaos': {
         const fx = chaosPick(Math.random());
         const fallback = (): void => api.boost(1.5, 1.4);
@@ -1435,6 +1642,9 @@ const rally = (ctx: GameContext): GameInstance => {
     dodgeT = Math.max(0, dodgeT - dt);
     chargeT = Math.max(0, chargeT - dt);
     rocketT = Math.max(0, rocketT - dt);
+    burstT = Math.max(0, burstT - dt);
+    vipT = Math.max(0, vipT - dt);
+    mowT = Math.max(0, mowT - dt);
     loadCd = Math.max(0, loadCd - dt);
     landCd = Math.max(0, landCd - dt);
     const live = racing && phase === 'race' && !me.finished && me.wreckT <= 0 && me.tumbleT <= 0;
@@ -1447,8 +1657,9 @@ const rally = (ctx: GameContext): GameInstance => {
         hud.popup(`${kit.active.emoji} ${kit.active.name}`, 'abil');
       }
     }
-    // the bike rocket is hard to steer; the tractor's charge keeps its line
-    if (rocketT > 0) me.ctl.steer = clamp(me.ctl.steer * WHEELIE_ROCKET.steer, -1, 1);
+    // the bike rocket is hard to steer (the cart's even more, and it shakes about); the tractor's charge keeps its line
+    if (rocketT > 0) me.ctl.steer = clamp(me.ctl.steer * (kit.active.id === 'rocket' ? ROCKET.steer : WHEELIE_ROCKET.steer), -1, 1);
+    phase10(dt, me, racing);
     // a vehicle with a stomp or a charge gets a dust trail while it lasts
     if (chargeT > 0 && Math.random() < (high ? 0.7 : 0.35)) sparks(me.car.x - Math.sin(me.car.heading) * 2.6, me.car.y, me.car.z - Math.cos(me.car.heading) * 2.6, 2);
     const k = chargeOf(abilCd, kit.active.cooldown);
@@ -1457,6 +1668,93 @@ const rally = (ctx: GameContext): GameInstance => {
       abilKey = key;
       hud.setAbility(kit.active.emoji, kit.active.name, k, abilCd <= 0);
       ctx.abilityHud?.(k, abilCd <= 0);
+    }
+  }
+
+  /** The passives and running effects of the ten newest vehicles (the race calls this every frame). */
+  function phase10(dt: number, me: Entrant, racing: boolean): void {
+    if (!kit) return;
+    const c = me.car;
+    const sinH = Math.sin(c.heading);
+    const cosH = Math.cos(c.heading);
+    for (const cl of clouds) cl.t -= dt;
+    while (clouds.length && clouds[0]!.t <= 0) clouds.shift();
+    const driving = racing && phase === 'race' && !me.finished && me.wreckT <= 0;
+    // the burst and the rocket push along the nose, whatever the tyres say (that is what makes them feel like more than a boost)
+    if ((burstT > 0 || (rocketT > 0 && kit.active.id === 'rocket')) && !c.air && racing) {
+      const rocket = burstT <= 0;
+      const a = rocket ? ROCKET.thrust : EPA_BURST.thrust;
+      const cap = rocket ? ROCKET.cap : EPA_BURST.cap;
+      if (c.vLong < cap) {
+        c.vx += sinH * a * dt;
+        c.vz += cosH * a * dt;
+      }
+    }
+    // EPA: a black puff of smoke out of the pipe while the burst lasts
+    if (burstT > 0 && Math.random() < (high ? 0.9 : 0.5)) particles.emit({ x: c.x - sinH * 2.4 + cosH * 0.4, y: c.y + 0.5, z: c.z - cosH * 2.4 - sinH * 0.4, vx: -sinH * 3, vy: 1 + Math.random(), vz: -cosH * 3, life: 0.9, size0: 0.5, size1: 2.2, color: colDark, alpha: 0.7, drag: 1.2, gravity: -0.4 });
+    // the cart's rocket: a trail of fire and smoke, and kicks to the side
+    if (rocketT > 0 && kit.active.id === 'rocket') {
+      if (Math.random() < (high ? 1 : 0.7)) particles.emit({ x: c.x - sinH * 1.9, y: c.y + 0.4, z: c.z - cosH * 1.9, vx: -sinH * 5 + (Math.random() - 0.5) * 2, vy: 0.5 + Math.random(), vz: -cosH * 5 + (Math.random() - 0.5) * 2, life: 0.8, size0: 0.8, size1: 2.8, color: Math.random() < 0.5 ? colFlame : colSmoke, alpha: 0.8, drag: 1.1, gravity: -0.2 });
+      rocketKick -= dt;
+      if (rocketKick <= 0 && !c.air) {
+        rocketKick = 0.28 + Math.random() * 0.3;
+        c.yawRate += (Math.random() - 0.5) * 2 * ROCKET.kick * 1.6;
+      }
+    }
+    // VIP: gold glitter while you ghost through the traffic
+    if (vipT > 0 && Math.random() < 0.7) sparkleAt(c.x, c.y, c.z, 2, 1.4);
+    // the blades: grass flies from the deck and everything in the way is cut down
+    if (mowT > 0) {
+      obstacles.clearAhead(c.x, c.z, c.heading, 14, MOW.width);
+      for (let k = 0; k < (high ? 7 : 4); k++) {
+        const side = (Math.random() - 0.5) * 3;
+        particles.emit({ x: c.x + sinH * 2.4 + cosH * side, y: c.y + 0.3 + Math.random() * 0.5, z: c.z + cosH * 2.4 - sinH * side, vx: sinH * (10 + Math.random() * 10) + cosH * side * 2, vy: 1 + Math.random() * 3, vz: cosH * (10 + Math.random() * 10) - sinH * side * 2, life: 0.7, size0: 0.28, size1: 0.18, color: Math.random() < 0.7 ? colGrassBright : colGrass, alpha: 1, drag: 0.8, gravity: 9 });
+      }
+    }
+    if (!driving) return;
+    switch (kit.passive.id) {
+      case 'jingle': {
+        jingleT -= dt;
+        if (jingleT <= 0) {
+          jingleT = JINGLE.every;
+          audio.jingle();
+        }
+        const f = Math.exp(-JINGLE.slow * dt);
+        for (const o of around()) {
+          if (o.d > JINGLE.radius) continue;
+          o.e.car.vx *= f;
+          o.e.car.vz *= f;
+          if (Math.random() < 0.06) particles.emit({ x: o.e.car.x, y: o.e.car.y + 2.2, z: o.e.car.z, vy: 1.2, life: 1.0, size0: 0.5, size1: 0.9, color: Math.random() < 0.5 ? colPink : colWhite, alpha: 0.9, drag: 1, gravity: -0.5 });
+        }
+        break;
+      }
+      case 'draft': {
+        const target = draftTarget(around(), DRAFT.reach, DRAFT.lane);
+        drafting = !!target && c.speed > 12;
+        if (drafting) {
+          draftT += dt;
+          if (Math.random() < 0.6) for (const sx of [-1, 1]) particles.emit({ x: c.x + cosH * sx * 1.1 + sinH * 1.5, y: c.y + 0.5, z: c.z - sinH * sx * 1.1 + cosH * 1.5, vx: -sinH * 6, vy: 0.1, vz: -cosH * 6, life: 0.35, size0: 0.3, size1: 0.12, color: colWhite, alpha: 0.7, drag: 0.4, gravity: 0 });
+          if (draftT >= DRAFT.fill) {
+            draftT = 0;
+            api.boost(DRAFT.boost, DRAFT.strength);
+            shake = Math.max(shake, 0.15);
+            hud.toast('💨 Slipström! Gratis fartstöt');
+          }
+        } else draftT = Math.max(0, draftT - dt * 0.6);
+        break;
+      }
+      case 'repair':
+        if (c.speed > REPAIR.minSpeed) {
+          const before = carnage ? me.hp : me.damage;
+          if (carnage) {
+            if (me.hp > 0 && me.hp < me.maxHp) me.hp = Math.min(me.maxHp, me.hp + REPAIR.hp * dt);
+          } else me.damage = Math.max(0, me.damage - REPAIR.plating * dt);
+          if ((carnage ? me.hp : me.damage) !== before && Math.random() < 0.05) particles.emit({ x: c.x + (Math.random() - 0.5) * 1.5, y: c.y + 3.2, z: c.z + (Math.random() - 0.5) * 1.5, vy: 1.6, life: 0.9, size0: 0.5, size1: 0.2, color: colGrassBright, alpha: 0.9, drag: 1, gravity: -0.5 });
+        }
+        break;
+      case 'wobble':
+        if (c.speed > 3) me.ctl.steer = clamp(me.ctl.steer + WOBBLE.amp * (Math.sin(timeU.value * 2.7) + 0.7 * Math.sin(timeU.value * 6.1 + 1.3)) * (rocketT > 0 ? 1.6 : 1), -1, 1);
+        break;
     }
   }
 
@@ -1647,6 +1945,7 @@ const rally = (ctx: GameContext): GameInstance => {
   /** Banana peels and hay bales spin whoever drives over them. */
   function obstaclesStep(dt: number, racing: boolean): void {
     obstacles.update(dt);
+    shots.update(dt);
     if (!racing) return;
     const me = player();
     for (const e of entrants) {
@@ -1655,6 +1954,16 @@ const rally = (ctx: GameContext): GameInstance => {
       // the moped's Väj!: nothing on the road touches it for a second
       if (e === me && dodgeT > 0) continue;
       const c = e.car;
+      // the garbage truck picks the thing up instead of driving into it, and keeps a little of it as armour
+      if (e === me && kit?.passive.id === 'scavenger') {
+        obstacles.take(o);
+        const first = junk === 0;
+        setJunk(junk + 1);
+        audio.thud(4);
+        for (let k = 0; k < (high ? 6 : 3); k++) particles.emit({ x: c.x, y: c.y + 0.8, z: c.z, vx: (Math.random() - 0.5) * 4, vy: 2 + Math.random() * 2, vz: (Math.random() - 0.5) * 4, life: 0.6, size0: 0.3, size1: 0.2, color: colDirt, alpha: 1, drag: 1, gravity: 9 });
+        if (first || junk === SCAVENGE.max) hud.toast(junk === SCAVENGE.max ? '🗑️ Lasset är fullt. Dags att tömma?' : '🗑️ Plockade upp skräp: lite pansar');
+        continue;
+      }
       if (o.kind === 'pothole') {
         // a pothole: a jolt up, a lost bit of speed, a little damage
         c.vy = Math.max(c.vy, 0) + 2.8 * Math.max(0.4, c.feel.landing);
@@ -1673,7 +1982,7 @@ const rally = (ctx: GameContext): GameInstance => {
       }
       // a tractor hardly notices a banana peel, a hay bale or an oil slick; oil spins harder and takes the grip for a moment
       const sl = c.feel.slip;
-      const oil = o.kind === 'oil';
+      const oil = o.kind === 'oil' || o.kind === 'glass';
       c.yawRate += (Math.random() < 0.5 ? -1 : 1) * (oil ? 10 : 7) * sl;
       c.vx *= 1 - (oil ? 0.3 : 0.45) * sl;
       c.vz *= 1 - (oil ? 0.3 : 0.45) * sl;
@@ -2149,6 +2458,8 @@ const rally = (ctx: GameContext): GameInstance => {
     let bestScore = Infinity;
     for (const o of entrants) {
       if (o === e || o.finished || o.wreckT > 0 || o.car.ghost > 0) continue;
+      // the golf cart is silent: nobody goes for it
+      if (o === me && kit?.passive.id === 'silent') continue;
       const dist = Math.hypot(o.car.x - e.car.x, o.car.z - e.car.z);
       if (dist > (carnage ? 42 : 32)) continue;
       let sc = dist;
@@ -2304,7 +2615,25 @@ const rally = (ctx: GameContext): GameInstance => {
           e.car.power = e.basePower * (gap < -30 ? 1 + Math.min(0.08, (-gap - 30) / 1000) * k : gap > 60 ? 1 - 0.07 * k : 1) * damagePower(e.damage) * (e.squashT > 0 ? 0.4 : 1);
         }
         if (e.finished) mul = Math.min(mul, 0.72);
+        // a snow cloud blinds whoever drives into it: slower and wandering for a moment
+        if (e !== me && clouds.length) {
+          for (const cl of clouds) {
+            const dx = e.car.x - cl.x;
+            const dz = e.car.z - cl.z;
+            const fwd = dx * Math.sin(cl.h) + dz * Math.cos(cl.h);
+            const lat = dx * Math.cos(cl.h) - dz * Math.sin(cl.h);
+            if (Math.abs(fwd) < POWDER.reach * 0.6 && Math.abs(lat) < POWDER.width) {
+              if (e.blindT <= 0) stats.squashed++;
+              e.blindT = POWDER.blind;
+            }
+          }
+        }
+        if (e.blindT > 0) mul *= 0.72;
         drv.drive(e.car, track, cars, mul, timeU.value + entrants.indexOf(e), dt, e.ctl);
+        if (e.blindT > 0 && e !== me) {
+          e.ctl.steer = clamp(e.ctl.steer + Math.sin(timeU.value * 7 + entrants.indexOf(e)) * 0.32, -1, 1);
+          if (Math.random() < 0.05) particles.emit({ x: e.car.x, y: e.car.y + 1.6, z: e.car.z, vy: 0.8, life: 0.8, size0: 0.9, size1: 1.8, color: colSnow, alpha: 0.7, drag: 1, gravity: -0.2 });
+        }
         if (e !== me && racing && !e.finished) rivalTricks(e, dt);
         if (!racing) {
           e.ctl.throttle = Math.random() < 0.04 ? 0.8 : e.ctl.throttle * 0.9;
@@ -2989,7 +3318,7 @@ const rally = (ctx: GameContext): GameInstance => {
         rivalHp: entrants.filter((e) => e !== me).map((e) => Math.round(e.hp)),
         style: stylePts,
         nitro: nitroLeft,
-        ability: { cd: abilCd, kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, wheelie: me.wheelie, ram: me.car.ram, boost: me.car.boost, ghost: me.car.ghost, vy: me.car.vy, air: me.car.air, heading: me.car.heading, uses: stats.abilityUses, squashed: entrants.filter((e) => e !== me && e.squashT > 0).length },
+        ability: { cd: abilCd, kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, burst: burstT, junk, draft: draftT, drafting, vip: vipT, mow: mowT, clouds: clouds.length, blind: entrants.filter((e) => e.blindT > 0).length, shots: shots.count, obstacles: obstacles.count, hp: me.hp, maxHp: me.maxHp, wheelie: me.wheelie, ram: me.car.ram, boost: me.car.boost, ghost: me.car.ghost, vy: me.car.vy, air: me.car.air, heading: me.car.heading, uses: stats.abilityUses, squashed: entrants.filter((e) => e !== me && e.squashT > 0).length },
         tumbles,
         mods: { stats: { ...stats }, bonusKr, coinKr, extraBoostT, bananas: obstacles.count, squashed: entrants.filter((e) => e.squashT > 0).length },
         calls: renderer.info.render.calls,

@@ -7,7 +7,7 @@ import { MAX_CHARGES, MAX_NITRO_SECONDS, capGrip, capPower } from '../rally/mods
 import { ramPowerOf } from '../rally/combat.ts';
 import { LASTLAP_BOOST, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
 import { pointsTable } from '../shared/kinds.ts';
-import { HOOK_SAVE, HUMAN_FACTOR, NITRO_SAVE, baseLap, carGain, driftSaving, rivalLap, type HumanSkill } from '../shared/pace.ts';
+import { BODY_LAP, HOOK_SAVE, HUMAN_FACTOR, NITRO_SAVE, baseLap, carGain, driftSaving, rivalLap, type HumanSkill } from '../shared/pace.ts';
 import { CAR_BODY_DEFS, NITRO_SECONDS, PART_EFFECTS } from '../shared/rally.ts';
 import { PASSIVE_LAP, PASSIVE_RAM, activeLapSave } from '../shared/abilities.ts';
 import type { RallyResult } from '../rally/options.ts';
@@ -50,12 +50,14 @@ export function playerStats(run: RunState, m: PlayerModel): PlayerStats {
   const len = charges ? Math.min(NITRO_SECONDS * t.nitroSeconds, MAX_NITRO_SECONDS / charges) : 0;
   const human = HUMAN_FACTOR[m.skill];
   // a vehicle with a top speed (moped, tractor) loses on the straights
-  const top = body.feel.top > 0 ? 1 + 0.55 * Math.max(0, 1 - (body.feel.top * t.top) / 50) : 1;
+  // (the ten newest vehicles have their own measured lap factor instead, grip and power upgrades still counting on top of it)
+  const bodyLap = BODY_LAP[run.car.body];
+  const top = bodyLap === undefined && body.feel.top > 0 ? 1 + 0.55 * Math.max(0, 1 - (body.feel.top * t.top) / 50) : 1;
   // the vehicle's own kit: a passive that is a little faster, and an active used a few times a lap by a driver who knows it
   const skillK = 0.5 + 0.5 * Math.min(1, (1.08 - human) * 8);
   const passive = PASSIVE_LAP[run.car.body] ?? 1;
   return {
-    lap: (course) => baseLap(course) * carGain(grip, power) * human * top * passive,
+    lap: (course) => baseLap(course) * (bodyLap === undefined ? carGain(grip, power) : bodyLap * carGain(grip / body.grip, power / body.power)) * human * top * passive,
     nitroSaved: charges * len * NITRO_SAVE * (0.6 + 0.4 * Math.min(1, (1.08 - human) * 8)),
     // mini-turbos and the speed hooks together never save more than 2.2 s a lap
     driftSaved: Math.min(1.6, driftSaving(human, t.driftRate) + run.trinkets.reduce((a, o) => a + (HOOK_SAVE[o.id] ?? 0) * Math.min(o.n, 3), 0) * skillK) + activeLapSave(run.car.body, 50, skillK),

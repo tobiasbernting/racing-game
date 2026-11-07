@@ -143,6 +143,9 @@ run strong, which is right; the rivals and courses must keep up. Design directio
    sparks, debris and a fireball on wrecks, sticker/poster menus with collector cards, a new icon. The shared helpers are in `src/rally/look.ts`.
 10. **Ten new vehicles**, in the new style: e.g. EPA-traktor, glassbil, sopbil, snöskoter, gokart, golfbil,
     åkgräsklippare, husbil, limousin, kundvagn med raketmotor.
+    Built (see README, "Tio fordon till"): twenty vehicles in all (5 starters, 15 by challenge), ten new models in `src/rally/vehicles2.ts`, each with its own feel,
+    gearbox, engine sound, lean, passive, active, starting trinket and challenge; rivals drive them by temper; a lean filter and a grid on the car pick; measured lap factors
+    (`BODY_LAP`) in the balance simulation and a test over all twenty bodies.
 11. **The car grows**: pick 1 of 3 upgrades, the Ram/Race trees and the Fuffens/Stunt/Girig side paths, visible
     mods on the car, cross-path combos, stunt ramps on courses; every run should feel different.
 12. **Derby arena + balance**: last-car-standing arena for elites and bosses, playtest-driven balance, maybe heat

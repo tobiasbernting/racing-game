@@ -12,6 +12,16 @@ export const CAR_BODY_NAMES: Record<CarBody, string> = {
   moped: 'Moppe',
   tractor: 'Traktor',
   sofa: 'Soffbil',
+  epa: 'EPA-traktor',
+  icecream: 'Glassbil',
+  garbage: 'Sopbil',
+  snowmobile: 'Snöskoter',
+  kart: 'Gokart',
+  golf: 'Golfbil',
+  mower: 'Åkgräsklippare',
+  camper: 'Husbil',
+  limo: 'Limousin',
+  cart: 'Raketvagnen',
 };
 
 /** One cheeky line on how each body drives. */
@@ -26,6 +36,16 @@ export const CAR_BODY_TEXT: Record<CarBody, string> = {
   moped: 'Långsam men spänstig. Ring-ring, flytta på dig.',
   tractor: 'Tung som en björn. Puttrar fram och puttar bort alla.',
   sofa: 'En soffa på hjul. Mamma skulle aldrig tillåta det.',
+  epa: 'En gammal bil som blivit traktor. Skylten säger 30. Gasen säger något annat.',
+  icecream: 'Glassbilen kommer! Alla stannar. Alla utom du.',
+  garbage: 'Hämtar allt som ligger i vägen. Och lite till.',
+  snowmobile: 'Fräser över snö och sand. Asfalt är bara tråkigt.',
+  kart: 'Liten som en skoask, snabb som en fnatt. Varje gupp känns.',
+  golf: 'Tyst, lugn och farligt. Fore!',
+  mower: 'Älskar gräs. Allt annat är en omväg.',
+  camper: 'Ett hem på hjul. Tungt, stabilt och aldrig sist hem.',
+  limo: 'Lång. Rakt fram är det en dröm. I kurvan blir det en rutschkana.',
+  cart: 'En kundvagn med en raket på. Vad kan gå fel?',
 };
 
 export const RALLY_COURSE_NAMES: Record<RallyCourse, string> = {

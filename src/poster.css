@@ -370,6 +370,27 @@ div.rg-tcard {
 .rg-kit-lock b {
   color: #a3280f;
 }
+/* a locked vehicle's card is dark, so its text has to be light (it was ink on charcoal) */
+.rg-kit.locked .rg-kit-row small,
+.rg-kit.locked .rg-kit-text,
+.rg-kit.locked .rg-kit-head small,
+.rg-kit.locked .rg-kit-lock small {
+  color: #efe6cc;
+}
+.rg-kit.locked .rg-kit-row em {
+  color: #cfc29c;
+}
+.rg-kit.locked .rg-kit-stars,
+.rg-kit.locked .rg-lean,
+.rg-kit.locked .rg-kit-lock b {
+  color: #ffd23f;
+}
+.rg-kit.locked .rg-kit-bar {
+  background: rgba(255, 255, 255, 0.25);
+}
+.rg-kit.locked .rg-kit-bar i {
+  background: #ffd23f;
+}
 .rg-kindbox {
   border-left: 8px solid var(--kc);
 }

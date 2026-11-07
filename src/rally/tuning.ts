@@ -56,6 +56,17 @@ const RIVAL_POOL: [CarBody, number][] = [
   ['moped', 1],
   ['tractor', 0.7],
   ['sofa', 0.5],
+  // phase 10: a few of the new ones turn up now and then
+  ['kart', 0.5],
+  ['icecream', 0.35],
+  ['golf', 0.35],
+  ['mower', 0.35],
+  ['limo', 0.4],
+  ['snowmobile', 0.4],
+  ['garbage', 0.3],
+  ['camper', 0.3],
+  ['cart', 0.25],
+  ['epa', 0.2],
 ];
 
 /** A deterministic 0..1 from a seed and a slot (no Math.random: the same race gives the same grid). */

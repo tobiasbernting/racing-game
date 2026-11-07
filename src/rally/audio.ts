@@ -21,7 +21,7 @@ interface Voice {
 }
 
 /** What an engine sounds like: the oscillator mix, the pitch, how bright, and a tremolo (the chug or the buzz). */
-export type EngineKind = 'car' | 'atv' | 'moto' | 'moped' | 'tractor' | 'sofa' | 'monster';
+export type EngineKind = 'car' | 'atv' | 'moto' | 'moped' | 'tractor' | 'sofa' | 'monster' | 'epa' | 'icecream' | 'garbage' | 'snowmobile' | 'kart' | 'golf' | 'mower' | 'camper' | 'limo' | 'cart';
 interface EngineProfile {
   types: [OscillatorType, OscillatorType, OscillatorType];
   mul: [number, number, number];
@@ -48,6 +48,26 @@ const ENGINES: Record<EngineKind, EngineProfile> = {
   tractor: { types: ['square', 'sawtooth', 'square'], mul: [0.5, 1, 0.25], lvl: [0.7, 0.4, 0.3], pitch: 0.55, cut: 0.5, q: 1.4, chug: 0.65, chugA: 3, chugB: 0.0025, level: 1.3 },
   // the sofa: a wheezy, lumpy purr
   sofa: { types: ['triangle', 'square', 'sawtooth'], mul: [1, 0.5, 2], lvl: [0.6, 0.4, 0.2], pitch: 0.9, cut: 0.8, q: 1.8, chug: 0.3, chugA: 2, chugB: 0.002, level: 1 },
+  // the EPA tractor: an old car engine in a bad mood, put-put at a walking pace
+  epa: { types: ['square', 'sawtooth', 'triangle'], mul: [0.5, 1, 1.5], lvl: [0.6, 0.4, 0.2], pitch: 0.7, cut: 0.6, q: 1.6, chug: 0.5, chugA: 4, chugB: 0.003, level: 1.2 },
+  // the ice-cream van: a warm, humming diesel
+  icecream: { types: ['triangle', 'sawtooth', 'sine'], mul: [0.5, 1, 2], lvl: [0.7, 0.3, 0.25], pitch: 0.65, cut: 0.55, q: 1.4, chug: 0.15, chugA: 2, chugB: 0.0015, level: 1.1 },
+  // the garbage truck: a deep, grumbling diesel
+  garbage: { types: ['sawtooth', 'square', 'sawtooth'], mul: [0.5, 0.25, 1], lvl: [0.6, 0.55, 0.3], pitch: 0.5, cut: 0.45, q: 1.6, chug: 0.35, chugA: 3, chugB: 0.0025, level: 1.4 },
+  // the snowmobile: a two-stroke saw
+  snowmobile: { types: ['sawtooth', 'sawtooth', 'square'], mul: [1, 1.99, 3], lvl: [0.5, 0.4, 0.25], pitch: 1.9, cut: 2.1, q: 4, chug: 0.2, chugA: 18, chugB: 0.004, level: 0.9 },
+  // the kart: a screaming little engine
+  kart: { types: ['sawtooth', 'square', 'sawtooth'], mul: [1, 2, 3.02], lvl: [0.5, 0.35, 0.35], pitch: 2.1, cut: 2.3, q: 4.2, chug: 0.1, chugA: 25, chugB: 0.004, level: 0.85 },
+  // the golf cart: an electric whine that climbs with the speed
+  golf: { types: ['sine', 'triangle', 'sine'], mul: [1, 2, 3], lvl: [0.5, 0.3, 0.25], pitch: 2.3, cut: 3, q: 1.2, chug: 0, chugA: 0, chugB: 0, level: 0.7 },
+  // the lawn mower: a single-cylinder chug-chug-chug
+  mower: { types: ['square', 'sawtooth', 'square'], mul: [0.5, 1, 2], lvl: [0.65, 0.35, 0.2], pitch: 1.1, cut: 0.9, q: 2, chug: 0.8, chugA: 7, chugB: 0.004, level: 1 },
+  // the camper: a tired, low diesel with a rattle
+  camper: { types: ['sawtooth', 'square', 'triangle'], mul: [0.5, 0.75, 1.5], lvl: [0.6, 0.45, 0.25], pitch: 0.55, cut: 0.5, q: 1.5, chug: 0.3, chugA: 3, chugB: 0.002, level: 1.3 },
+  // the limousine: a smooth, low V8 burble
+  limo: { types: ['sawtooth', 'triangle', 'sawtooth'], mul: [0.5, 1, 1.5], lvl: [0.55, 0.5, 0.3], pitch: 0.75, cut: 0.7, q: 2.4, chug: 0.12, chugA: 8, chugB: 0.003, level: 1.1 },
+  // the rocket cart: a rough roar that gets wilder with the revs
+  cart: { types: ['sawtooth', 'square', 'sawtooth'], mul: [1, 1.5, 0.5], lvl: [0.5, 0.5, 0.45], pitch: 1.4, cut: 1.8, q: 1.4, chug: 0.45, chugA: 14, chugB: 0.006, level: 1.1 },
 };
 
 /** Which engine each body has. */
@@ -59,6 +79,16 @@ export function engineOf(body: CarBody | undefined): EngineKind {
     case 'tractor':
     case 'sofa':
     case 'monster':
+    case 'epa':
+    case 'icecream':
+    case 'garbage':
+    case 'snowmobile':
+    case 'kart':
+    case 'golf':
+    case 'mower':
+    case 'camper':
+    case 'limo':
+    case 'cart':
       return body;
     default:
       return 'car';
@@ -524,6 +554,33 @@ export class RallyAudio {
         tone(a, out, 520, 0.2, { type: 'square', to: 480, vol: 0.08 });
         tone(a, out, 520, 0.2, { type: 'square', to: 480, vol: 0.08, at: 0.26 });
         break;
+      case 'icecream':
+        // the first bars of the ice-cream tune
+        [659, 587, 523, 587, 659, 659, 659].forEach((f, i) => tone(a, out, f, 0.14, { type: 'triangle', vol: 0.08, at: i * 0.15 }));
+        break;
+      case 'golf':
+        tone(a, out, 880, 0.12, { type: 'sine', vol: 0.08 });
+        tone(a, out, 1175, 0.2, { type: 'sine', vol: 0.08, at: 0.1 });
+        break;
+      case 'cart':
+        // a squeaky wheel
+        tone(a, out, 1400, 0.25, { type: 'sawtooth', to: 900, vol: 0.05 });
+        tone(a, out, 1500, 0.2, { type: 'sawtooth', to: 1000, vol: 0.05, at: 0.28 });
+        break;
+      case 'limo':
+        // a fancy three-note chord
+        [392, 494, 587].forEach((f) => tone(a, out, f, 0.6, { type: 'triangle', vol: 0.07 }));
+        break;
+      case 'garbage':
+      case 'camper':
+        tone(a, out, 110, 0.7, { type: 'sawtooth', vol: 0.1, attack: 0.03 });
+        tone(a, out, 138, 0.7, { type: 'square', vol: 0.06, attack: 0.03 });
+        break;
+      case 'mower':
+        tone(a, out, 700, 0.1, { type: 'square', vol: 0.06 });
+        tone(a, out, 700, 0.1, { type: 'square', vol: 0.06, at: 0.14 });
+        tone(a, out, 700, 0.2, { type: 'square', vol: 0.06, at: 0.28 });
+        break;
       case 'sofa':
         // a squeaky cushion
         tone(a, out, 300, 0.35, { type: 'triangle', to: 90, vol: 0.14 });
@@ -534,6 +591,28 @@ export class RallyAudio {
         tone(a, out, 415, 0.4, { type: 'square', vol: 0.07 });
         tone(a, out, 524, 0.4, { type: 'square', vol: 0.06 });
     }
+  }
+
+  /** The ice-cream van's tune: a little music-box melody. */
+  jingle(): void {
+    const notes = [659, 784, 659, 523, 587, 659, 587, 494, 523];
+    notes.forEach((f, i) => {
+      tone(this.a, this.out, f, 0.2, { type: 'triangle', vol: 0.06, at: i * 0.17 });
+      tone(this.a, this.out, f * 2, 0.12, { type: 'sine', vol: 0.025, at: i * 0.17 });
+    });
+  }
+
+  /** The rocket: a long roar. */
+  rocket(sec: number): void {
+    noiseShot(this.a, this.out, sec, { freq: 900, q: 0.5, vol: 0.3 });
+    tone(this.a, this.out, 70, sec, { type: 'sawtooth', to: 140, vol: 0.12 });
+    noiseShot(this.a, this.out, 0.3, { freq: 2600, q: 0.8, vol: 0.18 });
+  }
+
+  /** A golf club hitting a ball: a sharp tick, then a rising whistle. */
+  tock(): void {
+    tone(this.a, this.out, 2400, 0.04, { type: 'square', vol: 0.12 });
+    tone(this.a, this.out, 600, 0.5, { type: 'sine', to: 1400, vol: 0.06, at: 0.04 });
   }
 
   /** A springy boing. */

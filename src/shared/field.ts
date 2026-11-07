@@ -2,7 +2,7 @@
 // a run (upgrades like the player's, modifiers of their own, sharper driving, a catch-up when they fall behind),
 // and the roguelite layer turns a map node into a FieldPlan that the race reads. Pure data and formulas.
 import { KIND_AGGRO, type RaceKind } from './kinds.ts';
-import { PART_EFFECTS } from './rally.ts';
+import { PART_EFFECTS, type CarBody } from './rally.ts';
 import { ARCHETYPES, rivalCast, type Archetype } from './rivals.ts';
 
 export type RivalRole = 'rival' | 'elite' | 'boss';
@@ -29,6 +29,26 @@ export function unit(seed: number, ...k: number[]): number {
 const ACT_SPAN = 6;
 /** 0 at the very first row, 1 at the last boss. */
 export const runProgress = (act: number, row: number): number => clamp((act * ACT_SPAN + Math.min(ACT_SPAN - 1, Math.max(0, row))) / (3 * ACT_SPAN - 1), 0, 1);
+
+// ---------------------------------------------------------------------------
+// What each temper drives
+// ---------------------------------------------------------------------------
+
+/**
+ * The bodies a rival of each temper drives, with weights: rammers like heavy things (the garbage truck, the camper, the tractor),
+ * racers quick light ones (the kart, the limousine, the snowmobile), the in-betweens a bit of everything, now and then something silly.
+ * A boss's own body is set by its twist and never comes from here. The rammers in `rival` role skip the monster truck.
+ */
+export function archetypeBodies(archetype: Archetype, role: RivalRole): [CarBody, number][] {
+  switch (archetype) {
+    case 'rammer':
+      return [['pickup', 2], ['tractor', 1.4], ['hatch', 1], ['monster', role === 'rival' ? 0.3 : 0.9], ['sofa', 0.5], ['garbage', 1.3], ['camper', 1.1]];
+    case 'racer':
+      return [['coupe', 2], ['buggy', 1.5], ['moto', 1.2], ['atv', 1], ['hatch', 1], ['kart', 1.4], ['limo', 1.1], ['snowmobile', 1]];
+    default:
+      return [['hatch', 2], ['buggy', 1], ['pickup', 1], ['coupe', 1], ['atv', 1], ['moped', 0.5], ['sofa', 0.5], ['icecream', 0.7], ['golf', 0.6], ['mower', 0.6], ['cart', 0.4], ['epa', 0.3]];
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Archetypes

@@ -1,7 +1,7 @@
 // A model of how fast a car goes round a course, for the balance simulation and for sanity checks on the
 // rivals' scaling. It was fitted to the real physics (src/rally/pace.test.ts runs the actual car and driver
 // round real courses and checks this against them), so the simulation talks in lap times rather than dice.
-import { RALLY_COURSE_DEFS, type RallyCourse } from './rally.ts';
+import { RALLY_COURSE_DEFS, type CarBody, type RallyCourse } from './rally.ts';
 
 /** The reference lap time (s) of a computer driver at full tilt in a plain car: about 0.89 of the gold-medal time. */
 export const baseLap = (course: RallyCourse): number => RALLY_COURSE_DEFS[course].gold * 0.89;
@@ -35,3 +35,18 @@ export const rivalLap = (course: RallyCourse, r: { skill: number; grip: number; 
 
 /** Seconds per lap that trinkets with a speed hook give a player who uses them well, per copy (the hooks are capped in the game). */
 export const HOOK_SAVE: Record<string, number> = { kaffekoppen: 0.45, sladdgradde: 0.35, myntturbo: 0.3, tvattbjorn: 0.25 };
+
+/** Lap-time factor of each of the ten newest vehicles against the plain rally car (1), fitted to the real physics in src/rally/bodypace.test.ts. */
+export const BODY_LAP: Partial<Record<CarBody, number>> = {
+  epa: 1.16,
+  icecream: 1.05,
+  garbage: 1.165,
+  // the snowmobile is the plain car's equal on tarmac and well ahead on snow and ice (0.90 on the ice course): the average
+  snowmobile: 1.0,
+  kart: 0.965,
+  golf: 1.23,
+  mower: 1.32,
+  camper: 1.145,
+  limo: 1.12,
+  cart: 1.31,
+};

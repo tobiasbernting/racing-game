@@ -36,6 +36,17 @@ export const CHALLENGES: readonly Challenge[] = [
   { id: 'calmWin', body: 'atv', title: 'Vinn en runda på Söndagsåkare', label: 'Vunna rundor på Söndagsåkare', goal: 1, mode: 'total', measure: (r) => (won(r) && r.calm ? 1 : 0) },
   { id: 'takedowns', body: 'monster', title: 'Gör 10 takedowns i en runda', label: 'Takedowns i en runda', goal: 10, mode: 'best', measure: (r) => r.stats.takedowns },
   { id: 'bengtMoped', body: 'moto', title: 'Slå Sura Bengt med moppen', label: 'Sura Bengt slagen med moppen', goal: 1, mode: 'best', measure: (r) => (r.car.body === 'moped' && bossWon(r, 'bengt') ? 1 : 0) },
+  // phase 10: three of these are easy for a ten-year-old (the golf cart on Söndagsåkare, the camper by playing, the mower by pressing the button)
+  { id: 'bengt', body: 'epa', title: 'Slå Sura Bengt', label: 'Sura Bengt slagen', goal: 1, mode: 'best', measure: (r) => (bossWon(r, 'bengt') ? 1 : 0) },
+  { id: 'coins', body: 'icecream', title: 'Samla 150 mynt i en runda', label: 'Mynt i en runda', goal: 150, mode: 'best', measure: (r) => r.stats.coins },
+  { id: 'hoard', body: 'garbage', title: 'Samla ihop 12 prylar i en runda', label: 'Prylar i väskan', goal: 12, mode: 'best', measure: (r) => r.trinkets.reduce((a, t) => a + t.n, 0) },
+  { id: 'frida', body: 'snowmobile', title: 'Slå Frost-Frida', label: 'Frost-Frida slagen', goal: 1, mode: 'best', measure: (r) => (bossWon(r, 'isdrottningen') ? 1 : 0) },
+  { id: 'drift', body: 'kart', title: 'Sladda i 40 sekunder i en runda', label: 'Sekunder i sladd', goal: 40, mode: 'best', measure: (r) => Math.floor(r.stats.driftSeconds) },
+  { id: 'calmAct2', body: 'golf', title: 'Kom till akt 2 på Söndagsåkare', label: 'Akt 2 nådd på Söndagsåkare', goal: 1, mode: 'best', measure: (r) => (r.calm && r.act >= 1 ? 1 : 0) },
+  { id: 'abilityUses', body: 'mower', title: 'Använd fordonets förmåga 20 gånger i en runda', label: 'Förmågor i en runda', goal: 20, mode: 'best', measure: (r) => r.stats.abilityUses },
+  { id: 'runs5', body: 'camper', title: 'Kör klart 5 rundor', label: 'Avslutade rundor', goal: 5, mode: 'total', measure: () => 1 },
+  { id: 'spend', body: 'limo', title: 'Spendera 900 kronor i en runda', label: 'Kronor spenderade i en runda', goal: 900, mode: 'best', measure: (r) => r.stats.kronorSpent },
+  { id: 'cartWin', body: 'cart', title: 'Vinn en runda med moppen eller traktorn', label: 'Vunna rundor med moppen eller traktorn', goal: 1, mode: 'total', measure: (r) => (won(r) && (r.car.body === 'moped' || r.car.body === 'tractor') ? 1 : 0) },
   { id: 'flawless2', body: 'sofa', title: 'Vinn akt 2 utan att tappa ett hjärta', label: 'Akt 2 utan förlorade hjärtan', goal: 1, mode: 'best', measure: (r) => (flawlessAct(r, 1) ? 1 : 0) },
 ];
 
