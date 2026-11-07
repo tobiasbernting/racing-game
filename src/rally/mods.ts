@@ -92,9 +92,21 @@ export interface RaceStats {
   squashed: number;
   quacks: number;
   jumps: number;
+  /** Seconds with all wheels off the ground, and how many times the car took off. */
+  airSeconds: number;
+  airJumps: number;
+  /** Highest speed (km/h) and longest single drift (s): across a run these are maxima, not sums. */
+  topSpeed: number;
+  longestDrift: number;
+  /** Seconds of nitro burning. */
+  nitroSeconds: number;
+  /** Oil slicks the player drove into, cars passed on the road, hazards the player dropped for others. */
+  oilHits: number;
+  overtakes: number;
+  hazards: number;
 }
 
-export const emptyStats = (): RaceStats => ({ bounces: 0, driftSeconds: 0, bananas: 0, bananaHits: 0, boosts: 0, coins: 0, squashed: 0, quacks: 0, jumps: 0 });
+export const emptyStats = (): RaceStats => ({ bounces: 0, driftSeconds: 0, bananas: 0, bananaHits: 0, boosts: 0, coins: 0, squashed: 0, quacks: 0, jumps: 0, airSeconds: 0, airJumps: 0, topSpeed: 0, longestDrift: 0, nitroSeconds: 0, oilHits: 0, overtakes: 0, hazards: 0 });
 
 /** The player's car as a hook sees it each frame. */
 export interface TickState {

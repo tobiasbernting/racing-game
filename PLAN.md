@@ -120,11 +120,12 @@ run strong, which is right; the rivals and courses must keep up. Design directio
 
 6b. **Run result screen**: shown on a win and a loss: fun stats with a headline stat, a timeline of every node and
     placing, every reward and upgrade with where it came from, the build mix, abilities, unlocks earned.
+    Built (see README). Touch devices no longer get easier rivals in normal mode, only in Söndagsåkare.
 7. **Mobile controls** (touch devices only; desktop unchanged; see docs/mobile-controls-research.md): schemes
    Lätt (auto-throttle, default), Pedaler (gas + brake buttons) and Proffs (pedals + manual shifting); manual
    shifting also on keyboard/gamepad; a layout with room for the ability button and nitro, tablet insets,
-   left-handed mirror, button size/opacity, maybe drag-to-move; haptics where the browser allows; tilt last and
-   off by default (or skipped).
+   left-handed mirror, button size/opacity, maybe drag-to-move; haptics where the browser allows; no tilt steering
+   (owner decision).
 8. **Vehicles with abilities**: passives, active ability button, starting trinkets, ram/race lean, 5 starters
    (rallybil, sandbuggy, pickup, moppe, traktor), 15 to unlock by a mix of wins and challenges.
 9. **Art direction**: grittier, Tape to Tape-inspired: stronger contrast and colour grade, light outlines,

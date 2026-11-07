@@ -4,7 +4,7 @@ import { CAR_PARTS, type CarPart } from '../shared/rally.ts';
 import { CAR_PART_NAMES } from '../shared/names.ts';
 import { Rng } from './rng.ts';
 import { drawTrinkets, canUpgrade } from './economy.ts';
-import { addKronor, addTrinket, healHeart, loseHeart, type RunState } from './state.ts';
+import { addKronor, addTrinket, healHeart, loseHeart, noteGot, type RunState } from './state.ts';
 import { trinketById, type Rarity } from './trinkets.ts';
 
 export type Fx =
@@ -324,7 +324,7 @@ export function resolveChoice(run: RunState, ev: EventDef, choiceIdx: number, no
       case 'trinket': {
         const id = fx.id ?? drawTrinkets(run, rg, 12, 'event').find((t) => !fx.rarity || trinketById(t)?.rarity === fx.rarity) ?? drawTrinkets(run, rg, 1, 'event')[0];
         if (id) {
-          addTrinket(run, id);
+          addTrinket(run, id, { from: `Händelse: ${ev.title}`, node: nodeId });
           const d = trinketById(id);
           lines.push(`${d?.emoji ?? '🎁'} ${d?.name ?? id}`);
         }
@@ -339,6 +339,7 @@ export function resolveChoice(run: RunState, ev: EventDef, choiceIdx: number, no
         const part = open.length ? rg.pick(open) : null;
         if (part) {
           run.car.parts[part] = (run.car.parts[part] ?? 0) + 1;
+          noteGot(run, 'part', part, `Händelse: ${ev.title}`, nodeId);
           lines.push(`${CAR_PART_NAMES[part]} +1 ⬆️`);
         } else {
           addKronor(run, 50);

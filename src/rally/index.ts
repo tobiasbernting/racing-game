@@ -473,17 +473,18 @@ const rally = (ctx: GameContext): GameInstance => {
       car.setBody(body, feelOf(body, isMe, spec));
       car.place(s, d, ground);
       car.offroadAt = offroad();
-      const kid = ctx.touch;
+      // touch screens get a kinder field in Söndagsåkare only; normal mode is the same on every device
+      const kid = ctx.touch && !!field?.calm;
       let driver: Driver | null = null;
       let power = 1;
       const tune = isMe ? myTune : tuneFor(newCar(0, 'hatch', ''), false, false);
       if (r && spec) {
-        // a rival with a kit: the skill and the upgrades of this point in the run (touch screens get a slightly kinder field)
-        const kidK = kid ? (field!.calm ? 0.93 : 0.97) : 1;
+        // a rival with a kit: the skill and the upgrades of this point in the run (Söndagsåkare on touch screens gets a slightly kinder field)
+        const kidK = kid ? 0.93 : 1;
         const sharp = field!.sharp;
         driver = new Driver({ skill: spec.skill * kidK, bias: r.bias * (1 - 0.5 * sharp), lineUse: spec.lineUse, wobble: r.wobble * (1 - 0.6 * sharp), phase: k * 1.7, late: spec.late });
         driver.p.aggro = spec.aggro;
-        power = spec.power * (kid ? (field!.calm ? 0.92 : 0.97) : 1) * (twist?.rivalPower ?? 1) * lerp(1, CAR_BODY_DEFS[body].power, 0.5);
+        power = spec.power * (kid ? 0.92 : 1) * (twist?.rivalPower ?? 1) * lerp(1, CAR_BODY_DEFS[body].power, 0.5);
         car.assist = 0.75;
         car.size = 1 + (CAR_BODY_DEFS[body].size - 1) * 0.6;
         car.brakeMul = spec.brakes;
@@ -620,6 +621,10 @@ const rally = (ctx: GameContext): GameInstance => {
   let mudSaid = -9;
   let beatT = 0;
   const sayIds = new Map<string, number>();
+  const triggers: Record<string, number> = {};
+  const trigAt = new Map<string, number>();
+  const passed = new Map<string, boolean>();
+  let wasAirborne = false;
   const drift = { on: false, t: 0, grace: 0, pts: 0, tier: 0 };
   let driftBoostT = 0;
   let stylePts = 0;
@@ -871,6 +876,15 @@ const rally = (ctx: GameContext): GameInstance => {
         hud.toast('🔥 Nitro!');
       } else hud.toast('Nitron är slut');
     }
+    if (racing && !me.finished && phase === 'race') {
+      if (nitroT > 0) stats.nitroSeconds += Math.min(dt, nitroT);
+      if (c.air) {
+        stats.airSeconds += dt;
+        if (!wasAirborne) stats.airJumps++;
+      }
+      stats.topSpeed = Math.max(stats.topSpeed, Math.abs(c.vLong) * 3.6);
+    }
+    wasAirborne = c.air;
     nitroT = Math.max(0, nitroT - dt);
     driftBoostT = Math.max(0, driftBoostT - dt);
     // the drift: a handbrake flick starts it, keep it sliding to charge the mini-turbo
@@ -915,6 +929,7 @@ const rally = (ctx: GameContext): GameInstance => {
           mods.bus.boost('drift');
         }
         if (drift.t > 0.4) mods.bus.drift(drift.t, drift.tier);
+        stats.longestDrift = Math.max(stats.longestDrift, drift.t);
         const pts = Math.round(drift.pts / 10) * 10;
         if (pts >= 30 && !c.wallHit) {
           stylePts += pts;
@@ -1226,6 +1241,7 @@ const rally = (ctx: GameContext): GameInstance => {
       if (oil && sl > 0.3) e.slickT = 1.4;
       if (c.feel.two) e.wobble = 1;
       if (oil) {
+        if (e === me) stats.oilHits++;
         if (Math.hypot(c.x - me.car.x, c.z - me.car.z) < 40) audio.slip();
         sparkleAt(c.x, c.y, c.z, 5, 0.8);
         if (e !== me) stats.bananaHits++;
@@ -1247,6 +1263,10 @@ const rally = (ctx: GameContext): GameInstance => {
     say(id, text) {
       // the icon always pulses; its small label under the icon is rate-limited per trinket
       const now = timeU.value;
+      if (phase === 'race' && now - (trigAt.get(id) ?? -9) > 0.8) {
+        triggers[id] = (triggers[id] ?? 0) + 1;
+        trigAt.set(id, now);
+      }
       const quiet = now - (sayIds.get(id) ?? -9) < 4;
       hud.trinketSay(id, quiet || !text ? null : text);
       if (!quiet && text) sayIds.set(id, now);
@@ -1338,6 +1358,7 @@ const rally = (ctx: GameContext): GameInstance => {
       const c = player().car;
       obstacles.add('banana', c.x - Math.sin(c.heading) * 3.2, c.y, c.z - Math.cos(c.heading) * 3.2, c);
       stats.bananas++;
+      stats.hazards++;
     },
     cannon(strength) {
       const me = player();
@@ -1447,6 +1468,7 @@ const rally = (ctx: GameContext): GameInstance => {
       if (!best) return false;
       const p = track.point(best.car.proj.s + 14, best.car.proj.d);
       obstacles.add(kind, p.x, p.y, p.z, me.car, track.heading(best.car.proj.s + 14));
+      stats.hazards++;
       return true;
     },
     swapVehicle() {
@@ -1766,7 +1788,7 @@ const rally = (ctx: GameContext): GameInstance => {
         } else if (e !== me && !me.finished) {
           const k = diff.band;
           const gap = e.u - me.u;
-          if (gap > 20) mul = 1 - Math.min(ctx.touch ? 0.2 : 0.13, (gap - 20) / (ctx.touch ? 500 : 800)) * k;
+          if (gap > 20) mul = 1 - Math.min(0.13, (gap - 20) / 800) * k;
           else if (gap < -30) mul = 1 + Math.min(0.06, (-gap - 30) / 1200) * k;
           e.car.power = e.basePower * (gap < -30 ? 1 + Math.min(0.08, (-gap - 30) / 1000) * k : gap > 60 ? 1 - 0.07 * k : 1) * damagePower(e.damage) * (e.squashT > 0 ? 0.4 : 1);
         }
@@ -1835,6 +1857,16 @@ const rally = (ctx: GameContext): GameInstance => {
     const order = ranking();
     place = order.findIndex((r) => r.me) + 1;
     if (phase === 'race' && !me.finished && raceT > 4) {
+      // cars the player passes (and holds the place against for a few metres)
+      for (const e of entrants) {
+        if (e === me || e.finished) continue;
+        const was = passed.get(e.id);
+        if (was === undefined) passed.set(e.id, e.u < me.u - 3);
+        else if (!was && e.u < me.u - 4) {
+          passed.set(e.id, true);
+          stats.overtakes++;
+        } else if (was && e.u > me.u + 4) passed.set(e.id, false);
+      }
       // a rival that has just got past the player shouts something (not too often)
       for (const e of entrants) {
         if (e === me || !e.taunt) continue;
@@ -2124,7 +2156,7 @@ const rally = (ctx: GameContext): GameInstance => {
       sc += styleBonus();
       // a battered car after Blodbad comes out of it a little scratched, not wrecked
       const damage = carnage ? Math.round((1 - me.hp / me.maxHp) * 35) : Math.round(me.damage);
-      opts?.onDone?.({ place: placed, n: total, finished, time: ms, laps: Math.min(LAPS, me.lapsDone), kronor, coins: coinTotal, medal, damage, bonus, timeBonus: finishAdj.time, stats, kind, points: row?.points, takedowns: me.takedowns, wrecked: me.wrecks, roadPlace: finished ? finishPlace : undefined });
+      opts?.onDone?.({ place: placed, n: total, finished, time: ms, laps: Math.min(LAPS, me.lapsDone), kronor, coins: coinTotal, medal, damage, bonus, timeBonus: finishAdj.time, stats: { ...stats }, bestLap: Number.isFinite(bestLap) ? Math.round(bestLap * 1000) : 0, triggers: { ...triggers }, kind, points: row?.points, takedowns: me.takedowns, wrecked: me.wrecks, roadPlace: finished ? finishPlace : undefined });
     }
     finishEnd(sc, detail);
   }

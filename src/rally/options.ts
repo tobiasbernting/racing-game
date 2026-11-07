@@ -31,6 +31,9 @@ export interface RallyResult {
   timeBonus?: number;
   /** What happened on the way, for the funny stats of a run. */
   stats?: RaceStats;
+  /** The player's fastest lap in ms (0 when no lap was finished), and how often each trinket pulsed its icon. */
+  bestLap?: number;
+  triggers?: Record<string, number>;
   /** Rally, Blandat or Blodbad. In Blodbad `place` is the rank by points, and these tell how it came about. */
   kind?: RaceKind;
   points?: number;

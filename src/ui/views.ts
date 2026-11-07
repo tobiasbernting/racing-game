@@ -536,72 +536,10 @@ export function settingsView(o: SettingsOpts): HTMLElement {
   return screen('rg-settings', el('div', 'rg-top', el('h2', 'rg-h tight', '⚙️ Inställningar')), el('div', 'rg-setbody', grid), foot(go('Klart, KÖR!', o.onClose)));
 }
 
-// ---- the end of a run ----
+// ---- the end of a run: see result.ts ----
 
 export type OverInfo = RunEnd;
-
-/** The silly numbers of a run: [text, count, silly]. The biggest silly count becomes the headline. */
-export function funnyStats(run: RunState): { text: string; n: number; silly: boolean }[] {
-  const s = run.stats;
-  const out: { text: string; n: number; silly: boolean }[] = [];
-  const add = (n: number, text: string, silly = true): void => {
-    if (n > 0) out.push({ text, n, silly });
-  };
-  add(s.bounces, `🤸 Studsade ${plural(s.bounces, 'gång', 'gånger')}`);
-  add(Math.round(s.driftSeconds), `🌀 Sladdade i ${Math.round(s.driftSeconds)} sekunder`);
-  add(s.bananas, `🐌 Slemmade ner banan ${plural(s.bananas, 'gång', 'gånger')}${s.bananaHits ? ` (${s.bananaHits} offer!)` : ''}`);
-  add(s.quacks, `📣 Ställde till oväsen ${plural(s.quacks, 'gång', 'gånger')}`);
-  add(s.squashed, `🧦 Sockade ner ${plural(s.squashed, 'bil', 'bilar')}`);
-  add(s.jumps, `🦘 Hoppade ${plural(s.jumps, 'gång', 'gånger')}`);
-  add(s.coins, `🪙 Samlade ${plural(s.coins, 'mynt', 'mynt')}`, false);
-  add(s.boosts, `🔥 Boostade ${plural(s.boosts, 'gång', 'gånger')}`, false);
-  out.push({ text: `💰 Tjänade ${s.kronorEarned} kr`, n: 0, silly: false });
-  out.push({ text: `🏁 Vann ${s.wins} av ${plural(s.races, 'lopp', 'lopp')}. ${s.wins === 0 ? 'Aj.' : 'Respekt.'}`, n: 0, silly: false });
-  return out;
-}
-
-export function overView(run: RunState, info: OverInfo, o: { onAgain(): void; onTitle(): void }): HTMLElement {
-  const stats = funnyStats(run);
-  const hero = stats.filter((x) => x.silly).sort((a, b) => b.n - a.n)[0];
-  const unlocked = [
-    ...info.unlockedBodies.map((b) => `🚗 Ny bil: ${CAR_BODY_NAMES[b]}`),
-    ...info.unlockedTrinkets.map((id) => {
-      const d = trinketById(id);
-      return `${d?.emoji ?? '🎁'} Nytt skräp: ${d?.name ?? id}`;
-    }),
-  ];
-  // where the trophies came from
-  const why = [run.stats.bossesBeaten ? `${plural(run.stats.bossesBeaten, 'boss', 'bossar')} × 2` : '', info.won ? 'seger +3' : '', run.stats.races >= 3 ? 'körde några lopp +1' : ''].filter(Boolean).join(' · ');
-  const total = run.trinkets.reduce((a, t) => a + t.n, 0);
-  return screen(
-    'rg-over',
-    el(
-      'div',
-      'rg-overbody',
-      el(
-        'div',
-        'rg-overleft',
-        el('h1', 'arc-title', info.won ? 'DU KROSSADE ALLA!' : 'Rundan är slut. Du dog.'),
-        el('p', 'arc-sub', info.won ? '🏆 Alla bossar ligger i diket. Du är kung.' : `Du kom till akt ${run.act + 1} av ${ACTS} (${ACT_NAMES[Math.min(run.act, ACTS - 1)]}). Inte illa. Inte bra.`),
-        el('div', 'rg-overcar', `🚗 ${CAR_BODY_NAMES[run.car.body]} med ${CAR_DRIVER_EMOJI[run.car.style.driver ?? 'human']} ${CAR_DRIVER_NAMES[run.car.style.driver ?? 'human']}`),
-        el('div', 'rg-trophy big', `+${info.trophies} 🏆`, el('small', null, ` (totalt ${info.total})`)),
-        why ? el('small', 'rg-why', why) : null,
-        unlocked.length ? el('ul', 'rg-unlocks', ...unlocked.slice(0, 5).map((u) => el('li', null, u))) : null,
-        el('div', 'arc-h', `Ditt skräp${total ? ` (${total})` : ''}`),
-        run.trinkets.length ? trinketIcons(run.trinkets, 24) : el('small', null, 'Inget skräp den här gången'),
-      ),
-      el(
-        'div',
-        'rg-overright',
-        el('div', 'arc-h', 'Rundans pinsamma siffror'),
-        hero ? el('div', 'rg-hero', hero.text) : null,
-        el('ul', 'rg-stats', ...stats.filter((x) => x !== hero).map((x) => el('li', null, x.text))),
-        el('small', 'rg-seed', seedLabel(run.seed)),
-      ),
-    ),
-    foot(ghost('Till titeln', o.onTitle), go('Igen! 🏁', o.onAgain)),
-  );
-}
+export { resultView as overView } from './result.ts';
 
 // ---- the collection ----
 

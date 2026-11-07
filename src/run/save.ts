@@ -1,11 +1,11 @@
 // Saving: the run in progress (after every node) and the meta progress, in localStorage. Versioned; every
 // access is wrapped because storage can be missing, full or blocked; anything unreadable becomes "no save"
 // (run) or fresh progress (meta) instead of an error.
-import { CAR_DRIVERS, CAR_PARTS, PART_MAX_LEVEL, defaultStyle, isCarBody, newCar, type CarDriver, type GarageCar } from '../shared/rally.ts';
+import { CAR_DRIVERS, CAR_PARTS, isCarPart, PART_MAX_LEVEL, defaultStyle, isCarBody, newCar, type CarDriver, type GarageCar } from '../shared/rally.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
-import { ACTS, findNode, actMap } from './map.ts';
+import { ACTS, NODE_TYPES, findNode, actMap, type NodeType } from './map.ts';
 import { cleanMeta, defaultMeta, type Meta } from './meta.ts';
-import { emptyRunStats, validPaint, type RunEnd, type RunState, type Screen } from './state.ts';
+import { emptyRunStats, validPaint, type Acquired, type NodeLog, type RunEnd, type RunState, type Screen } from './state.ts';
 import { MAX_STACK, isTrinket, perksOf, type Owned } from './trinkets.ts';
 import { isRaceKind } from '../shared/kinds.ts';
 import { partOfChoice } from './economy.ts';
@@ -117,6 +117,48 @@ function cleanEnd(raw: unknown): RunEnd | undefined {
   };
 }
 
+const str = (v: unknown, max = 60): string => (typeof v === 'string' ? v.slice(0, max) : '');
+const optNum = (v: unknown, lo: number, hi: number): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? num(v, lo, hi, lo) : undefined);
+
+/** The nodes walked so far; a run saved before the result screen has none, and the screen copes with that. */
+function cleanLog(raw: unknown): NodeLog[] {
+  if (!Array.isArray(raw)) return [];
+  const out: NodeLog[] = [];
+  for (const x of raw.slice(0, 40)) {
+    if (!isObj(x) || typeof x.nodeId !== 'string' || !(NODE_TYPES as readonly string[]).includes(x.type as string)) continue;
+    out.push({
+      nodeId: x.nodeId.slice(0, 12),
+      act: num(x.act, 0, ACTS - 1, 0),
+      row: num(x.row, 0, 9, 0),
+      type: x.type as NodeType,
+      kind: isRaceKind(x.kind) ? x.kind : undefined,
+      title: str(x.title),
+      course: x.course === undefined ? undefined : str(x.course),
+      place: optNum(x.place, 1, 9),
+      n: optNum(x.n, 1, 9),
+      finished: typeof x.finished === 'boolean' ? x.finished : undefined,
+      points: optNum(x.points, 0, 999),
+      time: optNum(x.time, 0, 99999999),
+      lost: num(x.lost, 0, 9, 0),
+      goalMet: typeof x.goalMet === 'boolean' ? x.goalMet : undefined,
+      takedowns: optNum(x.takedowns, 0, 99),
+    });
+  }
+  return out;
+}
+
+function cleanGot(raw: unknown): Acquired[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Acquired[] = [];
+  for (const x of raw.slice(0, 300)) {
+    if (!isObj(x) || typeof x.id !== 'string') continue;
+    const what = x.what === 'part' ? 'part' : 'trinket';
+    if (what === 'trinket' ? !isTrinket(x.id) : !isCarPart(x.id)) continue;
+    out.push({ what, id: x.id, from: str(x.from), node: str(x.node, 12) });
+  }
+  return out;
+}
+
 /** A stored run (or junk) becomes a valid RunState, or null when there is nothing worth continuing. */
 export function parseRun(raw: unknown): RunState | null {
   if (!isObj(raw)) return null;
@@ -139,7 +181,11 @@ export function parseRun(raw: unknown): RunState | null {
   const at = typeof raw.at === 'string' && findNode(m, raw.at) ? raw.at : null;
   const rs = isObj(raw.stats) ? raw.stats : {};
   const stats = emptyRunStats();
-  for (const k of Object.keys(stats) as (keyof typeof stats)[]) stats[k] = typeof rs[k] === 'number' && Number.isFinite(rs[k]) ? Math.max(0, rs[k] as number) : 0;
+  for (const k of Object.keys(stats) as (keyof typeof stats)[]) {
+    if (k === 'triggers') continue;
+    (stats as unknown as Record<string, number>)[k] = typeof rs[k] === 'number' && Number.isFinite(rs[k]) ? Math.max(0, rs[k] as number) : 0;
+  }
+  if (isObj(rs.triggers)) for (const [id, n] of Object.entries(rs.triggers)) if (isTrinket(id) && typeof n === 'number' && Number.isFinite(n) && n > 0) stats.triggers[id] = Math.floor(n);
   return {
     v: 1,
     seed,
@@ -158,6 +204,9 @@ export function parseRun(raw: unknown): RunState | null {
     stats,
     status,
     nodesDone: num(raw.nodesDone, 0, 999, 0),
+    log: cleanLog(raw.log),
+    got: cleanGot(raw.got),
+    nodeLost: num(raw.nodeLost, 0, 9, 0),
     end: status === 'running' ? undefined : cleanEnd(raw.end),
   };
 }
