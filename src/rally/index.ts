@@ -21,6 +21,8 @@ import { canRain, variationFor } from '../shared/variation.ts';
 import { Coins } from './coins.ts';
 import { Confetti, Particles, Skids } from './fx.ts';
 import { settings } from '../settings.ts';
+import { buzz } from '../haptics.ts';
+import { shiftLight } from './gears.ts';
 import { blobTex } from './geo.ts';
 import { Hud, type Racer } from './hud.ts';
 import { lakeDist } from './layout.ts';
@@ -234,7 +236,15 @@ const rally = (ctx: GameContext): GameInstance => {
   const track = new Track(course, rainGrip);
   const hud = new Hud(ctx.root, track, ctx.dpr, ctx.touch);
   // on touch screens the third round button is the camera when there is no nitro (info.ts): no second 🎥 then
-  hud.camBtn.classList.toggle('show', ctx.touch && myTune.charges > 0);
+  // with the pedals the camera button lives in the top bar, beside pause (and follows a change of scheme from the pause menu)
+  let lastPedals: boolean | null = null;
+  const placeCamBtn = (pedals: boolean): void => {
+    if (pedals === lastPedals) return;
+    lastPedals = pedals;
+    hud.camBtn.classList.toggle('show', ctx.touch && (myTune.charges > 0 || pedals));
+    hud.setCamTop(pedals);
+  };
+  placeCamBtn(!!ctx.controls?.pedals);
   hud.setTrinkets(mods.items);
   hud.disco(mt.disco);
   const audio = new RallyAudio(ctx.audio, ctx.out);
@@ -618,6 +628,7 @@ const rally = (ctx: GameContext): GameInstance => {
   let extraBoostT = 0;
   let extraBoostK = 1;
   let hbPrev = false;
+  let lastDenied = -9;
   let mudSaid = -9;
   let beatT = 0;
   const sayIds = new Map<string, number>();
@@ -723,6 +734,12 @@ const rally = (ctx: GameContext): GameInstance => {
   function playerControls(dt: number, e: Entrant): void {
     const inp = ctx.input;
     const trig = inp.triggers();
+    const cs = ctx.controls;
+    const pedals = !!cs?.pedals;
+    placeCamBtn(pedals);
+    const car0 = e.car;
+    car0.manual = !!cs?.manual;
+    car0.engineBrake = pedals ? 2.4 : 1;
     let thr = Math.max(inp.down('up') ? 1 : 0, trig.right);
     let brk = Math.max(inp.down('down') ? 1 : 0, trig.left);
     const dig = (inp.down('left') ? 1 : 0) - (inp.down('right') ? 1 : 0);
@@ -736,7 +753,7 @@ const rally = (ctx: GameContext): GameInstance => {
     const p = car.proj;
     const hw = track.at(track.hw, p.s);
     // kids on touch screens: the car drives itself, slowing for bends; they steer
-    if (ctx.touch && brk < 0.1 && phase === 'race') {
+    if (ctx.touch && !pedals && brk < 0.1 && phase === 'race') {
       const v = Math.max(0, car.vLong);
       const target = track.at(track.vmax, p.s + 4 + v * 0.3) * 0.95;
       if (v > target + 2.5) {
@@ -756,6 +773,8 @@ const rally = (ctx: GameContext): GameInstance => {
     e.ctl.brake = brk;
     e.ctl.steer = clamp(steer, -1, 1);
     e.ctl.handbrake = inp.down('a');
+    // the shift buttons (Q / E, LB / RB, − and +): one press, one shift
+    e.ctl.shift = car0.manual ? (inp.pressed('su') ? 1 : 0) - (inp.pressed('sd') ? 1 : 0) : 0;
   }
 
   // ---- respawn ----
@@ -1102,6 +1121,7 @@ const rally = (ctx: GameContext): GameInstance => {
       if (e === meE) {
         audio.slip();
         setTimeout(() => !destroyed && audio.boing(), 380);
+        buzz('crash', !!ctx.controls?.haptics);
         hud.toast(['Pang! Du ramlade!', 'Aj! Upp med dig!', 'Salto! 10 poäng!', 'Det där syntes från månen!'][Math.floor(Math.random() * 4)]!);
         shake = Math.max(shake, 0.4);
       }
@@ -1342,6 +1362,8 @@ const rally = (ctx: GameContext): GameInstance => {
     },
     kick(dv) {
       const c = player().car;
+      // in a manual box the thump sometimes throws a gear in (or out) as well
+      if (c.manual && (dv >= 4 || dv <= -3.5) && Math.random() < 0.35) c.jolt(dv > 0 ? 1 : -1);
       const th = track.heading(c.proj.s);
       c.vx += Math.sin(th) * dv;
       c.vz += Math.cos(th) * dv;
@@ -1520,6 +1542,7 @@ const rally = (ctx: GameContext): GameInstance => {
       audio.crunch(hit, other.car.feel.mass);
       shake = Math.max(shake, Math.min(0.55, hit * 0.055 * (0.8 + 0.2 * Math.sqrt(other.car.feel.mass))));
       mods.bus.hit('car', hit);
+      if (hit > 3) buzz(hit > 8 ? 'crash' : 'hit', !!ctx.controls?.haptics);
     } else if (hit > 4 && Math.hypot(ea.car.x - me.car.x, ea.car.z - me.car.z) < 30 && fresh) audio.crunch(hit * 0.5, ea.car.feel.mass);
     if (hit > 2 && fresh) impactFx(info, ea, eb, hit);
     if (carnage) {
@@ -1673,7 +1696,7 @@ const rally = (ctx: GameContext): GameInstance => {
     if (phase === 'intro') {
       if (phaseT < dt * 1.5) {
         hud.msg('Gör dig redo!', 1700, 'small');
-        hud.subtitle(ctx.touch ? 'Bilen gasar själv. Du styr med ◀ ▶' : 'Gasa när lampan blir grön!');
+        hud.subtitle(ctx.touch && !ctx.controls?.pedals ? 'Bilen gasar själv. Du styr med ◀ ▶' : ctx.controls?.manual ? 'Håll gasen. Växla upp när lampan blir röd!' : 'Gasa när lampan blir grön!');
       }
       if (phaseT > 2.6) {
         phase = 'count';
@@ -1814,7 +1837,10 @@ const rally = (ctx: GameContext): GameInstance => {
     // ---- physics (two steps a frame) ----
     const nLocal = entrants.length;
     for (let k = 0; k < 2; k++) {
-      for (const e of entrants) e.car.step(dt / 2, e.ctl, ground, !racing);
+      for (const e of entrants) {
+        e.car.step(dt / 2, e.ctl, ground, !racing);
+        e.ctl.shift = 0;
+      }
       if (racing)
         collideCars(cars, (a, b, j, info) => {
           carHit(a, b, j, info);
@@ -1932,6 +1958,7 @@ const rally = (ctx: GameContext): GameInstance => {
           if (hay) audio.hay(c.wallHit);
           else audio.thud(c.wallHit);
           shake = Math.max(shake, Math.min(0.6, c.wallHit * 0.05));
+          if (isMe && c.wallHit > 4) buzz('hit', !!ctx.controls?.haptics);
           mods.bus.hit('wall', c.wallHit);
         }
         const n = Math.min(14, Math.round(c.wallHit * 1.5));
@@ -1998,7 +2025,21 @@ const rally = (ctx: GameContext): GameInstance => {
     // ---- sound ----
     const mc = me.car;
     audio.setEngine(me.body);
-    audio.playerEngine(mc.rpm, mc.throttleIn, mc.shifted);
+    const haptic = !!ctx.controls?.haptics;
+    if (mc.perfect) {
+      mc.perfect = 0;
+      audio.shiftTick();
+      hud.shiftFlash();
+      buzz('perfect', haptic);
+    } else if (mc.shifted && mc.manual) buzz('shift', haptic);
+    if (mc.shiftDenied) {
+      mc.shiftDenied = 0;
+      if (raceT - lastDenied > 2.5) {
+        lastDenied = raceT;
+        hud.toast('Växeln vägrar: för hög fart för den!');
+      }
+    }
+    audio.playerEngine(mc.rpm, mc.throttleIn, mc.shifted, mc.limiterT > 0, mc.gear / mc.box.v.length);
     for (const e of entrants) e.car.shifted = 0;
     const onRoad = mc.surface === Ground_.Asphalt || mc.surface === Ground_.Kerb || mc.surface === Ground_.Ice;
     const loose = mc.surface === Ground_.Gravel || mc.surface === Ground_.Snow || mc.surface === Ground_.Sand || mc.surface === Ground_.DeepSnow || mc.surface === Ground_.SoftSand;
@@ -2368,7 +2409,13 @@ const rally = (ctx: GameContext): GameInstance => {
     // the minimap and speedometer
     if (phase !== 'intro') {
       const c = player().car;
-      hud.drawSpeedo(Math.abs(c.vLong) * 3.6, c.rpm, c.reverse ? -1 : c.gear, 7000);
+      hud.drawSpeedo(Math.abs(c.vLong) * 3.6, c.rpm, c.reverse ? -1 : c.gear, 7000, {
+        manual: c.manual,
+        light: c.reverse || !racingNow() ? 0 : shiftLight(c.revFrac, c.gear, c.box),
+        gears: c.box.v.length,
+        limiter: c.limiterT > 0,
+        bog: c.manual && c.throttleIn > 0.6 && c.gear > 1 && c.revFrac < 0.3,
+      });
       hud.drawMap(runners().map(toRacer), timeU.value);
     }
     renderer.render(scene, camera);
@@ -2385,6 +2432,11 @@ const rally = (ctx: GameContext): GameInstance => {
         x: me.car.x,
         z: me.car.z,
         speed: me.car.speed,
+        gear: me.car.reverse ? -1 : me.car.gear,
+        rpm: me.car.rpm,
+        manual: me.car.manual,
+        limiter: me.car.limiterT > 0,
+        thr: me.car.throttleIn,
         ended,
         finishPlace,
         finishTime,

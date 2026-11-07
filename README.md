@@ -7,7 +7,8 @@ akter med varsin förgrenad karta och en boss, och på vägen samlar man galna p
 fem nya fordon, fem nya banor, banor som ser olika ut varje gång, fler prylar, händelser och en ny boss.
 
 Styrning: piltangenter/WASD, mellanslag = handbroms, L = nitro, C = kamera, R = tillbaka på vägen,
-Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
+Escape = paus, E / Q = växla upp / ned (om du slagit på Manuell växling). Handkontroll (RB / LB växlar) och pekknappar på skärmen
+fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar" nedan.
 
 ## Så fungerar en runda
 
@@ -123,6 +124,42 @@ Efter en seger, efter sista hjärtat och efter en omladdning på sista kortet vi
   byggets mix per väg som en stapel ("55 % Ram · 30 % Fuffens · 15 % Race") och en plats för fordonets förmåga (`abilityOf`, tom tills fas 8).
 - **Troféer och upplåst**: varför troféerna blev så många, nya bilar och prylar och hur långt det är till nästa upplåsning.
 - **Svårighet**: på pekskärmar får rivalerna inte längre någon extra lättnad i normalt läge, bara i Söndagsåkare.
+
+## Kontroller och växlar (fas 7)
+
+**Pek** (bara mobil och surfplatta; datorns tangentbord och handkontroll är som förr). Inställningar → Kontroller, sparas per enhet
+(`Prefs.controls` i `src/prefs.ts`, rena regler och layouträkning i `src/controls.ts`):
+
+- **Lätt** (standard): bilen gasar själv och bromsar lite i kurvorna. ◀ ▶ till vänster; broms/back, handbroms och nitro (eller kamera) till höger.
+- **Pedaler**: en stor **GAS** under högertummen (håll för att köra, kort uppgasning), **BROMS** bredvid (backar också), lätt motorbroms när
+  du släpper gasen. ◀ ▶ och handbromsen till vänster, nitro och förmågeknappen i en båge ovanför gasen, kameran flyttas till toppen bredvid paus.
+- **Proffs**: Pedaler plus manuell växling med **−** och **+** vid högertummens innerkant (ca 56 px). Man kan också dra upp eller ned på GAS med tummen kvar.
+- Alla: flera fingers samtidigt (styr + gas + handbroms), varje knapp fångar sin egen pekare (en tumme som glider av tappar inget, och ett glid från ◀ till ▶ byter riktning),
+  menytryck läcker aldrig in i racet. **Knappstorlek** S/M/L, **synlighet**, **vänsterhänt** (hela layouten speglas, ◀ ligger kvar till vänster om ▶),
+  **Flytta knappar** (dra knapparna, Återställ; sparas per skärmtyp mobil/surfplatta och per sort). Surfplattor får klustren ca 10 % in från kanten och en övre gräns för knappstorleken;
+  safe-area respekteras och knapparna hålls borta från minikartan och hastighetsmätaren (`controls.test.ts` testar layouten på fem skärmar, alla storlekar, höger- och vänsterhänt).
+- En plats för **förmågeknappen** (fas 8) finns i varje layout men syns inte förrän ett fordon har en förmåga. Hjälptexten i Snabbrace följer vald sort.
+- **Vibration** (`src/haptics.ts`): en kort knack vid manuellt skifte, ett mönster vid perfekt skifte och vid stora smällar, där webbläsaren har `navigator.vibrate`
+  (Android). iPhone och iPad kan inte, där sköter ljud och ljus jobbet. Går att stänga av.
+
+**Växellåda** (`src/rally/gears.ts`, `car.ts`): varje fordon har egen låda (antal växlar och fart vid varvtaksgränsen i varje växel), automatkoppling,
+varvstoppet som studsar om man inte skiftar upp (utom i högsta växeln), **segt** motor om man skiftar för tidigt (eller startar i för hög växel) och ett
+**perfekt skifte** (varven 90-98,5 % av max): en liten spark på 1 sekund, en blå blinkning i skiftljuset och ett klick. Automat och rivaler kör samma modell och skiftar själva,
+så motorljudet och mätaren visar växlar i båda lägena. Slumpväxeln kan slänga in eller ur en växel i manuell. Läget väljs under Inställningar → Växling
+(Proffs är alltid manuellt på pek). Mätaren visar växel, varvbåge, skiftljus (grönt, gult, rött) och MAN; "SEGT" och "MAX!" när motorn är seg eller i varvstoppet.
+
+| Fordon | Växlar | Fart (km/h) vid max varv, växel för växel | Skifttid |
+|---|---|---|---|
+| Bilar (rallybil, buggy, pickup, soffbil) | 5 | 54 / 97 / 137 / 180 / 230 | 0,15-0,20 s |
+| Sportbil | 5 | 58 / 101 / 144 / 191 / 245 | 0,14 s |
+| Monstertruck | 5 | 50 / 90 / 130 / 173 / 223 | 0,20 s |
+| Fyrhjuling | 5 | 47 / 83 / 119 / 158 / 209 | 0,15 s |
+| Motorcykel | 6 | 58 / 94 / 130 / 169 / 212 / 270 | 0,08 s |
+| Moppe | 3 | 32 / 59 / 101 | 0,13 s |
+| Traktor | 6 | 16 / 29 / 41 / 54 / 67 / 86 | 0,28 s |
+
+Farten och varvtiden är i stort sett som förut (kontrollerat mot den gamla lådan: varvtider inom 0,3 %), så `pace.ts` behövde inte ändras. I `gears.test.ts` är en skicklig
+manuell förare lite snabbare än automaten (ca 1-4 % på en start) och en slarvig klart långsammare.
 
 ## Utveckling
 

@@ -241,115 +241,162 @@ body {
 .arcade[data-state='playing'] .arc-touch {
   display: block;
 }
-.arc-pad,
-.arc-buttons-pad {
+.arc-touch {
+  --tbo: 0.8;
+}
+/* every on-screen button; the layout (src/controls.ts) sets its place and size */
+.arc-tb {
   position: absolute;
-  bottom: max(18px, var(--safe-b));
-}
-.arc-pad {
-  left: max(18px, var(--safe-l));
-}
-.arc-buttons-pad {
-  right: max(18px, var(--safe-r));
-  width: 200px;
-  height: 170px;
-}
-.arc-key,
-.arc-fire,
-.arc-stick {
+  box-sizing: border-box;
   pointer-events: auto;
   touch-action: none;
-}
-.arc-key,
-.arc-fire {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 50%;
   color: #fff;
-  font-size: 26px;
   font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.5px;
   background: rgba(255, 255, 255, 0.14);
   border: 2px solid rgba(255, 255, 255, 0.4);
   box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+  opacity: var(--tbo);
 }
-.arc-key.down,
-.arc-fire.down {
+.arc-tb.down {
+  opacity: 1;
   background: rgba(255, 255, 255, 0.4);
   transform: translateY(2px);
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
 }
-.arc-pad.leftright {
-  display: flex;
-  gap: 14px;
-}
-.arc-pad.leftright .arc-key {
-  width: 86px;
-  height: 86px;
+.arc-tb.tb-left,
+.arc-tb.tb-right {
   border-radius: 22px;
 }
-.arc-pad.dpad {
-  display: grid;
-  grid-template-columns: repeat(3, 62px);
-  grid-template-rows: repeat(3, 62px);
+.arc-tb.tb-gas {
+  background: rgba(80, 220, 120, 0.3);
+  border-color: rgba(160, 255, 190, 0.7);
 }
-.arc-pad.dpad .arc-key {
-  border-radius: 14px;
+.arc-tb.tb-brake {
+  background: rgba(255, 90, 80, 0.26);
+  border-color: rgba(255, 170, 160, 0.65);
 }
-.arc-pad.dpad .up {
-  grid-area: 1 / 2;
+.arc-tb.tb-nitro {
+  background: rgba(255, 150, 40, 0.28);
+  border-color: rgba(255, 200, 120, 0.7);
 }
-.arc-pad.dpad .left {
-  grid-area: 2 / 1;
+.arc-tb.tb-ability {
+  background: rgba(190, 110, 255, 0.28);
+  border-color: rgba(220, 180, 255, 0.7);
 }
-.arc-pad.dpad .right {
-  grid-area: 2 / 3;
+.arc-tb.tb-hand {
+  background: rgba(90, 160, 255, 0.24);
+  border-color: rgba(170, 205, 255, 0.65);
 }
-.arc-pad.dpad .down {
-  grid-area: 3 / 2;
+.arc-tb.tb-shiftUp,
+.arc-tb.tb-shiftDn {
+  border-radius: 16px;
+  background: rgba(255, 210, 63, 0.22);
+  border-color: rgba(255, 230, 140, 0.7);
 }
-.arc-stick {
-  position: relative;
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(255, 255, 255, 0.35);
+.arc-tb.tb-gas.down {
+  background: rgba(80, 220, 120, 0.6);
 }
-.arc-knob {
+
+/* the layout editor: drag the buttons where the thumbs want them */
+.arc-edit {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 66px;
-  height: 66px;
-  margin: -33px 0 0 -33px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.45);
-  border: 2px solid rgba(255, 255, 255, 0.7);
+  inset: 0;
+  z-index: 8;
+  background: rgba(7, 6, 15, 0.82);
+  touch-action: none;
+}
+.arc-edit .arc-tb {
+  opacity: 1;
+  cursor: grab;
+  outline: 2px dashed rgba(255, 255, 255, 0.55);
+  outline-offset: 3px;
+}
+.arc-edit-bar {
+  position: absolute;
+  left: max(12px, var(--safe-l));
+  right: max(12px, var(--safe-r));
+  top: max(8px, var(--safe-t));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.arc-edit-title {
+  font-weight: 900;
+  font-size: 18px;
+}
+.arc-edit-sub {
+  flex: 1 1 auto;
+  font-size: 13px;
+  opacity: 0.75;
+}
+.arc-edit-bar .arc-go {
+  width: auto;
+  min-height: 44px;
+  padding: 6px 22px;
+  font-size: 18px;
+}
+.arc-edit-bar .arc-btn {
+  min-height: 44px;
+}
+.arc-edit-zone {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed rgba(255, 255, 255, 0.28);
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 800;
+  opacity: 0.55;
   pointer-events: none;
 }
-.arc-fire {
-  position: absolute;
-  border-radius: 50%;
+
+/* the controls part of the settings panel */
+.rg-ctl {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
 }
-.arc-fire.n0 {
-  right: 0;
-  bottom: 0;
-  width: 96px;
-  height: 96px;
-  font-size: 34px;
+.rg-ctlrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: space-between;
 }
-.arc-fire.n1 {
-  right: 104px;
-  bottom: 6px;
-  width: 76px;
-  height: 76px;
+.rg-ctlrow .rg-vols {
+  justify-content: flex-end;
 }
-.arc-fire.n2 {
-  right: 18px;
-  bottom: 106px;
-  width: 64px;
-  height: 64px;
-  font-size: 22px;
+.rg-ctlnote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  opacity: 0.8;
+}
+.rg-ctl .rg-chipbtn:disabled {
+  opacity: 0.45;
+}
+@media (max-height: 520px) {
+  .rg-ctlrow .rg-setlabel {
+    font-size: 15px;
+  }
+  .rg-ctlnote {
+    font-size: 12px;
+  }
 }
 
 /* a phone held upright: ask for landscape */

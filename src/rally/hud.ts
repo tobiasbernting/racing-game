@@ -108,6 +108,9 @@ const CSS = `
 .rl-btn { pointer-events: auto; border: 2px solid rgba(255,255,255,0.5); background: rgba(16, 20, 34, 0.6); color: #fff; border-radius: 999px;
   font: 800 calc(16px * var(--s)) var(--body, system-ui), system-ui, sans-serif; padding: calc(6px * var(--s)) calc(12px * var(--s)); display: none; cursor: pointer; }
 .rl-btn.show { display: block; }
+.rl-hud.camtop .rl-btns { top: max(8px, env(safe-area-inset-top)); right: calc(max(8px, env(safe-area-inset-right)) + 56px); }
+.rl-hud.camtop .rl-btn { width: 48px; height: 48px; padding: 0; font-size: 20px; line-height: 1; }
+.rl-hud.camtop .rl-trinkets { right: max(calc(76px * var(--s) + 56px), calc(env(safe-area-inset-right) + 120px)); }
 .rl-trinkets { position: absolute; right: max(calc(76px * var(--s)), calc(env(safe-area-inset-right) + 64px)); top: max(calc(8px * var(--s)), env(safe-area-inset-top)); display: flex; flex-wrap: nowrap; justify-content: flex-end;
   gap: calc(3px * var(--s)); max-width: 34%; }
 .rl-tr.more { font-size: calc(13px * var(--s)); font-weight: 900; display: flex; align-items: center; }
@@ -612,7 +615,7 @@ export class Hud {
   }
 
   /** The speedometer: a rev arc, km/h and the gear. */
-  drawSpeedo(kmh: number, rpm: number, gear: number, maxRpm: number): void {
+  drawSpeedo(kmh: number, rpm: number, gear: number, maxRpm: number, info: { manual: boolean; light: number; gears: number; limiter: boolean; bog: boolean } = { manual: false, light: 0, gears: 6, limiter: false, bog: false }): void {
     const c = this.speedo;
     const g = c.getContext('2d')!;
     const W = c.width;
@@ -672,6 +675,49 @@ export class Hud {
     g.font = `900 ${Math.round(R * 0.26)}px Nunito, 'Trebuchet MS', system-ui, sans-serif`;
     g.textBaseline = 'middle';
     g.fillText(gear < 0 ? 'R' : String(gear), gx, gy + R * 0.01);
+    // manual box: a tag, a row of shift lights on top, and a hint arrow while it is time to shift up
+    const now = performance.now();
+    const flash = Math.max(0, 1 - (now - this.flashAt) / 380);
+    if (info.manual) {
+      g.font = `900 ${Math.round(R * 0.13)}px Nunito, 'Trebuchet MS', system-ui, sans-serif`;
+      g.fillStyle = 'rgba(255,255,255,0.85)';
+      g.fillText('MAN', gx, gy + R * 0.36);
+      const f = clamp(rpm / maxRpm, 0, 1.05);
+      const n = 7;
+      const step = R * 0.19;
+      const ly = Math.max(R * 0.06, 5 * this.dpr);
+      const blink = info.light === 3 && Math.floor(now / 90) % 2 === 0;
+      for (let i = 0; i < n; i++) {
+        const lit = f >= 0.55 + i * 0.066;
+        const hue = i < 3 ? '#4ddf6a' : i < 5 ? '#ffd23f' : '#ff4433';
+        g.beginPath();
+        g.arc(cx + (i - (n - 1) / 2) * step, ly, R * 0.065, 0, Math.PI * 2);
+        g.fillStyle = flash > 0.05 ? `rgba(120,230,255,${0.35 + 0.65 * flash})` : lit && (info.light < 3 || blink || i < 5) ? hue : 'rgba(255,255,255,0.14)';
+        g.fill();
+      }
+      if (info.light === 3 && gear > 0 && gear < info.gears) {
+        g.fillStyle = blink ? '#ff4433' : '#ffd23f';
+        g.font = `900 ${Math.round(R * 0.26)}px Nunito, 'Trebuchet MS', system-ui, sans-serif`;
+        g.fillText('▲', gx, gy - R * 0.34);
+      }
+    }
+    if (info.limiter || info.bog) {
+      g.font = `900 ${Math.round(R * 0.16)}px Nunito, 'Trebuchet MS', system-ui, sans-serif`;
+      g.fillStyle = info.limiter ? '#ff4433' : '#ff9a3c';
+      g.fillText(info.limiter ? 'MAX!' : 'SEGT', cx - R * 0.08, cy + R * 0.3);
+    }
+  }
+
+  private flashAt = -1e9;
+
+  /** The camera button moves up beside the pause button (the pedal schemes need the corner of the screen for the right thumb). */
+  setCamTop(on: boolean): void {
+    this.root.classList.toggle('camtop', on);
+  }
+
+  /** The cue for a perfect shift: the shift lights flash blue for a moment. */
+  shiftFlash(): void {
+    this.flashAt = performance.now();
   }
 
   lights(n: number, green: boolean, show: boolean): void {

@@ -2,8 +2,10 @@
 // screen. Plain DOM. It builds the GameContext (input, audio, quality, touch) and starts the rally with a
 // RallyOptions; the race reports its result through options.onDone and ctx.end.
 import { Input } from './arcade/input.ts';
-import type { Button, GameContext, GameFactory, GameInstance, TouchLayout } from './arcade/types.ts';
-import { RALLY_HOW_TO, rallyTouch } from './rally/info.ts';
+import type { Button, ControlsState, GameContext, GameFactory, GameInstance } from './arcade/types.ts';
+import { BUTTON_MAP, clampRect, deviceClass, hasPedals, hudZones, isManual, keyHowTo, layoutRects, posFromRect, posKey, SCHEME_NAMES, touchHowTo, visibleButtons, type BtnId, type ControlPrefs, type Rect, type Safe } from './controls.ts';
+import { canVibrate } from './haptics.ts';
+import { rallyNeeds } from './rally/info.ts';
 import type { RallyOptions, RallyResult } from './rally/options.ts';
 import { CAR_BODIES, CAR_PAINTS, RALLY_COURSES, RALLY_COURSE_DEFS, defaultRules, newCar, type CarBody, type RallyCourse } from './shared/rally.ts';
 import { CAR_BODY_NAMES, RALLY_COURSE_NAMES } from './shared/names.ts';
@@ -83,7 +85,7 @@ export class App {
       (e) => {
         if (e.pointerType !== 'touch' || this.touch) return;
         this.touch = true;
-        if (this.state === 'playing' && this.opts) this.buildTouch(rallyTouch(this.opts));
+        if (this.state === 'playing' && this.opts) this.buildTouch();
       },
       true,
     );
@@ -92,6 +94,18 @@ export class App {
     this.root.addEventListener('gesturestart', (e) => e.preventDefault());
     this.deviceSetup();
     this.applySettings();
+    this.syncControls();
+    // turning the device or resizing the window: the buttons find their places again
+    let relayout = 0;
+    const redo = (): void => {
+      cancelAnimationFrame(relayout);
+      relayout = requestAnimationFrame(() => {
+        if (this.editor) this.openEditor(this.editorDone);
+        else if (this.state === 'playing' || this.state === 'paused') this.buildTouch();
+      });
+    };
+    window.addEventListener('resize', redo);
+    window.addEventListener('orientationchange', redo);
     // a run that ended (and was counted) before a reload shows its last card again; otherwise the title
     const saved = loadRun();
     if (saved && saved.status !== 'running') this.resumeRun(saved);
@@ -247,6 +261,12 @@ export class App {
   }
 
   private settingsBack: () => void = () => {};
+  private editorDone: () => void = () => {};
+
+  /** The how-to lines for what is chosen: the scheme on a touch screen, the shifting on a keyboard. */
+  private howTo(): string[] {
+    return this.touch ? touchHowTo(this.ctl) : keyHowTo(isManual(this.ctl, false));
+  }
 
   /** The settings panel; `back` redraws whatever it was opened from. */
   private openSettings(back: () => void): void {
@@ -256,6 +276,14 @@ export class App {
         settings,
         calm: this.meta.calm,
         fullscreen: this.fullscreenState(),
+        controls: this.ctl,
+        touch: this.touch,
+        canVibrate: canVibrate(),
+        onControls: () => this.saveControls(),
+        onEditLayout: () => {
+          this.editorDone = () => this.openSettings(back);
+          this.openEditor(this.editorDone);
+        },
         onChange: () => {
           saveSettings();
           this.applySettings();
@@ -336,7 +364,7 @@ export class App {
     go.addEventListener('click', () => void this.start());
     const back = btn('arc-btn back', '← Titel', () => this.title());
     back.setAttribute('aria-label', 'Tillbaka till titeln');
-    const how = el('ul', 'arc-how', ...(this.touch ? RALLY_HOW_TO.touch : RALLY_HOW_TO.keys).map((l) => el('li', null, l)));
+    const how = el('ul', 'arc-how', ...this.howTo().map((l) => el('li', null, l)));
 
     this.show(
       el(
@@ -406,7 +434,7 @@ export class App {
     this.input.clear();
     this.hideCard();
     this.set('playing');
-    this.buildTouch(rallyTouch(this.opts));
+    this.buildTouch();
     let ended = false;
     const dprCap = this.quality === 'low' ? 1.5 : 2;
     const ctx: GameContext = {
@@ -416,6 +444,7 @@ export class App {
       out: this.master,
       player: { name: 'Du', color: this.opts.car.style.paint },
       touch: this.touch,
+      controls: this.cstate,
       quality: this.quality,
       dpr: Math.min(window.devicePixelRatio || 1, dprCap),
       options: this.opts,
@@ -483,6 +512,7 @@ export class App {
     this.hideCard();
     this.input.clear();
     this.set('playing');
+    this.buildTouch();
     this.inst.resume();
   }
 
@@ -822,46 +852,238 @@ export class App {
 
   // ---- touch controls ----
 
-  private hold(node: HTMLElement, b: Button): void {
+  /** The live controls state the race reads every frame (ctx.controls). */
+  private cstate: ControlsState = { pedals: false, manual: false, haptics: false };
+  /** The editor for the touch layout, when it is open. */
+  private editor: HTMLElement | null = null;
+
+  private get ctl(): ControlPrefs {
+    return this.prefs.controls;
+  }
+
+  /** Works out what the race needs from the saved choices and this device. */
+  private syncControls(): void {
+    this.cstate.pedals = hasPedals(this.ctl, this.touch);
+    this.cstate.manual = isManual(this.ctl, this.touch);
+    this.cstate.haptics = this.touch && this.ctl.haptics && canVibrate();
+  }
+
+  private saveControls(): void {
+    savePrefs(this.prefs);
+    this.syncControls();
+  }
+
+  /** The safe-area insets in css px (notches, the home bar). */
+  private safe(): Safe {
+    const probe = el('div');
+    probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;left:0;top:0;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)';
+    this.root.append(probe);
+    const cs = getComputedStyle(probe);
+    const out = { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+    probe.remove();
+    return out;
+  }
+
+  /** A button that is held: its own pointer is captured, so a thumb sliding off keeps it pressed and other thumbs stay independent. */
+  private hold(node: HTMLElement, b: Button, extra?: { move?(e: PointerEvent): void; start?(e: PointerEvent): void }): void {
+    let id = -1;
     const down = (e: PointerEvent): void => {
       e.preventDefault();
       e.stopPropagation();
-      node.setPointerCapture(e.pointerId);
+      if (id !== -1) return;
+      id = e.pointerId;
+      try {
+        node.setPointerCapture(e.pointerId);
+      } catch {
+        // the pointer is already gone
+      }
       node.classList.add('down');
       this.input.touchButton(b, true);
+      extra?.start?.(e);
     };
     const up = (e: PointerEvent): void => {
       e.stopPropagation();
-      if (!node.classList.contains('down')) return;
+      if (e.pointerId !== id) return;
+      id = -1;
       node.classList.remove('down');
       this.input.touchButton(b, false);
     };
     node.addEventListener('pointerdown', down);
+    node.addEventListener('pointermove', (e) => {
+      if (e.pointerId === id) extra?.move?.(e);
+    });
     node.addEventListener('pointerup', up);
     node.addEventListener('pointercancel', up);
     node.addEventListener('lostpointercapture', up);
   }
 
-  private buildTouch(rallyOpts: RallyOptions | TouchLayout): void {
+  /** A tap that presses a controller button for one frame (the shift buttons, a swipe on the pedal). */
+  private tap(b: Button): void {
+    this.input.touchButton(b, true);
+    setTimeout(() => this.input.touchButton(b, false), 60);
+  }
+
+  private visibleIds(): BtnId[] {
+    const need = this.opts ? rallyNeeds(this.opts) : { nitro: false, ability: false };
+    return visibleButtons(this.ctl.scheme, { ...need, manual: this.cstate.manual });
+  }
+
+  private buildTouch(): void {
     this.touchEl.replaceChildren();
     this.input.touchStickMove(0, 0);
+    this.syncControls();
     if (!this.touch) return;
-    const layout: TouchLayout = 'pad' in rallyOpts ? rallyOpts : rallyTouch(rallyOpts);
-    const left = el('div', `arc-pad ${layout.pad}`);
-    if (layout.pad === 'dpad' || layout.pad === 'leftright') {
-      const dirs: [Button, string][] = layout.pad === 'dpad' ? [['up', '▲'], ['left', '◀'], ['right', '▶'], ['down', '▼']] : [['left', '◀'], ['right', '▶']];
-      for (const [b, label] of dirs) {
-        const k = el('div', `arc-key ${b}`, label);
-        this.hold(k, b);
-        left.append(k);
+    const need = this.opts ? rallyNeeds(this.opts) : { nitro: false, ability: false };
+    const r = this.root.getBoundingClientRect();
+    const device = deviceClass(r.width, r.height);
+    const c = this.ctl;
+    this.touchEl.style.setProperty('--tbo', String(c.opacity));
+    const rects = layoutRects({ w: r.width, h: r.height, safe: this.safe(), scheme: c.scheme, size: c.size, lefty: c.lefty, pos: c.pos[posKey(device, c.scheme)], show: this.visibleIds() });
+    for (const rc of rects) this.touchEl.append(this.touchButton(rc, need.nitro));
+  }
+
+  /** One on-screen button for a rectangle of the layout. */
+  private touchButton(rc: Rect, hasNitro: boolean): HTMLElement {
+    const c = this.ctl;
+    const pedal = c.scheme !== 'easy';
+    const word = rc.id === 'gas' ? 'GAS' : rc.id === 'brake' && pedal ? 'BROMS' : '';
+    const label: Record<BtnId, string> = { left: '◀', right: '▶', hand: '🌀', gas: 'GAS', brake: pedal ? 'BROMS' : '▼', nitro: hasNitro ? '🔥' : '🎥', ability: '✨', shiftDn: '−', shiftUp: '+' };
+    const k = el('div', `arc-tb tb-${rc.id}${word ? ' word' : ''}`, label[rc.id]);
+    k.dataset.btn = rc.id;
+    k.style.cssText = `left:${rc.x}px;top:${rc.y}px;width:${rc.w}px;height:${rc.h}px;font-size:${Math.round(rc.w * (word ? 0.22 : 0.4))}px`;
+    k.setAttribute('role', 'button');
+    k.setAttribute('aria-label', { left: 'Styr vänster', right: 'Styr höger', hand: 'Handbroms', gas: 'Gas', brake: 'Broms', nitro: hasNitro ? 'Nitro' : 'Byt kamera', ability: 'Förmåga', shiftDn: 'Växla ned', shiftUp: 'Växla upp' }[rc.id]);
+    if (rc.id === 'gas' && this.cstate.manual) {
+      // a swipe up or down on the pedal shifts too, with the thumb still on the gas
+      let y0 = 0;
+      let armed = true;
+      this.hold(k, 'up', {
+        start: (e) => {
+          y0 = e.clientY;
+          armed = true;
+        },
+        move: (e) => {
+          const dy = e.clientY - y0;
+          if (armed && Math.abs(dy) > 38) {
+            armed = false;
+            this.tap(dy < 0 ? 'su' : 'sd');
+          } else if (!armed && Math.abs(dy) < 12) armed = true;
+        },
+      });
+    } else if (rc.id === 'left' || rc.id === 'right') {
+      // a thumb sliding from one steer button onto the other changes direction without lifting
+      const mine = rc.id;
+      let cur: 'left' | 'right' = mine;
+      this.hold(k, mine, {
+        start: () => (cur = mine),
+        move: (e) => {
+          const other = this.touchEl.querySelector<HTMLElement>(`.tb-${mine === 'left' ? 'right' : 'left'}`);
+          if (!other) return;
+          const ob = other.getBoundingClientRect();
+          const over = e.clientX >= ob.left && e.clientX <= ob.right && e.clientY >= ob.top - 30 && e.clientY <= ob.bottom + 30;
+          const mb = k.getBoundingClientRect();
+          const home = e.clientX >= mb.left && e.clientX <= mb.right;
+          const want = over ? (mine === 'left' ? 'right' : 'left') : home ? mine : cur;
+          if (want !== cur) {
+            this.input.touchButton(cur, false);
+            this.input.touchButton(want, true);
+            cur = want;
+          }
+        },
+      });
+      // the original button is released by hold(); make sure the sibling is too
+      const release = (): void => {
+        if (cur !== mine) {
+          this.input.touchButton(cur, false);
+          cur = mine;
+        }
+      };
+      k.addEventListener('pointerup', release);
+      k.addEventListener('pointercancel', release);
+      k.addEventListener('lostpointercapture', release);
+    } else this.hold(k, BUTTON_MAP[rc.id]);
+    return k;
+  }
+
+  // ---- the layout editor (Inställningar → Flytta knappar) ----
+
+  private openEditor(done: () => void): void {
+    this.closeEditor();
+    const c = this.ctl;
+    const ed = el('div', 'arc-edit');
+    this.editor = ed;
+    const r = this.root.getBoundingClientRect();
+    const device = deviceClass(r.width, r.height);
+    const key = posKey(device, c.scheme);
+    const safe = this.safe();
+    const hud = hudZones(r.width, r.height, safe);
+    const draw = (): void => {
+      ed.replaceChildren();
+      const bar = el('div', 'arc-edit-bar');
+      const title = el('div', 'arc-edit-title', `Flytta knappar · ${SCHEME_NAMES[c.scheme]} · ${device === 'tablet' ? 'surfplatta' : 'mobil'}`);
+      const reset = btn('arc-btn', 'Återställ', () => {
+        delete c.pos[key];
+        this.saveControls();
+        draw();
+      });
+      const ok = btn('arc-go', 'Klart', () => {
+        this.closeEditor();
+        done();
+      });
+      bar.append(title, el('div', 'arc-edit-sub', 'Dra knapparna dit tummarna vill ha dem.'), reset, ok);
+      ed.append(bar);
+      for (const [name, z] of [['Minikarta', hud.minimap], ['Hastighet', hud.speedo]] as const) {
+        const zone = el('div', 'arc-edit-zone', name);
+        zone.style.cssText = `left:${z.x}px;top:${z.y}px;width:${z.w}px;height:${z.h}px`;
+        ed.append(zone);
       }
-    }
-    const right = el('div', 'arc-buttons-pad');
-    layout.buttons.forEach((bt, i) => {
-      const k = el('div', `arc-fire n${i}`, bt.label);
-      this.hold(k, bt.button);
-      right.append(k);
-    });
-    this.touchEl.append(left, right);
+      // every button of the scheme, even the ones a car may not have today, so each can be placed
+      const all: BtnId[] = visibleButtons(c.scheme, { nitro: true, ability: true, manual: true });
+      for (const rc of layoutRects({ w: r.width, h: r.height, safe, scheme: c.scheme, size: c.size, lefty: c.lefty, pos: c.pos[key], show: all })) {
+        const labels: Record<BtnId, string> = { left: '◀', right: '▶', hand: '🌀', gas: 'GAS', brake: c.scheme === 'easy' ? '▼' : 'BROMS', nitro: '🔥', ability: '✨', shiftDn: '−', shiftUp: '+' };
+        const word = rc.id === 'gas' || (rc.id === 'brake' && c.scheme !== 'easy');
+        const k = el('div', `arc-tb tb-${rc.id} edit${word ? ' word' : ''}`, labels[rc.id]);
+        k.style.cssText = `left:${rc.x}px;top:${rc.y}px;width:${rc.w}px;height:${rc.h}px;font-size:${Math.round(rc.w * (word ? 0.22 : 0.4))}px`;
+        let off: [number, number] | null = null;
+        let id = -1;
+        k.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          if (id !== -1) return;
+          id = e.pointerId;
+          k.setPointerCapture(e.pointerId);
+          const b = k.getBoundingClientRect();
+          off = [e.clientX - b.left, e.clientY - b.top];
+          k.classList.add('down');
+        });
+        k.addEventListener('pointermove', (e) => {
+          if (e.pointerId !== id || !off) return;
+          const box = ed.getBoundingClientRect();
+          const moved = clampRect({ id: rc.id, x: e.clientX - box.left - off[0], y: e.clientY - box.top - off[1], w: rc.w, h: rc.h }, r.width, r.height, safe);
+          k.style.left = `${moved.x}px`;
+          k.style.top = `${moved.y}px`;
+        });
+        const end = (e: PointerEvent): void => {
+          if (e.pointerId !== id) return;
+          id = -1;
+          k.classList.remove('down');
+          const cur: Rect = { id: rc.id, x: parseFloat(k.style.left), y: parseFloat(k.style.top), w: rc.w, h: rc.h };
+          const set = (c.pos[key] ??= {});
+          set[rc.id] = posFromRect(cur, r.width, r.height, c.lefty, safe);
+          this.saveControls();
+        };
+        k.addEventListener('pointerup', end);
+        k.addEventListener('pointercancel', end);
+        ed.append(k);
+      }
+    };
+    draw();
+    this.card.style.visibility = 'hidden';
+    this.root.append(ed);
+  }
+
+  private closeEditor(): void {
+    this.editor?.remove();
+    this.editor = null;
+    this.card.style.visibility = '';
   }
 }

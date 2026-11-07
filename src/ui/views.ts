@@ -20,6 +20,7 @@ import { btn, el, plural } from './dom.ts';
 import { ACT_NAMES, chip, seedLabel, statusBar, trinketCard, trinketIcons } from './parts.ts';
 import { countUp } from './juice.ts';
 import type { Settings } from '../settings.ts';
+import { SCHEMES, SCHEME_NAMES, SCHEME_TEXT, SIZES, SIZE_NAMES, isManual, type ControlPrefs, type Scheme } from '../controls.ts';
 import type { RunEnd } from '../run/state.ts';
 
 const screen = (cls: string, ...kids: (Node | null)[]): HTMLElement => el('div', `rg-screen ${cls}`, ...kids.filter((k): k is Node => !!k));
@@ -488,6 +489,14 @@ export interface SettingsOpts {
   calm: boolean;
   /** Can the page go fullscreen (and is it, now)? Null: not supported here. */
   fullscreen: boolean | null;
+  /** How this player drives: the scheme, shifting, button size and so on (edited in place; `onControls` saves). */
+  controls: ControlPrefs;
+  /** A touch screen (the touch-only choices show) and whether the browser can vibrate. */
+  touch: boolean;
+  canVibrate: boolean;
+  onControls(): void;
+  /** Opens the editor where the buttons are dragged to where the thumbs want them. */
+  onEditLayout(): void;
   onChange(): void;
   onCalm(on: boolean): void;
   onFullscreen(): void;
@@ -527,6 +536,7 @@ export function settingsView(o: SettingsOpts): HTMLElement {
     'div',
     'rg-setgrid',
     el('div', 'rg-setvol', el('span', 'rg-setlabel', '🔊 Ljud'), vols),
+    controlsSection(o),
     toggle('🎵', 'Musik', 'Soundtracket till kaoset', () => s.music, (v) => { s.music = v; o.onChange(); }),
     toggle('📳', 'Skakningar', 'Kameran vibrerar vid krascher och landningar', () => s.shake, (v) => { s.shake = v; o.onChange(); }),
     toggle('🛋️', 'Söndagsåkare', '5 hjärtan och rivaler som tar det lugnt (gäller nästa runda)', () => o.calm, (v) => { o.calm = v; o.onCalm(v); }),
@@ -534,6 +544,68 @@ export function settingsView(o: SettingsOpts): HTMLElement {
     o.fullscreen === null ? null : btn('rg-btn rg-set', '⛶ Helskärm på/av (ingen kant, ingen nåd)', o.onFullscreen),
   );
   return screen('rg-settings', el('div', 'rg-top', el('h2', 'rg-h tight', '⚙️ Inställningar')), el('div', 'rg-setbody', grid), foot(go('Klart, KÖR!', o.onClose)));
+}
+
+/** The Kontroller part of the settings: scheme, shifting, button size and opacity, left-handed, move buttons, vibration. */
+function controlsSection(o: SettingsOpts): HTMLElement {
+  const c = o.controls;
+  const box = el('div', 'rg-ctl');
+  const row = <T extends string | number>(label: string, items: readonly T[], name: (t: T) => string, get: () => T, set: (t: T) => void, off?: () => boolean): HTMLElement => {
+    const wrap = el('div', 'rg-ctlrow');
+    const chips = el('div', 'rg-vols');
+    const draw = (): void => {
+      chips.replaceChildren(
+        ...items.map((it) => {
+          const b = btn('rg-chipbtn', name(it), () => {
+            set(it);
+            o.onControls();
+            redraw();
+          });
+          b.setAttribute('aria-pressed', String(get() === it));
+          b.disabled = !!off?.();
+          return b;
+        }),
+      );
+    };
+    draw();
+    (wrap as HTMLElement & { draw?: () => void }).draw = draw;
+    wrap.append(el('span', 'rg-setlabel', label), chips);
+    return wrap;
+  };
+  const note = el('p', 'rg-ctlnote');
+  const rows: HTMLElement[] = [];
+  const redraw = (): void => {
+    for (const r of rows) (r as HTMLElement & { draw?: () => void }).draw?.();
+    note.textContent = o.touch ? SCHEME_TEXT[c.scheme] : '';
+    shiftNote.textContent = o.touch
+      ? c.scheme === 'easy'
+        ? 'Lätt växlar bilen själv. Välj Pedaler eller Proffs för att växla med knappar.'
+        : c.scheme === 'pro'
+          ? 'Proffs växlar alltid själv: − och + vid högertummen (eller dra upp och ned på GAS).'
+          : 'Manuell växling ger − och + vid högertummen.'
+      : 'Q / E eller LB / RB växlar upp och ned. Skifta när lampan blir röd för en liten extra spark.';
+  };
+  const shiftNote = el('p', 'rg-ctlnote');
+  if (o.touch) {
+    rows.push(row('🎮 Kontroller', SCHEMES, (s: Scheme) => SCHEME_NAMES[s], () => c.scheme, (s) => (c.scheme = s)));
+    box.append(rows[0]!, note);
+  } else box.append(el('div', 'rg-setlabel', '🎮 Kontroller'));
+  rows.push(
+    row('⚙️ Växling', ['auto', 'manual'] as const, (m) => (m === 'auto' ? 'Automat' : 'Manuell'), () => (isManual(c, o.touch) ? 'manual' : 'auto'), (m) => (c.manual = m === 'manual'), () => o.touch && c.scheme !== 'pedals'),
+  );
+  box.append(rows[rows.length - 1]!, shiftNote);
+  if (o.touch) {
+    rows.push(row('↔️ Knappstorlek', SIZES, (z) => SIZE_NAMES[z], () => c.size, (z) => (c.size = z)));
+    rows.push(row('👻 Synlighet', [0.4, 0.6, 0.8, 1] as const, (v) => `${Math.round(v * 100)} %`, () => c.opacity, (v) => (c.opacity = v)));
+    rows.push(row('🤚 Vänsterhänt', ['no', 'yes'] as const, (v) => (v === 'yes' ? 'På' : 'Av'), () => (c.lefty ? 'yes' : 'no'), (v) => (c.lefty = v === 'yes')));
+    box.append(rows[rows.length - 3]!, rows[rows.length - 2]!, rows[rows.length - 1]!);
+    box.append(btn('rg-btn rg-set', '✋ Flytta knappar (dra dem dit du vill)', o.onEditLayout));
+    if (o.canVibrate) rows.push(row('📲 Vibration', ['no', 'yes'] as const, (v) => (v === 'yes' ? 'På' : 'Av'), () => (c.haptics ? 'yes' : 'no'), (v) => (c.haptics = v === 'yes')));
+    else box.append(el('p', 'rg-ctlnote', 'Vibration finns inte i den här webbläsaren (iPhone och iPad kan inte). Ljudet och lampan säger samma sak.'));
+    if (o.canVibrate) box.append(rows[rows.length - 1]!);
+  }
+  redraw();
+  return box;
 }
 
 // ---- the end of a run: see result.ts ----

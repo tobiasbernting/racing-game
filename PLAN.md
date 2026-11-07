@@ -126,6 +126,9 @@ run strong, which is right; the rivals and courses must keep up. Design directio
    shifting also on keyboard/gamepad; a layout with room for the ability button and nitro, tablet insets,
    left-handed mirror, button size/opacity, maybe drag-to-move; haptics where the browser allows; no tilt steering
    (owner decision).
+   Built (see README): the three schemes, a gearbox per vehicle (manual or automatic, limiter, bog, perfect shift, shift light),
+   Q/E and LB/RB on desktop, a tested layout (tablet insets, safe areas, mirror, size/opacity, drag-to-move with reset),
+   haptics, and a reserved ability slot.
 8. **Vehicles with abilities**: passives, active ability button, starting trinkets, ram/race lean, 5 starters
    (rallybil, sandbuggy, pickup, moppe, traktor), 15 to unlock by a mix of wins and challenges.
 9. **Art direction**: grittier, Tape to Tape-inspired: stronger contrast and colour grade, light outlines,

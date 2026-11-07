@@ -75,7 +75,7 @@ describe('picks', () => {
   it('cleans stored prefs into valid ones', () => {
     expect(cleanPrefs(null)).toEqual(defaultPrefs());
     expect(cleanPrefs({ course: 'narnia', body: 'tank', paint: 'red' })).toEqual(defaultPrefs());
-    expect(cleanPrefs({ course: 'ice', body: 'buggy', paint: CAR_PAINTS[3] })).toEqual({ course: 'ice', body: 'buggy', paint: CAR_PAINTS[3] });
+    expect(cleanPrefs({ course: 'ice', body: 'buggy', paint: CAR_PAINTS[3] })).toEqual({ course: 'ice', body: 'buggy', paint: CAR_PAINTS[3], controls: defaultPrefs().controls });
   });
 
   it('reads race options only when they carry rules and a car', () => {

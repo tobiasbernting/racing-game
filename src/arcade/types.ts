@@ -29,6 +29,8 @@ export interface GameContext {
   end(score: number, detail?: string): void;
   /** Ask the shell to pause (shows the pause card), e.g. when the mouse lock was lost. */
   requestPause(): void;
+  /** The player's controls, live (the settings panel may change them between races). */
+  controls?: ControlsState;
   /** Game-specific options from whoever starts the game (a RallyOptions for the rally). */
   options?: unknown;
 }
@@ -42,10 +44,23 @@ export interface GameInstance {
   destroy(): void;
 }
 
+/** What the race needs to know about how this player drives: set by the shell, read every frame. */
+export interface ControlsState {
+  /** Gas and brake are the player's own (touch Pedaler / Proffs); false: the car gasses by itself on a touch screen. */
+  pedals: boolean;
+  /** The player shifts the gears. */
+  manual: boolean;
+  /** Buzz the phone on shifts and hits. */
+  haptics: boolean;
+}
+
 export type GameFactory = (ctx: GameContext) => GameInstance;
 
-/** A controller button. Keyboard: arrows/WASD, A = Space/Z/J, B = X/K/Shift, C = C/L, Start = Enter. */
-export type Button = 'left' | 'right' | 'up' | 'down' | 'a' | 'b' | 'c' | 'start';
+/**
+ * A controller button. Keyboard: arrows/WASD, A = Space/Z/J, B = X/K/Shift, C = C/L, Start = Enter. `sd` / `su` shift
+ * down and up (Q / E, LB / RB, the − and + buttons) and `x` is the vehicle's ability (a touch button for now).
+ */
+export type Button = 'left' | 'right' | 'up' | 'down' | 'a' | 'b' | 'c' | 'x' | 'sd' | 'su' | 'start';
 
 /** The touch controls drawn over the game on touch screens. */
 export interface TouchLayout {

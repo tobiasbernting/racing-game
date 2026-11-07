@@ -1,8 +1,9 @@
 // Arcade-sim car handling: a bicycle model with grip-limited tyres, weight transfer, a rear-wheel-drive
-// power curve with an automatic six-speed box, handbrake slides, countersteer help, jumps over crests,
+// power curve with a gearbox of its own per body (automatic, or shifted by the player), handbrake slides, countersteer help, jumps over crests,
 // and gentle bounces off the fences. Surfaces: asphalt, gravel, kerbs, grass, snow, sand and ice. In free
 // roam only the real walls (stone walls, bridge rails) stop the car. Plain maths, no Three.js.
 import { CAR_BODY_DEFS, type CarBody, type Feel } from '../shared/rally.ts';
+import { IDLE, PERFECT_PUSH, PERFECT_TIME, REDLINE, autoGear, canDownshift, gearboxOf, isPerfect, pushK, wheelFrac, wheelRpm, launchRpm, type GearBox } from './gears.ts';
 import { Fence, Surf, type Proj, type Track } from './track.ts';
 import { clamp, damp, lerp, smooth, wrapAngle } from './util.ts';
 
@@ -14,6 +15,8 @@ export interface Controls {
   /** −1..1, positive steers left */
   steer: number;
   handbrake: boolean;
+  /** −1 / +1: a shift down / up asked for this step (a manual gearbox only; the buttons are edges). */
+  shift?: number;
 }
 
 export interface Ground {
@@ -38,9 +41,7 @@ const WB = CG_F + CG_R;
 const CG_H = 0.45;
 const G = 9.81;
 const DRAG = 0.95;
-/** Speed (m/s) at 7000 rpm in each gear. */
-export const GEAR_V = [12.5, 20.5, 28, 35.5, 42.5, 50];
-export const REDLINE = 7000;
+export { REDLINE };
 
 const tyre = (alpha: number, b: number): number => Math.sin(1.4 * Math.atan(b * alpha));
 
@@ -55,8 +56,21 @@ export class Car {
   yawRate = 0;
   steerAngle = 0;
   gear = 1;
-  rpm = 900;
+  rpm = IDLE;
   shiftT = 0;
+  /** The gearbox of this body (setBody). */
+  box: GearBox = gearboxOf('hatch');
+  /** Shifted by the player (shift buttons) instead of by itself. */
+  manual = false;
+  /** Seconds left of the rev limiter's cut, and of a perfect shift's extra push. */
+  limiterT = 0;
+  perfectT = 0;
+  /** A perfect shift just happened (read and cleared by the game, for the tick and the flash). */
+  perfect = 0;
+  /** A shift down was refused, it would have over-revved the engine (read and cleared). */
+  shiftDenied = 0;
+  /** Engine braking when the throttle is lifted (1 = a light drag; the pedal schemes ask for more). */
+  engineBrake = 1;
   /** +1 just shifted up, −1 down (read and cleared by the sound). */
   shifted = 0;
   reverse = false;
@@ -135,6 +149,50 @@ export class Car {
   /** Dresses the physics as a body (the cars all share the plain feel). */
   setBody(body: CarBody, feel: Feel = CAR_BODY_DEFS[body].feel): void {
     this.feel = feel;
+    this.box = gearboxOf(body);
+    this.gear = Math.min(this.gear, this.box.v.length);
+  }
+
+  /** A gear thrown in or out without asking (a trinket's thump): ignores the shift timer and the perfect window. */
+  jolt(dir: number): void {
+    if (this.reverse || this.air) return;
+    const g = Math.max(1, Math.min(this.box.v.length, this.gear + dir));
+    if (g === this.gear || (dir < 0 && !canDownshift(this.box, this.gear, Math.abs(this.vLong)))) return;
+    this.gear = g;
+    this.shifted = dir > 0 ? 1 : -1;
+    this.shiftT = this.box.shiftTime;
+  }
+
+  /** The wheels' revs as a share of the redline in the current gear. */
+  get revFrac(): number {
+    return wheelFrac(this.box, this.gear, this.vLong);
+  }
+
+  /** A shift the player (or a trinket) asks for. Returns false when the box refuses. */
+  shiftGear(dir: number, perfectOk = true): boolean {
+    if (this.reverse || this.air || this.shiftT > 0.04) return false;
+    const top = this.box.v.length;
+    const va = Math.abs(this.vLong);
+    if (dir > 0) {
+      if (this.gear >= top) return false;
+      const frac = wheelFrac(this.box, this.gear, va);
+      if (perfectOk && isPerfect(frac)) {
+        this.perfectT = PERFECT_TIME;
+        this.perfect = 1;
+      }
+      this.gear++;
+      this.shifted = 1;
+    } else {
+      if (this.gear <= 1) return false;
+      if (!canDownshift(this.box, this.gear, va)) {
+        this.shiftDenied = 1;
+        return false;
+      }
+      this.gear--;
+      this.shifted = -1;
+    }
+    this.shiftT = this.box.shiftTime;
+    return true;
   }
 
   place(s: number, d: number, ground: Ground): void {
@@ -222,28 +280,43 @@ export class Car {
     this.shiftT = Math.max(0, this.shiftT - dt);
     this.launch = Math.max(0, this.launch - dt);
     this.ghost = Math.max(0, this.ghost - dt);
+    this.limiterT = Math.max(0, this.limiterT - dt);
+    this.perfectT = Math.max(0, this.perfectT - dt);
     const va = Math.abs(vLong);
+    const bx = this.box;
+    const top = bx.v.length;
     if (this.reverse) {
       this.gear = -1;
       this.rpm = damp(this.rpm, 1100 + (va / 9) * 4200 + c.brake * 900, 10, dt);
     } else {
       if (this.gear < 1) this.gear = 1;
-      const rpmIn = (g: number): number => (va / GEAR_V[g - 1]!) * REDLINE;
+      if (this.gear > top) this.gear = top;
       if (!this.air && !frozen) {
-        if (this.gear < 6 && rpmIn(this.gear) > REDLINE - 120 && this.shiftT <= 0) {
-          this.gear++;
-          this.shiftT = 0.17;
-          this.shifted = 1;
-        } else if (this.gear > 1 && rpmIn(this.gear) < 3300 && rpmIn(this.gear - 1) < REDLINE - 900) {
-          this.gear--;
-          this.shifted = -1;
+        if (this.manual) {
+          // the player's shift buttons (the revs decide whether it was a good one); a lone press is one shift
+          if (c.shift) this.shiftGear(c.shift > 0 ? 1 : -1);
+        } else {
+          const g = autoGear(bx, this.gear, va);
+          if (g > this.gear && this.shiftT <= 0) {
+            this.gear = g;
+            this.shiftT = bx.shiftTime;
+            this.shifted = 1;
+          } else if (g < this.gear) {
+            this.gear = g;
+            this.shifted = -1;
+          }
         }
       }
-      let want = Math.max(rpmIn(this.gear), 900);
-      if (this.gear === 1) want = Math.max(want, 900 + c.throttle * 3200);
-      if (this.air || frozen) want = 900 + c.throttle * (REDLINE + 200 - 900);
+      const wheel = wheelRpm(bx, this.gear, va);
+      let want = Math.max(wheel, IDLE);
+      // the slipping clutch lets the engine rev up from a standstill, the more the lower the gear
+      want = Math.max(want, IDLE + c.throttle * launchRpm(this.gear));
+      if (this.air || frozen) want = IDLE + c.throttle * (REDLINE + 200 - IDLE);
       want += this.wheelspin * 1800;
-      this.rpm = damp(this.rpm, Math.min(want, REDLINE + 250), frozen || this.air ? 7 : 16, dt);
+      // the rev limiter: in any gear but the last one, the engine cuts out and bounces on it
+      if (!this.air && !frozen && this.gear < top && wheel >= REDLINE && c.throttle > 0.3 && this.limiterT <= 0) this.limiterT = 0.1;
+      if (this.limiterT > 0) want = REDLINE * (this.limiterT > 0.05 ? 1.03 : 0.9);
+      this.rpm = damp(this.rpm, Math.min(want, REDLINE + 250), frozen || this.air ? 7 : this.limiterT > 0 ? 40 : 16, dt);
     }
 
     if (frozen) {
@@ -280,10 +353,13 @@ export class Car {
         if (F.mass > 1) drive *= Math.pow(F.mass, -0.3);
         if (F.top > 0) drive *= clamp((F.top * this.topK * this.boost - va) / (F.top * 0.12), 0, 1);
         if (this.shiftT > 0) drive *= 0.3;
+        // the engine: it bogs when the revs are low (a gear too high), is cut by the limiter and kicks after a perfect shift
+        drive *= this.limiterT > 0 ? 0.08 : pushK(bx, this.gear, va, c.throttle);
+        if (this.perfectT > 0) drive *= 1 + PERFECT_PUSH * (this.perfectT / PERFECT_TIME);
         if (this.launch > 0) drive *= 1.4;
         brake = c.brake * 13500 * this.brakeMul;
         // engine braking when lifting
-        if (c.throttle < 0.05 && va > 1) brake += 650;
+        if (c.throttle < 0.05 && va > 1) brake += 650 * this.engineBrake * (this.manual ? 0.5 + wheelFrac(bx, this.gear, va) : 1);
       }
       this.braking = c.brake > 0.1 && !this.reverse && vLong > 1;
       const dirSign = vLong >= 0 ? 1 : -1;
