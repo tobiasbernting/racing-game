@@ -76,7 +76,7 @@ export function titleView(o: TitleOpts): HTMLElement {
     );
   }
   right.append(newBtn, el('div', 'rg-pair', ghost('⚡ Snabbrace', o.onQuick), ghost('📖 Samling', o.onCollection)), el('div', 'rg-pair', calm, ghost('⚙️ Inställningar', o.onSettings)));
-  if (o.homeHint) right.append(el('small', 'rg-homehint', 'Tips: tryck på Dela och Lägg till på hemskärmen, så får du spelet i helskärm.'));
+  if (o.homeHint) right.append(el('small', 'rg-homehint', 'Fusktips: Dela, sedan Lägg till på hemskärmen, så slipper du webbläsarens kant.'));
   return screen('rg-title', left, right);
 }
 
@@ -469,13 +469,13 @@ export function settingsView(o: SettingsOpts): HTMLElement {
     'div',
     'rg-setgrid',
     el('div', 'rg-setvol', el('span', 'rg-setlabel', '🔊 Ljud'), vols),
-    toggle('🎵', 'Musik', 'Glad musik under loppet', () => s.music, (v) => { s.music = v; o.onChange(); }),
-    toggle('📳', 'Skakningar', 'Kameran skakar vid stora smällar', () => s.shake, (v) => { s.shake = v; o.onChange(); }),
-    toggle('🌈', 'Lugnt läge', '5 hjärtan och snällare rivaler (nästa runda)', () => o.calm, (v) => { o.calm = v; o.onCalm(v); }),
-    toggle('📈', 'Visa FPS', 'Visar hur mjukt spelet går', () => s.fps, (v) => { s.fps = v; o.onChange(); }),
-    o.fullscreen === null ? null : btn('rg-btn rg-set', '⛶ Helskärm på/av', o.onFullscreen),
+    toggle('🎵', 'Musik', 'Soundtracken till kaoset', () => s.music, (v) => { s.music = v; o.onChange(); }),
+    toggle('📳', 'Skakningar', 'Kameran får spel vid krascher och landningar', () => s.shake, (v) => { s.shake = v; o.onChange(); }),
+    toggle('🌈', 'Lugnt läge', '5 hjärtan och rivaler som tar det lugnt (gäller nästa runda)', () => o.calm, (v) => { o.calm = v; o.onCalm(v); }),
+    toggle('📈', 'Visa FPS', 'Siffran som skvallrar om du laggar', () => s.fps, (v) => { s.fps = v; o.onChange(); }),
+    o.fullscreen === null ? null : btn('rg-btn rg-set', '⛶ Helskärm på/av (ingen kant, ingen nåd)', o.onFullscreen),
   );
-  return screen('rg-settings', el('div', 'rg-top', el('h2', 'rg-h tight', '⚙️ Inställningar')), el('div', 'rg-setbody', grid), foot(go('Klar', o.onClose)));
+  return screen('rg-settings', el('div', 'rg-top', el('h2', 'rg-h tight', '⚙️ Inställningar')), el('div', 'rg-setbody', grid), foot(go('Klart, kör!', o.onClose)));
 }
 
 // ---- the end of a run ----
@@ -513,7 +513,7 @@ export function overView(run: RunState, info: OverInfo, o: { onAgain(): void; on
     }),
   ];
   // where the trophies came from
-  const why = [run.stats.bossesBeaten ? `${plural(run.stats.bossesBeaten, 'boss', 'bossar')} × 2` : '', info.won ? 'seger +3' : '', run.stats.races >= 3 ? 'flera lopp +1' : ''].filter(Boolean).join(' · ');
+  const why = [run.stats.bossesBeaten ? `${plural(run.stats.bossesBeaten, 'boss', 'bossar')} × 2` : '', info.won ? 'seger +3' : '', run.stats.races >= 3 ? 'körde några lopp +1' : ''].filter(Boolean).join(' · ');
   const total = run.trinkets.reduce((a, t) => a + t.n, 0);
   return screen(
     'rg-over',

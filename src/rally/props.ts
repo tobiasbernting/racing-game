@@ -672,7 +672,7 @@ export function buildThemeScenery(track: Track, terrain: Terrain, course: Course
   const clearance = set === 'forest' ? 3.2 : set === 'city' ? 6 : set === 'kitchen' ? 9 : set === 'candy' ? 6.5 : 5;
   const nearD = high ? 115 : 85;
   const nearR = 560;
-  const cell = (high ? 6.4 : 9.5) / Math.sqrt(density);
+  const cell = (high ? 6.4 : 12) / Math.sqrt(density);
   for (let x = cx - nearR; x < cx + nearR; x += cell)
     for (let z = cz - nearR; z < cz + nearR; z += cell) {
       const px = x + r() * cell;
@@ -695,7 +695,7 @@ export function buildThemeScenery(track: Track, terrain: Terrain, course: Course
       }
       addTree(kind, px, pz, s);
     }
-  const farCell = high ? 25 : 40;
+  const farCell = high ? 25 : 56;
   for (let x = cx - 1500; x < cx + 1500; x += farCell)
     for (let z = cz - 1500; z < cz + 1500; z += farCell) {
       const px = x + r() * farCell;
