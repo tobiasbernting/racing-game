@@ -64,3 +64,21 @@ export function trinketCard(def: TrinketDef, o: { n?: number; price?: number; on
 
 /** The run's seed as a short code a kid can read out ("Frö: 3K9XQ2"). */
 export const seedLabel = (seed: number): string => `Frö: ${(seed >>> 0).toString(36).toUpperCase()}`;
+
+/** A hand-drawn arrow, a wobbly stroke with a two-line head, for the sticker look (colour from CSS `color`). */
+export function arrowSvg(cls: string): SVGSVGElement {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 80 40');
+  svg.setAttribute('class', cls);
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS(NS, 'path');
+  path.setAttribute('d', 'M3 28 C 14 8, 30 6, 46 16 S 62 26, 74 18 M74 18 L 63 9 M74 18 L 62 25');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', 'currentColor');
+  path.setAttribute('stroke-width', '4');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  svg.append(path);
+  return svg;
+}

@@ -277,10 +277,12 @@ const rally = (ctx: GameContext): GameInstance => {
   const canvas = renderer.domElement;
   // the colour grade, vignette and (on 'high') bloom: one extra pass; without half-float targets a CSS vignette stands in
   const post = canPost(renderer) ? new Post(renderer, high, grade, high && ctx.dpr < 1.6) : null;
+  let postOn = !!post;
   let vignette: HTMLElement | null = null;
-  if (!post) {
+  if (!post || !high) {
     vignette = document.createElement('div');
     vignette.className = 'rg-vignette';
+    vignette.style.display = post ? 'none' : 'block';
     ctx.root.prepend(vignette);
   }
   Object.assign(canvas.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', display: 'block' });
@@ -464,6 +466,20 @@ const rally = (ctx: GameContext): GameInstance => {
         tally[key] = (tally[key] ?? 0) + tri * inst;
       });
       const w = window as unknown as Record<string, unknown>;
+      {
+        let tris = 0;
+        let meshes = 0;
+        scene.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh && !(o as THREE.Points).isPoints) return;
+          if (!m.geometry) return;
+          const g = m.geometry;
+          const t = (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+          tris += t * ((o as THREE.InstancedMesh).isInstancedMesh ? (o as THREE.InstancedMesh).count : 1);
+          meshes++;
+        });
+        w.__rallyStatic = { tris: Math.round(tris), meshes };
+      }
       w.__rallyTris = Object.entries(tally)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 25)
@@ -517,6 +533,12 @@ const rally = (ctx: GameContext): GameInstance => {
         },
         drift: (tier = 3) => topUpNitro(tier),
         warp,
+        /** Hide a part of the world to see what it costs: 'attitude', 'fx', 'scenery'. */
+        hide: (what: string) => {
+          if (what === 'attitude') attitude.group.visible = false;
+          if (what === 'scenery') scenery.group.visible = false;
+          if (what === 'fx') glow.points.visible = debris.mesh.visible = false;
+        },
         /** A fixed camera (x, y, z looking at x, y, z); no arguments puts the chase camera back. */
         cam: (...v: number[]) => (dbgCam = v.length === 6 ? v : null),
         /** Where the k-th burning barrel or flare is. */
@@ -966,7 +988,7 @@ const rally = (ctx: GameContext): GameInstance => {
       }
       // smoke when sliding on tarmac
       if (onRoad && slip > 0.35 && Math.random() < rate * slip * 0.9) {
-        particles.emit({ x, y: c.y + 0.25, z, vx: (Math.random() - 0.5) * 1.5, vy: 0.6 + Math.random(), vz: (Math.random() - 0.5) * 1.5, life: 1.2 + Math.random(), size0: 0.7, size1: 3.2, color: smoke, alpha: 0.42 * slip, drag: 1.8, gravity: -0.3 });
+        particles.emit({ x, y: c.y + 0.25, z, vx: (Math.random() - 0.5) * 1.5, vy: 0.6 + Math.random(), vz: (Math.random() - 0.5) * 1.5, life: 0.8 + Math.random() * 0.6, size0: 0.6, size1: 2.5, color: smoke, alpha: 0.34 * slip, drag: 2.2, gravity: -0.3 });
       }
       // grass and earth flying off the tyres
       if (surf === Ground_.Grass && sp > 5 && Math.random() < rate * 0.6) {
@@ -2476,7 +2498,7 @@ const rally = (ctx: GameContext): GameInstance => {
         if (Math.random() < (high ? 0.4 : 0.2) * (k + 0.35)) {
           particles.emit({ x: c.x + sinH * 1.6, y: c.y + 1.1, z: c.z + cosH * 1.6, vx: c.vx * 0.3, vy: 1.4, vz: c.vz * 0.3, life: 1.5, size0: 0.5, size1: 2.3, color: k > 0.5 ? colDark : colSmoke, alpha: 0.18 + 0.3 * k, drag: 1.5, gravity: -0.4 });
         }
-        if (worn > 80 && Math.random() < 0.3) glow.emit({ x: c.x + sinH * 1.5 + (Math.random() - 0.5) * 0.5, y: c.y + 0.95, z: c.z + cosH * 1.5 + (Math.random() - 0.5) * 0.5, vx: c.vx * 0.4, vy: 1.6, vz: c.vz * 0.4, life: 0.3, size0: 0.7, size1: 0.2, color: colFireball, alpha: 0.9, drag: 2 });
+        if (worn > 80 && Math.random() < 0.3) glow.emit({ x: c.x + sinH * 1.5 + (Math.random() - 0.5) * 0.5, y: c.y + 0.95, z: c.z + cosH * 1.5 + (Math.random() - 0.5) * 0.5, vx: c.vx * 0.4, vy: 1.6, vz: c.vz * 0.4, life: 0.3, size0: 0.45, size1: 0.12, color: colFireball, alpha: 0.7, drag: 2 });
         if (worn > 65 && Math.random() < 0.08) sparks(c.x - sinH * 0.6, c.y + 0.1, c.z - cosH * 0.6, 3);
       }
       // backfire on a quick upshift at high revs
@@ -2880,6 +2902,11 @@ const rally = (ctx: GameContext): GameInstance => {
       syncPost();
       // the bloom is the first thing a struggling machine gives up
       post?.setBloom(resScale > 0.8);
+      // and on 'low' the whole pass: below this the plain CSS vignette stands in and the picture is drawn straight to the screen
+      if (post && !high) {
+        postOn = resScale > 0.62;
+        if (vignette) vignette.style.display = postOn ? 'none' : 'block';
+      }
     }
   }
   /** Small health bars over the rivals' heads (Blodbad): projected to the screen each frame. */
@@ -2927,7 +2954,7 @@ const rally = (ctx: GameContext): GameInstance => {
       hud.drawMap(runners().map(toRacer), timeU.value);
     }
     renderer.info.reset();
-    if (post) post.render(scene, camera, timeU.value);
+    if (post && postOn) post.render(scene, camera, timeU.value);
     else renderer.render(scene, camera);
     if (carnage && phase !== 'intro') projectBars();
     if (DEBUG) {
@@ -2940,6 +2967,7 @@ const rally = (ctx: GameContext): GameInstance => {
         laps: me.lapsDone,
         u: me.u,
         x: me.car.x,
+        y: me.car.y,
         z: me.car.z,
         speed: me.car.speed,
         gear: me.car.reverse ? -1 : me.car.gear,
