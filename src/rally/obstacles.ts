@@ -6,7 +6,7 @@ import type { Track } from './track.ts';
 import { rng } from './util.ts';
 
 export interface Obstacle {
-  kind: 'banana' | 'hay' | 'oil' | 'pothole';
+  kind: 'banana' | 'hay' | 'oil' | 'pothole' | 'glass' | 'tent';
   x: number;
   y: number;
   z: number;
@@ -34,6 +34,10 @@ export class Obstacles {
   private readonly oilMat = new THREE.MeshStandardMaterial({ color: '#0d0b14', roughness: 0.08, metalness: 0.4, emissive: '#2a1060', emissiveIntensity: 0.35 });
   private readonly holeGeo: THREE.BufferGeometry;
   private readonly holeMat = new THREE.MeshLambertMaterial({ color: '#17140f' });
+  private readonly glassGeo: THREE.BufferGeometry;
+  private readonly glassMats = ['#ff8fc8', '#8fe3ff', '#fff0b8'].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.25, emissive: c, emissiveIntensity: 0.35 }));
+  private readonly tentGeo: THREE.BufferGeometry;
+  private readonly tentMats = [new THREE.MeshLambertMaterial({ color: '#e8412c' }), new THREE.MeshLambertMaterial({ color: '#f4f1ea' })];
   private readonly lastHit = new WeakMap<Car, number>();
   private clock = 0;
 
@@ -47,6 +51,33 @@ export class Obstacles {
     this.oilGeo = new THREE.CylinderGeometry(1.9, 2.1, 0.05, 20);
     this.oilGeo.scale(1.25, 1, 0.95);
     this.holeGeo = new THREE.CylinderGeometry(0.95, 0.95, 0.06, 14);
+    // a melted scoop of ice cream: a wide, flat, lumpy puddle
+    this.glassGeo = new THREE.IcosahedronGeometry(1.0, 1);
+    this.glassGeo.scale(1.5, 0.22, 1.35);
+    // an awning: a striped canopy, tilted, on two poles (one geometry, the stripes are merged in add())
+    this.tentGeo = new THREE.BoxGeometry(0.62, 0.1, 2.2);
+  }
+
+  /** Takes one obstacle off the road (the garbage truck picks it up). */
+  take(o: Obstacle): void {
+    this.remove(o);
+  }
+
+  /** Clears everything lying in a corridor in front of a point (the lawn mower's blades): how many pieces went. */
+  clearAhead(x: number, z: number, heading: number, reach: number, halfWidth: number): { n: number; at: { x: number; y: number; z: number }[] } {
+    const sinH = Math.sin(heading);
+    const cosH = Math.cos(heading);
+    const at: { x: number; y: number; z: number }[] = [];
+    for (const o of this.list.slice()) {
+      const dx = o.x - x;
+      const dz = o.z - z;
+      const fwd = dx * sinH + dz * cosH;
+      const lat = dx * cosH - dz * sinH;
+      if (fwd < -1 || fwd > reach || Math.abs(lat) > halfWidth) continue;
+      at.push({ x: o.x, y: o.y, z: o.z });
+      this.remove(o);
+    }
+    return { n: at.length, at };
   }
 
   /** Oil slicks and potholes on the road for the whole race, a few per lap, from a seed. */
@@ -79,14 +110,34 @@ export class Obstacles {
   }
 
   add(kind: Obstacle['kind'], x: number, y: number, z: number, owner: Car | null, yaw = Math.random() * 6.28, forever = false): void {
-    const geo = kind === 'banana' ? this.bananaGeo : kind === 'oil' ? this.oilGeo : kind === 'pothole' ? this.holeGeo : this.hayGeo;
-    const mat = kind === 'banana' ? this.bananaMat : kind === 'oil' ? this.oilMat : kind === 'pothole' ? this.holeMat : this.hayMat;
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(x, y + (kind === 'banana' ? 0.2 : kind === 'hay' ? 0.85 : 0.07), z);
+    let mesh: THREE.Object3D;
+    if (kind === 'tent') {
+      // seven red and white panels fanned out like a canopy, held up by two poles
+      const g = new THREE.Group();
+      for (let i = 0; i < 7; i++) {
+        const p = new THREE.Mesh(this.tentGeo, this.tentMats[i % 2]!);
+        p.position.set(-1.9 + i * 0.62, 1.55 - Math.abs(i - 3) * 0.04, 0);
+        p.rotation.x = -0.28;
+        g.add(p);
+      }
+      for (const sx of [-1, 1]) {
+        const pole = new THREE.Mesh(this.tentPole(), this.tentMats[1]!);
+        pole.position.set(sx * 1.9, 0.8, 0.85);
+        g.add(pole);
+      }
+      g.position.set(x, y, z);
+      mesh = g;
+    } else {
+      const geo = kind === 'banana' ? this.bananaGeo : kind === 'oil' ? this.oilGeo : kind === 'pothole' ? this.holeGeo : kind === 'glass' ? this.glassGeo : this.hayGeo;
+      const mat = kind === 'banana' ? this.bananaMat : kind === 'oil' ? this.oilMat : kind === 'pothole' ? this.holeMat : kind === 'glass' ? this.glassMats[Math.floor(Math.random() * this.glassMats.length)]! : this.hayMat;
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y + (kind === 'banana' ? 0.2 : kind === 'hay' ? 0.85 : kind === 'glass' ? 0.12 : 0.07), z);
+      m.castShadow = false;
+      mesh = m;
+    }
     mesh.rotation.y = yaw;
-    mesh.castShadow = false;
     this.group.add(mesh);
-    this.list.push({ kind, x, y, z, owner, age: 0, mesh, life: forever ? 0 : kind === 'oil' ? OIL_LIFE : kind === 'banana' ? BANANA_LIFE : kind === 'hay' ? 22 : 0 });
+    this.list.push({ kind, x, y, z, owner, age: 0, mesh, life: forever ? 0 : kind === 'oil' ? OIL_LIFE : kind === 'banana' ? BANANA_LIFE : kind === 'hay' ? 22 : kind === 'glass' ? 20 : kind === 'tent' ? 13 : 0 });
     if (kind === 'banana') {
       const bananas = this.list.filter((o) => o.kind === 'banana');
       if (bananas.length > MAX_BANANAS) this.remove(bananas[0]!);
@@ -94,6 +145,11 @@ export class Obstacles {
       const oils = this.list.filter((o) => o.kind === 'oil' && o.life > 0);
       if (oils.length > MAX_OIL) this.remove(oils[0]!);
     }
+  }
+
+  private poleGeo: THREE.BufferGeometry | null = null;
+  private tentPole(): THREE.BufferGeometry {
+    return (this.poleGeo ??= new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6));
   }
 
   private remove(o: Obstacle): void {
@@ -108,10 +164,10 @@ export class Obstacles {
     if (this.clock - last < 1.2) return null;
     for (const o of this.list) {
       if (o.owner === car) continue;
-      if ((o.kind === 'banana' || o.kind === 'oil') && o.age < 0.4 && o.owner) continue;
+      if ((o.kind === 'banana' || o.kind === 'oil' || o.kind === 'glass' || o.kind === 'tent') && o.age < 0.4 && o.owner) continue;
       const dx = car.x - o.x;
       const dz = car.z - o.z;
-      const r = o.kind === 'oil' ? HIT_R * 1.35 : o.kind === 'pothole' ? HIT_R * 0.6 : HIT_R;
+      const r = o.kind === 'oil' ? HIT_R * 1.35 : o.kind === 'pothole' ? HIT_R * 0.6 : o.kind === 'glass' ? HIT_R * 1.2 : o.kind === 'tent' ? HIT_R * 1.7 : HIT_R;
       if (dx * dx + dz * dz < r * r * car.size) {
         this.lastHit.set(car, this.clock);
         if (o.kind === 'banana') this.remove(o);
@@ -138,6 +194,11 @@ export class Obstacles {
     this.oilMat.dispose();
     this.holeGeo.dispose();
     this.holeMat.dispose();
+    this.glassGeo.dispose();
+    for (const m of this.glassMats) m.dispose();
+    this.tentGeo.dispose();
+    this.poleGeo?.dispose();
+    for (const m of this.tentMats) m.dispose();
     this.list = [];
   }
 }
