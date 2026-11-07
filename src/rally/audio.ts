@@ -263,12 +263,17 @@ export class RallyAudio {
   }
 
   /** The player's engine, every frame. `shift` is +1/−1 on a gear change. */
-  playerEngine(rpm: number, throttle: number, shift: number): void {
+  playerEngine(rpm: number, throttle: number, shift: number, limiter = false, gearFrac = 0.5): void {
     if (!this.a || !this.engine || this.paused) return;
     if (shift > 0) this.dip = 0.35;
+    // a downshift blips the throttle: a short rise in loudness, the revs jump up with the lower gear
+    else if (shift < 0) this.dip = 1;
     this.dip = Math.min(1, this.dip + 0.06);
-    const lvl = (0.05 + throttle * 0.06 + (rpm / 7000) * 0.03) * this.dip;
-    this.setVoice(this.engine, rpm, throttle, lvl);
+    // lower gears sound gruffer and louder, the top gear smoother; the rev limiter chops the sound into stutters
+    const gruff = 1.12 - 0.22 * gearFrac;
+    const chop = limiter ? 0.3 : 1;
+    const lvl = (0.05 + throttle * 0.06 + (rpm / 7000) * 0.03) * this.dip * gruff * chop;
+    this.setVoice(this.engine, rpm, throttle * (limiter ? 0.4 : 1), lvl);
     const t = this.a.currentTime;
     this.intake!.filter.frequency.setTargetAtTime((rpm / 60) * 4, t, 0.05);
     this.intake!.gain.gain.setTargetAtTime(throttle * (rpm / 7000) * 0.05 * this.dip, t, 0.05);
@@ -353,6 +358,12 @@ export class RallyAudio {
     const v = clamp(strength / 8, 0.2, 1);
     tone(this.a, this.out, 140, 0.15, { type: 'sine', to: 70, vol: 0.2 * v });
     noiseShot(this.a, this.out, 0.35, { freq: 2500, q: 0.4, vol: 0.12 * v });
+  }
+
+  /** The tick of a perfect shift: a short, bright click with a little thump under it. */
+  shiftTick(): void {
+    tone(this.a, this.out, 1800, 0.05, { type: 'square', to: 1200, vol: 0.07 });
+    tone(this.a, this.out, 140, 0.09, { type: 'triangle', to: 70, vol: 0.12 });
   }
 
   pop(): void {
