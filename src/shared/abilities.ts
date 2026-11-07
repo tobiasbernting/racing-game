@@ -10,10 +10,18 @@ export const LEAN_NAMES: Record<Lean, string> = { ram: 'Ram', race: 'Race', mixe
 export const LEAN_EMOJI: Record<Lean, string> = { ram: '🛡️', race: '🏎️', mixed: '⚖️' };
 export const LEAN_TEXT: Record<Lean, string> = { ram: 'Bäst på att knuffa och krossa', race: 'Bäst på att köra fort', mixed: 'Lite av varje' };
 
-export const PASSIVE_IDS = ['nitroTopUp', 'sandKing', 'loadDrop', 'windTunnel', 'squashSmall', 'softLanding', 'wheelieBoost', 'slim', 'shoveAll', 'chaosHeir'] as const;
+export const PASSIVE_IDS = [
+  'nitroTopUp', 'sandKing', 'loadDrop', 'windTunnel', 'squashSmall', 'softLanding', 'wheelieBoost', 'slim', 'shoveAll', 'chaosHeir',
+  // phase 10
+  'limiter', 'jingle', 'scavenger', 'allTerrain', 'draft', 'silent', 'grassHog', 'repair', 'longSlide', 'wobble',
+] as const;
 export type PassiveId = (typeof PASSIVE_IDS)[number];
 
-export const ACTIVE_IDS = ['kickstart', 'hop', 'tailgate', 'slingshot', 'groundPound', 'pivot', 'wheelieRocket', 'dodge', 'rammer', 'cushionChaos'] as const;
+export const ACTIVE_IDS = [
+  'kickstart', 'hop', 'tailgate', 'slingshot', 'groundPound', 'pivot', 'wheelieRocket', 'dodge', 'rammer', 'cushionChaos',
+  // phase 10
+  'epaBurst', 'iceCannon', 'dump', 'powder', 'kartSlide', 'holeInOne', 'mow', 'awning', 'vip', 'rocket',
+] as const;
 export type ActiveId = (typeof ACTIVE_IDS)[number];
 
 export interface PassiveDef {
@@ -118,6 +126,76 @@ export const KITS: Record<CarBody, VehicleKit> = {
     { id: 'chaosHeir', name: 'Kaosarvet', text: 'En slumpad pryl dimper ner varje akt. Ingen vet varför.' },
     { id: 'cushionChaos', name: 'Soffkudde-kaos', emoji: '🛋️', text: 'Slumpar en effekt: rusning, hopp, höbalar, pannkaka eller byte av plats.', cooldown: 11, ai: 'speed', save: 0.05 },
   ),
+  epa: kit(
+    'epa',
+    'mixed',
+    'kuponghafte',
+    { id: 'limiter', name: 'Spärr 30', text: 'Inte fortare än 30 på skylten (ungefär 40 på riktigt). Men gräs, lera, sand, olja och höbalar bromsar dig inte.' },
+    { id: 'epaBurst', name: 'Gasa på EPA', emoji: '⚠️', text: 'Spärren åker av en stund: en rejäl fartstöt förbi allt som står på skylten.', cooldown: 8, ai: 'speed', save: 0.3 },
+  ),
+  icecream: kit(
+    'icecream',
+    'mixed',
+    'godispasen',
+    { id: 'jingle', name: 'Glassmelodin', text: 'Du spelar glassmelodin. Bilar nära dig blir sugna på glass och saktar ner.' },
+    { id: 'iceCannon', name: 'Glasskanon', emoji: '🍦', text: 'Skjuter glasskulor framför dig. Där de landar blir vägen hal som en isbit.', cooldown: 13, ai: 'speed', save: 0.1 },
+  ),
+  garbage: kit(
+    'garbage',
+    'ram',
+    'myntturbo',
+    { id: 'scavenger', name: 'Plockar upp', text: 'Fällor på vägen plockas upp i stället för att stoppa dig. Varje bit ger lite pansar.' },
+    { id: 'dump', name: 'Tömning', emoji: '🗑️', text: 'Tippar ut en hög skräp bakom dig. Ju mer du plockat upp, desto större hög.', cooldown: 12, ai: 'ram', save: 0 },
+  ),
+  snowmobile: kit(
+    'snowmobile',
+    'race',
+    'dubbdack',
+    { id: 'allTerrain', name: 'Allt grepp', text: 'Full grepp på is, snö och sand. Asfalt är bara lite tråkigt.' },
+    { id: 'powder', name: 'Pudersvans', emoji: '❄️', text: 'En snömoln bakom dig. Bilarna bakom ser ingenting och tappar fart.', cooldown: 11, ai: 'speed', save: 0.06 },
+  ),
+  kart: kit(
+    'kart',
+    'race',
+    'sladdgradde',
+    { id: 'draft', name: 'Sugen i rygg', text: 'Ligger du tätt bakom en bil fylls slipströmmen dubbelt så fort. Fullt: en gratis fartstöt.' },
+    { id: 'kartSlide', name: 'Gokartsladd', emoji: '🏁', text: 'En perfekt sladd direkt, åt det håll du styr. Ger nitro.', cooldown: 10, ai: 'speed', save: 0.3 },
+  ),
+  golf: kit(
+    'golf',
+    'mixed',
+    'guldpokal',
+    { id: 'silent', name: 'Tyst som en mus', text: 'Eldrift: ingen hör dig komma. Rivalerna går inte på dig och försöker inte blockera dig.' },
+    { id: 'holeInOne', name: 'Hole in one', emoji: '⛳', text: 'Slår iväg en golfboll som träffar ledaren och knuffar honom åt sidan.', cooldown: 15, ai: 'speed', save: 0 },
+  ),
+  mower: kit(
+    'mower',
+    'mixed',
+    'konmagnet',
+    { id: 'grassHog', name: 'Gräsälskare', text: 'Snabbare på gräs än på vägen. Genvägen över ängen är din.' },
+    { id: 'mow', name: 'Gräsklippning', emoji: '🌿', text: 'Ett gräsregn rakt fram som klipper bort allt farligt på vägen framför dig.', cooldown: 9, ai: 'speed', save: 0.12 },
+  ),
+  camper: kit(
+    'camper',
+    'ram',
+    'pepparkaka',
+    { id: 'repair', name: 'Hemma på hjul', text: 'Lagar sig själv medan du kör: plåten mår bättre och i Blodbad kommer hälsan tillbaka långsamt.' },
+    { id: 'awning', name: 'Utfällt tält', emoji: '⛺', text: 'Fäller ut ett markis-tält bakom dig som blockerar vägen för alla följare.', cooldown: 14, ai: 'ram', save: 0 },
+  ),
+  limo: kit(
+    'limo',
+    'race',
+    'discokula',
+    { id: 'longSlide', name: 'Rutschkana', text: 'När bakdelen väl tappar greppet fortsätter sladden långt. Roligt, men ta det lugnt i kurvorna.' },
+    { id: 'vip', name: 'VIP-fil', emoji: '🕶️', text: 'Du åker rakt genom bilar en stund. Ingen kan sätta stopp för en VIP.', cooldown: 13, ai: 'speed', save: 0.3 },
+  ),
+  cart: kit(
+    'cart',
+    'race',
+    'raketkorv',
+    { id: 'wobble', name: 'Skranglig', text: 'Vagnen vinglar slumpmässigt åt sidorna. Det är en kundvagn. Vad väntade du dig?' },
+    { id: 'rocket', name: 'Raketen', emoji: '🛒', text: 'Tänder raketen: gigantisk fart i några sekunder, men den är svår att styra.', cooldown: 15, ai: 'speed', save: 0.3 },
+  ),
 };
 
 export const kitOf = (body: CarBody): VehicleKit => KITS[body];
@@ -127,10 +205,10 @@ export const kitOf = (body: CarBody): VehicleKit => KITS[body];
 // ---------------------------------------------------------------------------
 
 /** Passives that change the lap time of a human driver (a multiplier on the lap), fitted by hand: the goal is "noticeable, never decisive". */
-export const PASSIVE_LAP: Partial<Record<CarBody, number>> = { coupe: 0.994, buggy: 0.997, atv: 0.999, moto: 0.998, hatch: 0.999 };
+export const PASSIVE_LAP: Partial<Record<CarBody, number>> = { coupe: 0.994, buggy: 0.997, atv: 0.999, moto: 0.998, hatch: 0.999, kart: 0.996, limo: 0.998 };
 
 /** The ram power a passive gives before trinkets (1 = a plain bumper). */
-export const PASSIVE_RAM: Partial<Record<CarBody, number>> = { tractor: 1.8, pickup: 1.25 };
+export const PASSIVE_RAM: Partial<Record<CarBody, number>> = { tractor: 1.8, pickup: 1.25, garbage: 1.5, camper: 1.35 };
 
 /** Seconds of boost and their strength for the actives that are a boost; the race reads these. */
 export const KICKSTART = { boost: 1.1, strength: 1.4, grip: 1.15, gripSeconds: 2 };
@@ -141,6 +219,36 @@ export const RAMMER = { seconds: 1.8, ram: 2, maxRam: 3.4, strength: 1.5, damage
 export const DODGE = { seconds: 1.0 };
 export const HOP = { vy: 10.5, kick: 1.5 };
 export const SOFTLAND = { boost: 0.9, strength: 1.3, min: 2.5 };
+
+// ---- phase 10 ----
+/** Gasa på EPA: the limiter comes off (boost lifts the top speed with it) and a thrust along the nose takes it up to the cap (m/s). */
+export const EPA_BURST = { boost: 2.4, strength: 2.7, thrust: 6, cap: 24 };
+/** Glasskanon: scoops land this far ahead (m) and make the road slippery for a while. */
+export const ICE_CANNON = { range: [16, 26, 36], spread: 2.4 };
+/** Glassmelodin: cars this close (m) slow down; the share of their speed they lose per second; seconds between jingles. */
+export const JINGLE = { radius: 15, slow: 0.35, every: 9 };
+/** Plockar upp: pieces held at most, armour per piece (share less damage) and what Tömning drops. */
+export const SCAVENGE = { max: 6, armour: 0.05, base: 0.9 };
+/** Pudersvans: the cloud reaches this far behind (m), how wide, and how long it blinds. */
+export const POWDER = { reach: 34, width: 7, blind: 2.6 };
+/** Sugen i rygg: closeness (m), seconds of drafting to fill the meter (a plain driver would need twice that), and the pop. */
+export const DRAFT = { reach: 17, lane: 2.8, fill: 1.5, boost: 0.9, strength: 1.3 };
+/** Gokartsladd: how hard it kicks the tail round (rad/s), the boost it gives and the nitro charge. */
+export const KART_SLIDE = { yaw: 1.7, side: 3.5, boost: 1.0, strength: 1.3 };
+/** Hole in one: the ball's flight time (s) and how hard it shoves the leader sideways (m/s). */
+export const HOLE_IN_ONE = { flight: 1.1, push: 13, squash: 0.8, reach: 130 };
+/** Gräsklippning: how far ahead (m) and how wide it clears. */
+export const MOW = { reach: 34, width: 4.6, boost: 1.0, strength: 1.25 };
+/** Hemma på hjul: damage points healed per second (plating) and health per second (Blodbad). */
+export const REPAIR = { plating: 0.9, hp: 1.6, minSpeed: 6 };
+/** Utfällt tält: seconds it stays up. */
+export const AWNING = { life: 13 };
+/** VIP-fil: seconds through the cars, and the little push. */
+export const VIP = { seconds: 3.2, boost: 1.0, strength: 1.2 };
+/** Raketen: seconds, strength, how hard the steering is to hold, the random kicks to the side, and the thrust (m/s², along the nose) up to a speed cap (m/s). */
+export const ROCKET = { boost: 2.8, strength: 2.5, steer: 0.55, kick: 0.9, thrust: 14, cap: 42 };
+/** Skranglig: the cart's steering noise (share of the wheel). */
+export const WOBBLE = { amp: 0.16 };
 
 /** Uses of the active per lap, for a human who presses it whenever it is ready (never more than two and a half a lap: a driver is busy driving). */
 export const usesPerLap = (lapSeconds: number, cooldown: number): number => Math.min(2.5, lapSeconds / (cooldown + 8));

@@ -28,6 +28,26 @@ export const GEARBOXES: Record<CarBody, GearBox> = {
   moped: box([9, 16.5, 28], 0.13),
   tractor: box([4.5, 8, 11.5, 15, 18.5, 24], 0.28),
   sofa: box([15, 27, 38, 50, 64], 0.2),
+  // phase 10: the EPA tractor has five slow gears and a long top one for the burst
+  epa: box([3, 5.5, 8.5, 12.5, 20], 0.3),
+  // the ice-cream van: four lazy gears
+  icecream: box([12, 22, 34, 48], 0.25),
+  // the garbage truck: six heavy gears
+  garbage: box([5, 9, 13.5, 18, 23, 30], 0.3),
+  // the snowmobile: a belt drive that changes three times, very quickly
+  snowmobile: box([18, 34, 56], 0.06),
+  // the kart: four close, instant gears
+  kart: box([14, 25, 36, 48], 0.05),
+  // the golf cart: an electric motor with three smooth steps
+  golf: box([8, 13.5, 21], 0.1),
+  // the mower: four small gears with a long last one for the grass
+  mower: box([6, 11, 17, 27], 0.2),
+  // the camper: five slow, clunky gears
+  camper: box([8, 14, 20, 26, 33], 0.32),
+  // the limousine: five smooth gears for the long straights
+  limo: box([16, 29, 42, 56, 72], 0.18),
+  // the shopping cart with a rocket: one gear, and the rocket
+  cart: box([45], 0.1),
 };
 
 export const gearboxOf = (body: CarBody): GearBox => GEARBOXES[body] ?? GEARBOXES.hatch;

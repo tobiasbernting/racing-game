@@ -251,8 +251,14 @@ export class Car {
     this.surface = surf;
     const F = this.feel;
     const rough = surf >= Ground_.Grass && surf !== Ground_.Ice;
-    const mu = MU[surf]! * this.grip * (rough ? Math.sqrt(F.rough) : 1);
-    const rollDecel = ((ROLL[surf]! + Math.abs(vLong) * ROLL_V[surf]!) * (this.roam && rough ? 0.55 : 1)) / (rough ? F.rough : 1) * (rough ? F.roll : 1);
+    // snow, ice and sand grip like tarmac for a body that has `loose` (the snowmobile)
+    const soft = F.loose > 0 && (surf === Ground_.Snow || surf === Ground_.Sand || surf === Ground_.Ice || surf === Ground_.DeepSnow || surf === Ground_.SoftSand);
+    let mu = MU[surf]! * this.grip * (rough ? Math.sqrt(F.rough) : 1);
+    if (soft) mu = lerp(mu, MU[Ground_.Asphalt]! * this.grip * 0.92, F.loose);
+    const onGrass = surf === Ground_.Grass;
+    let rollDecel = ((ROLL[surf]! + Math.abs(vLong) * ROLL_V[surf]!) * (this.roam && rough ? 0.55 : 1)) / (rough ? F.rough : 1) * (rough ? F.roll : 1);
+    if (soft) rollDecel = lerp(rollDecel, ROLL[Ground_.Asphalt]! * 2, F.loose);
+    if (onGrass && F.grass > 1) rollDecel /= F.grass * F.grass;
 
     // ---- steering: fewer degrees at speed, plus a hand catching slides ----
     const maxSteer = (0.62 * F.steer) / (1 + Math.abs(vLong) / 11);
@@ -351,7 +357,10 @@ export class Car {
         drive = c.throttle * Math.min(7600 * this.boost * F.punch, (this.power * this.boost) / Math.max(4, va));
         // a heavy body gets going slowly; a top speed (moped, tractor) fades the push out just under it
         if (F.mass > 1) drive *= Math.pow(F.mass, -0.3);
-        if (F.top > 0) drive *= clamp((F.top * this.topK * this.boost - va) / (F.top * 0.12), 0, 1);
+        if (F.top > 0) {
+          const top = F.top * (onGrass ? F.grass : 1);
+          drive *= clamp((top * this.topK * this.boost - va) / (top * 0.12), 0, 1);
+        }
         if (this.shiftT > 0) drive *= 0.3;
         // the engine: it bogs when the revs are low (a gear too high), is cut by the limiter and kicks after a perfect shift
         drive *= this.limiterT > 0 ? 0.08 : pushK(bx, this.gear, va, c.throttle);
@@ -399,6 +408,8 @@ export class Car {
       let capR = Math.sqrt(Math.max(0, rearMax * rearMax - fxR * fxR));
       capR = Math.max(capR, rearMax * 0.25);
       if (c.handbrake && va > 2) capR *= 0.5;
+      // the limousine: once the tail has stepped out, the grip stays gone and it slides on
+      if (F.slide > 0) capR *= 1 - 0.38 * F.slide * smooth(0.12, 0.45, this.rearSlip);
       const fyF = -capF * tyre(af, 11);
       const fyR = -capR * tyre(ar, 14);
       this.fyRear = fyR;
@@ -444,7 +455,7 @@ export class Car {
       if (!c.handbrake && Math.abs(vLong) > 4) {
         const b = Math.atan2(vLat, Math.abs(vLong));
         const want = yawKin;
-        const k = this.assist * 7 * smooth(0.06, 0.35, Math.abs(b));
+        const k = this.assist * 7 * smooth(0.06, 0.35, Math.abs(b)) * (1 - 0.7 * F.slide);
         this.yawRate += (want - this.yawRate) * (1 - Math.exp(-dt * k));
       }
       this.vx = vLong * sinH + vLat * cosH;

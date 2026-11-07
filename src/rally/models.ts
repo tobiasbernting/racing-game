@@ -7,6 +7,7 @@ import { hullGeometry, outlineMaterial, outlineMesh } from './look.ts';
 import { ATLAS, paintCar, paintCrack, paintDamage, paintPlate, REGION_KIND, type DecalSpot, type PaintLayout, type Region, type RegionSizes } from './style.ts';
 import { rng } from './util.ts';
 import { EXTRA_BODIES, riderGeo } from './vehicles.ts';
+import { NEW_BODIES } from './vehicles2.ts';
 
 export const FALU = '#9b2c1f';
 export const WHITE = '#f1ede4';
@@ -1364,7 +1365,7 @@ function buggy(P: Parts): BodySpec {
   };
 }
 
-const BODIES: Record<CarBody, (p: Parts) => BodySpec> = { hatch, buggy, pickup, coupe, monster, ...EXTRA_BODIES };
+const BODIES: Record<CarBody, (p: Parts) => BodySpec> = { hatch, buggy, pickup, coupe, monster, ...EXTRA_BODIES, ...NEW_BODIES };
 
 export function beamGeo(a: THREE.Vector3, b: THREE.Vector3, t: number): THREE.BufferGeometry {
   const d = new THREE.Vector3().subVectors(b, a);

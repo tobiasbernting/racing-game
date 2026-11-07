@@ -12,7 +12,8 @@ describe('the gearboxes', () => {
   it('every body has a sane box: rising ratios, a top gear above what the body reaches, the right number of gears', () => {
     for (const b of CAR_BODIES) {
       const box = gearboxOf(b);
-      expect(box.v.length, b).toBeGreaterThanOrEqual(3);
+      // the cart has one gear and a rocket, everything else at least three
+      expect(box.v.length, b).toBeGreaterThanOrEqual(b === 'cart' ? 1 : 3);
       for (let i = 1; i < box.v.length; i++) expect(box.v[i]!, b).toBeGreaterThan(box.v[i - 1]!);
       // an upshift at the automatic point never lands in the lugging zone
       for (let i = 1; i < box.v.length; i++) expect((AUTO_UP * box.v[i - 1]!) / box.v[i]!, `${b} gear ${i + 1}`).toBeGreaterThan(0.47);

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CAR_BODIES, type CarBody } from '../shared/rally.ts';
-import { STARTERS, cleanMeta, defaultMeta, legacyBodies, unlockedBodies } from './meta.ts';
+import { LEGACY_BODY_UNLOCK, STARTERS, cleanMeta, defaultMeta, legacyBodies, unlockedBodies } from './meta.ts';
 import { META_KEY, loadMeta, parseRun, saveMeta } from './save.ts';
 import { newRun, type RunState } from './state.ts';
 import { CHALLENGES, challengeById, challengeFor, challengeReport, checkChallenges, flawlessAct, progressText } from './unlocks.ts';
@@ -61,6 +61,10 @@ describe('the challenge list', () => {
   });
 });
 
+/** The steps of the five older challenges (the newer ones count things a plain run does all the time, like carrying its starting trinket). */
+const OLD = ['win', 'calmAct', 'calmWin', 'takedowns', 'bengtMoped', 'flawless2'];
+const oldSteps = (c: { steps: { id: string }[] }) => c.steps.filter((x) => OLD.includes(x.id));
+
 describe('checking a run against the challenges', () => {
   it('takedowns count the most in one run, and open the monster at ten', () => {
     const r = run();
@@ -68,13 +72,13 @@ describe('checking a run against the challenges', () => {
     let c = checkChallenges(defaultMeta(), r);
     expect(c.meta.progress.takedowns).toBe(6);
     expect(c.unlocked).toHaveLength(0);
-    expect(c.steps).toEqual([{ id: 'takedowns', before: 0, after: 6 }]);
+    expect(oldSteps(c)).toEqual([{ id: 'takedowns', before: 0, after: 6 }]);
     // the next run only does 4: the best stays
     const r2 = run();
     r2.stats.takedowns = 4;
     c = checkChallenges(c.meta, r2);
     expect(c.meta.progress.takedowns).toBe(6);
-    expect(c.steps).toHaveLength(0);
+    expect(oldSteps(c)).toHaveLength(0);
     r2.stats.takedowns = 10;
     c = checkChallenges(c.meta, r2);
     expect(c.unlocked.map((x) => x.body)).toEqual(['monster']);
@@ -101,6 +105,7 @@ describe('checking a run against the challenges', () => {
   it('does not change the meta it is given, and gives the same meta back when nothing moved', () => {
     const m = defaultMeta();
     const r = run();
+    r.trinkets = [];
     expect(checkChallenges(m, r)).toMatchObject({ meta: m, steps: [], unlocked: [] });
     r.stats.takedowns = 3;
     checkChallenges(m, r);
@@ -108,10 +113,10 @@ describe('checking a run against the challenges', () => {
     expect(m.bodies).toEqual(STARTERS);
   });
 
-  it('Sura Bengt has to fall to the moppe, not to any car', () => {
+  it('Sura Bengt has to fall to the moppe for the motorcykel; any car opens the EPA-traktor', () => {
     const car = run('hatch');
     bossLog(car, 0, 'bengt');
-    expect(checkChallenges(defaultMeta(), car).unlocked).toHaveLength(0);
+    expect(checkChallenges(defaultMeta(), car).unlocked.map((x) => x.body)).toEqual(['epa']);
     const moppe = run('moped');
     bossLog(moppe, 0, 'ingrid');
     expect(checkChallenges(defaultMeta(), moppe).unlocked).toHaveLength(0);
@@ -119,7 +124,7 @@ describe('checking a run against the challenges', () => {
     expect(checkChallenges(defaultMeta(), moppe).unlocked).toHaveLength(0);
     moppe.log.pop();
     bossLog(moppe, 0, 'bengt', 1);
-    expect(checkChallenges(defaultMeta(), moppe).unlocked.map((x) => x.body)).toEqual(['moto']);
+    expect(checkChallenges(defaultMeta(), moppe).unlocked.map((x) => x.body).sort()).toEqual(['epa', 'moto']);
   });
 
   it('act 2 without losing a heart needs the boss beaten and not one heart gone in the act', () => {
@@ -141,7 +146,8 @@ describe('checking a run against the challenges', () => {
     const m = { ...defaultMeta(), bodies: [...STARTERS, 'monster' as const] };
     const r = run();
     r.stats.takedowns = 12;
-    expect(checkChallenges(m, r)).toMatchObject({ steps: [], unlocked: [] });
+    expect(oldSteps(checkChallenges(m, r))).toEqual([]);
+    expect(checkChallenges(m, r).unlocked).toEqual([]);
   });
 
   it('takes a new entry with no other change (the next ten vehicles are more lines in the list)', () => {
@@ -180,7 +186,9 @@ describe('saves from before the challenges', () => {
     expect(cleanMeta(null).bodies).toEqual(STARTERS);
     expect(cleanMeta({ trophies: 0 }).bodies).toEqual(STARTERS);
     expect(legacyBodies(0)).toEqual(STARTERS);
-    expect(cleanMeta({ trophies: 20 }).bodies).toHaveLength(CAR_BODIES.length);
+    // the old trophy rule only ever knew the first ten: the phase 10 vehicles are opened by their challenges alone
+    expect(cleanMeta({ trophies: 20 }).bodies).toEqual(CAR_BODIES.filter((b) => b in LEGACY_BODY_UNLOCK));
+    expect(cleanMeta({ trophies: 9999 }).bodies).not.toContain('kart');
   });
 
   it('once a save has its own list, the trophies do not open vehicles any more', () => {
