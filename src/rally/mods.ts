@@ -48,6 +48,12 @@ export interface ModTune {
   shove: number;
   /** Glitter trail behind the car. */
   glitter: boolean;
+  /** Multiplier on the vehicle's top speed (only bodies that have one: the moped, the tractor). */
+  top: number;
+  /** Damage taken is multiplied by this. */
+  tough: number;
+  /** A sidecar on the motorbike: steadier, heavier, and the bike stops falling over. */
+  sidecar: boolean;
 }
 
 export const neutralTune = (): ModTune => ({
@@ -70,6 +76,9 @@ export const neutralTune = (): ModTune => ({
   disco: false,
   shove: 0,
   glitter: false,
+  top: 1,
+  tough: 1,
+  sidecar: false,
 });
 
 /** Things the funny stats at the end of a run count. */
@@ -149,6 +158,8 @@ export interface RaceApi {
   slowBehind(radius: number, k: number, dt: number): void;
   /** Shove computer cars close to the player (m/s outward). */
   shove(radius: number, strength: number): void;
+  /** Swap the player's vehicle for another one at random (a poof and a new body). */
+  swapVehicle(): void;
   /** Add kr straight away (shown as a pop-up). */
   kronor(n: number): void;
   /** Sparkles round the car. */
@@ -158,6 +169,8 @@ export interface RaceApi {
 
 export interface HookCtx {
   api: RaceApi;
+  /** The vehicle the player started the race in. */
+  body: CarBody;
   /** How many of this trinket the player has. */
   n: number;
   /** Scratch numbers for the hook, fresh each race. */
@@ -171,6 +184,8 @@ export interface ModHooks {
   hit?(c: HookCtx, kind: 'wall' | 'car' | 'land', speed: number): void;
   lap?(c: HookCtx, lap: number): void;
   pickup?(c: HookCtx, kind: 'boost' | 'mud' | 'coin'): void;
+  /** The horn (or the moped's bell) rang. `near` is how many cars are within 14 m. */
+  honk?(c: HookCtx, near: number): void;
   finish?(c: HookCtx, r: FinishInfo): FinishAdjust | void;
 }
 
@@ -201,6 +216,11 @@ export class ModBus {
     return this.entries.length;
   }
 
+  /** Does any trinket care about the horn? (Then the car also tutes by itself behind another car.) */
+  get honking(): boolean {
+    return this.entries.some((e) => !!e.hooks.honk);
+  }
+
   tick(dt: number, s: TickState): void {
     for (const e of this.entries) e.hooks.tick?.(e.ctx, dt, s);
   }
@@ -218,6 +238,9 @@ export class ModBus {
   }
   pickup(kind: 'boost' | 'mud' | 'coin'): void {
     for (const e of this.entries) e.hooks.pickup?.(e.ctx, kind);
+  }
+  honk(near: number): void {
+    for (const e of this.entries) e.hooks.honk?.(e.ctx, near);
   }
   /** Sums what the finish hooks add. */
   finish(r: FinishInfo): Required<FinishAdjust> {

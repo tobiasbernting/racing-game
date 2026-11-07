@@ -2,6 +2,7 @@
 // power curve with an automatic six-speed box, handbrake slides, countersteer help, jumps over crests,
 // and gentle bounces off the fences. Surfaces: asphalt, gravel, kerbs, grass, snow, sand and ice. In free
 // roam only the real walls (stone walls, bridge rails) stop the car. Plain maths, no Three.js.
+import { CAR_BODY_DEFS, type CarBody, type Feel } from '../shared/rally.ts';
 import { Fence, Surf, type Proj, type Track } from './track.ts';
 import { clamp, damp, lerp, smooth, wrapAngle } from './util.ts';
 
@@ -28,6 +29,8 @@ const ROLL_V = [0, 0, 0, 0.05, 0, 0.012, 0, 0.025, 0.05];
 const ROAD_GROUND = [Ground_.Asphalt, Ground_.Gravel, Ground_.Snow, Ground_.Sand, Ground_.Ice];
 
 const MASS = 1200;
+/** The rally car's engine power (N·m/s), the base the bodies and rivals scale. */
+export const BASE_POWER = 145000;
 const IZ = 2100;
 const CG_F = 1.15;
 const CG_R = 1.35;
@@ -89,7 +92,7 @@ export class Car {
   susp = 0;
   suspV = 0;
   // ---- tuning ----
-  power = 145000;
+  power = BASE_POWER;
   grip = 1;
   /** Countersteer and slide-catching help (0 none … 1 lots). */
   assist = 0.4;
@@ -109,6 +112,14 @@ export class Car {
   gravity = 1;
   /** Collision size (the bigger bodies). */
   size = 1;
+  /** How this body drives (mass, steering, top speed, leaning…), see shared/rally.ts. */
+  feel: Feel = CAR_BODY_DEFS.hatch.feel;
+  /** The lean of two-wheelers and the like (radians, positive tips the left side up), smoothed. */
+  lean = 0;
+  /** Seconds left in a comic tumble (a bike that took a big hit): the game drives the car meanwhile. */
+  tumbleT = 0;
+  /** Multiplier on the body's top speed (a trinket's fan). */
+  topK = 1;
   /** Free roam: no run-off fences, only the real walls; the grass rolls a little easier. */
   roam = false;
   /** What the ground off the road is at a point (grass when not set): snow, sand, ice on the lake. */
@@ -118,6 +129,11 @@ export class Car {
   private fyRear = 0;
 
   constructor(private track: Track) {}
+
+  /** Dresses the physics as a body (the cars all share the plain feel). */
+  setBody(body: CarBody, feel: Feel = CAR_BODY_DEFS[body].feel): void {
+    this.feel = feel;
+  }
 
   place(s: number, d: number, ground: Ground): void {
     const p = this.track.point(s, d);
@@ -173,11 +189,13 @@ export class Car {
       this.onKerb = true;
     } else if (ad > hw + 0.45) surf = this.offroadAt ? this.offroadAt(this.x, this.z) : Ground_.Grass;
     this.surface = surf;
-    const mu = MU[surf]! * this.grip;
-    const rollDecel = (ROLL[surf]! + Math.abs(vLong) * ROLL_V[surf]!) * (this.roam && surf >= Ground_.Grass && surf !== Ground_.Ice ? 0.55 : 1);
+    const F = this.feel;
+    const rough = surf >= Ground_.Grass && surf !== Ground_.Ice;
+    const mu = MU[surf]! * this.grip * (rough ? Math.sqrt(F.rough) : 1);
+    const rollDecel = ((ROLL[surf]! + Math.abs(vLong) * ROLL_V[surf]!) * (this.roam && rough ? 0.55 : 1)) / (rough ? F.rough : 1);
 
     // ---- steering: fewer degrees at speed, plus a hand catching slides ----
-    const maxSteer = 0.62 / (1 + Math.abs(vLong) / 11);
+    const maxSteer = (0.62 * F.steer) / (1 + Math.abs(vLong) / 11);
     let target = clamp(c.steer, -1, 1) * maxSteer;
     const beta = Math.abs(vLong) > 3 ? Math.atan2(vLat, Math.abs(vLong)) * Math.sign(vLong) : 0;
     // the countersteer help backs off while the driver holds the wheel over, so the small slides of loose
@@ -185,7 +203,7 @@ export class Car {
     const holdWheel = Math.abs(c.steer) * (1 - smooth(0.2, 0.4, Math.abs(beta)));
     const csHelp = c.handbrake ? 0.5 : 1.3 * (1 - 0.75 * holdWheel);
     target += clamp(beta * this.assist * csHelp, -0.32, 0.32);
-    const rate = 3.2 + this.assist * 2;
+    const rate = (3.2 + this.assist * 2) * F.steer;
     this.steerAngle += clamp(target - this.steerAngle, -rate * dt, rate * dt);
     const delta = this.steerAngle;
 
@@ -255,7 +273,10 @@ export class Car {
         drive = -c.brake * 3800 * (vLong > -9 ? 1 : 0.15);
         brake = c.throttle * 9000;
       } else {
-        drive = c.throttle * Math.min(7600 * this.boost, (this.power * this.boost) / Math.max(4, va));
+        drive = c.throttle * Math.min(7600 * this.boost * F.punch, (this.power * this.boost) / Math.max(4, va));
+        // a heavy body gets going slowly; a top speed (moped, tractor) fades the push out just under it
+        if (F.mass > 1) drive *= Math.pow(F.mass, -0.3);
+        if (F.top > 0) drive *= clamp((F.top * this.topK * this.boost - va) / (F.top * 0.12), 0, 1);
         if (this.shiftT > 0) drive *= 0.3;
         if (this.launch > 0) drive *= 1.4;
         brake = c.brake * 13500 * this.brakeMul;
@@ -318,17 +339,20 @@ export class Car {
       fx -= MASS * G * Math.sin(this.slopePitch);
       fy -= MASS * G * Math.sin(this.slopeRoll) * 0.6;
     }
-    fx -= DRAG * vLong * Math.abs(vLong);
+    fx -= DRAG * F.drag * vLong * Math.abs(vLong);
     fy -= DRAG * 2 * vLat * Math.abs(vLat);
 
     const axl = fx / MASS;
     const ayl = fy / MASS;
     this.vx += (axl * sinH + ayl * cosH) * dt;
     this.vz += (axl * cosH - ayl * sinH) * dt;
-    if (!this.air) this.yawRate += (torque / IZ) * dt;
+    if (!this.air) this.yawRate += (torque / (IZ * F.yaw)) * dt;
     else this.yawRate *= Math.exp(-dt * 0.8);
     this.accLong = damp(this.accLong, axl, 6, dt);
     this.accLat = damp(this.accLat, ayl, 6, dt);
+    // two-wheelers lean into the bend: as far as the sideways pull says, and a bit more for the look
+    const leanTo = F.lean > 0 && !this.air ? -clamp(Math.atan(this.accLat / G) * 1.25, -0.7, 0.7) * F.lean : 0;
+    this.lean = damp(this.lean, leanTo, 9, dt);
 
     // ---- low speed: roll like a toy car instead of sliding ----
     vLong = this.vx * sinH + this.vz * cosH;
@@ -390,7 +414,7 @@ export class Car {
     const p = this.proj;
     const th = Math.atan2(t.tx[p.i]!, t.tz[p.i]!);
     const rel = wrapAngle(this.heading - th);
-    const reach = (0.95 + 1.05 * Math.abs(Math.sin(rel))) * this.size;
+    const reach = (this.feel.halfW + this.feel.halfL * Math.abs(Math.sin(rel))) * this.size;
     if (this.roam) {
       this.roamWalls(th, reach);
       return;
@@ -482,22 +506,25 @@ export class Car {
   }
 }
 
-/** Bump cars apart: two circles per car, soft impulses, a little spin from off-centre hits. */
+/** Bump cars apart: two circles per car, soft impulses weighted by mass, a little spin from off-centre hits. */
 export function collideCars(cars: Car[], onHit: (a: number, b: number, j: number) => void): void {
-  const R = 1.0;
   for (let i = 0; i < cars.length; i++)
     for (let k = i + 1; k < cars.length; k++) {
       const a = cars[i]!;
       const b = cars[k]!;
-      if (a.ghost > 0 || b.ghost > 0) continue;
+      if (a.ghost > 0 || b.ghost > 0 || a.tumbleT > 0.35 || b.tumbleT > 0.35) continue;
       const dx0 = b.x - a.x;
       const dz0 = b.z - a.z;
       const reach = 25 * Math.max(a.size, b.size) ** 2;
       if (dx0 * dx0 + dz0 * dz0 > reach || Math.abs(a.y - b.y) > 2.5) continue;
-      const rr = R * a.size + R * b.size;
+      const fa = a.feel;
+      const fb = b.feel;
+      const ma = fa.mass;
+      const mb = fb.mass;
+      const rr = (fa.bumpR * a.size + fb.bumpR * b.size) * 1.0;
       let hit = 0;
-      for (const oa0 of [-1.05, 1.05])
-        for (const ob0 of [-1.05, 1.05]) {
+      for (const oa0 of [-fa.bumpAt, fa.bumpAt])
+        for (const ob0 of [-fb.bumpAt, fb.bumpAt]) {
           const oa = oa0 * a.size;
           const ob = ob0 * b.size;
           const ax = a.x + Math.sin(a.heading) * oa;
@@ -511,10 +538,13 @@ export function collideCars(cars: Car[], onHit: (a: number, b: number, j: number
           nx /= dist;
           nz /= dist;
           const depth = rr - dist;
-          a.x -= nx * depth * 0.5;
-          a.z -= nz * depth * 0.5;
-          b.x += nx * depth * 0.5;
-          b.z += nz * depth * 0.5;
+          // the heavy one barely gives way
+          const wa = mb / (ma + mb);
+          const wb = ma / (ma + mb);
+          a.x -= nx * depth * wa;
+          a.z -= nz * depth * wa;
+          b.x += nx * depth * wb;
+          b.z += nz * depth * wb;
           // contact point velocities (with spin)
           const cx = (ax + bx) / 2;
           const cz = (az + bz) / 2;
@@ -528,16 +558,18 @@ export function collideCars(cars: Car[], onHit: (a: number, b: number, j: number
           const vbz = b.vz - b.yawRate * rbx;
           const vrel = (vbx - vax) * nx + (vbz - vaz) * nz;
           if (vrel >= 0) continue;
-          const j = (-(1 + 0.25) * vrel) / 2;
-          a.vx -= j * nx;
-          a.vz -= j * nz;
-          b.vx += j * nx;
-          b.vz += j * nz;
+          // an impulse between two masses (equal masses: the old half-and-half)
+          const j = (-(1 + 0.25) * vrel) / (1 / ma + 1 / mb);
+          a.vx -= (j * nx) / ma;
+          a.vz -= (j * nz) / ma;
+          b.vx += (j * nx) / mb;
+          b.vz += (j * nz) / mb;
           const spin = 0.22 * (MASS / IZ);
           // torque = J · perp(r), perp(x, z) = (z, −x)
-          a.yawRate += (-j * nx * raz + j * nz * rax) * spin;
-          b.yawRate += (j * nx * rbz - j * nz * rbx) * spin;
-          hit = Math.max(hit, j);
+          a.yawRate += ((-j * nx * raz + j * nz * rax) * spin) / (ma * fa.yaw);
+          b.yawRate += ((j * nx * rbz - j * nz * rbx) * spin) / (mb * fb.yaw);
+          // what the lighter one feels, as a speed change
+          hit = Math.max(hit, j / Math.min(ma, mb));
         }
       if (hit > 0.3) onHit(i, k, hit);
     }

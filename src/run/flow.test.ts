@@ -133,7 +133,9 @@ describe('challenge goals', () => {
         expect(calm.rules.ai).toBeLessThanOrEqual(p.rules.ai);
       }
     const bosses = [0, 1, 2].map((act) => planRace(mapOf({ ...fresh(), act }).rows[5]![0]!, false).boss?.name);
-    expect(bosses).toEqual(['Bonden Bengt', 'Älgen Ingrid', 'Isdrottningen']);
+    expect(bosses[0]).toBe('Bonden Bengt');
+    expect(['Älgen Ingrid', 'Isdrottningen']).toContain(bosses[1]);
+    expect(bosses[2]).toBe('Kapten Kanin');
   });
 });
 

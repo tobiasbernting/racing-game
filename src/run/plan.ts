@@ -3,6 +3,7 @@
 import { RALLY_COURSE_DEFS, defaultRules, type RaceRules, type RallyCourse, type RallyDifficulty } from '../shared/rally.ts';
 import { RALLY_COURSE_NAMES } from '../shared/names.ts';
 import type { RaceTwist } from '../rally/mods.ts';
+import { skyFor, variationFor } from '../shared/variation.ts';
 import { BOSS_COURSE, type BossId, type ChallengeKind, type MapNode } from './map.ts';
 
 export interface BossDef {
@@ -24,8 +25,8 @@ export const BOSS_DEFS: Record<BossId, BossDef> = {
     emoji: '🚜',
     course: BOSS_COURSE.bengt,
     intro: '“Ingen kör förbi mig på min gård! Nu ska ni få se hur man kör traktor!”',
-    trick: 'Höbalar ligger på vägen. Kör runt dem!',
-    twist: { boss: { name: 'Bonden Bengt', face: 'human', body: 'pickup', color: '#2fa84f', power: 1.02, skill: 0.98 }, hay: 6 },
+    trick: 'Bengt kör traktor och puttar undan dig, och höbalar ligger på vägen. Kör runt dem!',
+    twist: { boss: { name: 'Bonden Bengt', face: 'human', body: 'tractor', color: '#2fa84f', power: 1.04, skill: 0.98 }, hay: 6 },
   },
   ingrid: {
     id: 'ingrid',
@@ -33,8 +34,8 @@ export const BOSS_DEFS: Record<BossId, BossDef> = {
     emoji: '🦌',
     course: BOSS_COURSE.ingrid,
     intro: '“Hoppla! Jag älskar att hoppa över vägen. Kan du hänga med?”',
-    trick: 'Ingrid och de andra hoppar tvärs över vägen och får fart i nitron.',
-    twist: { boss: { name: 'Älgen Ingrid', face: 'horse', body: 'buggy', color: '#8c5a3c', power: 1.03, skill: 0.97 }, rivalHop: 7, rivalNitro: 12 },
+    trick: 'Ingrid kör fyrhjuling och hoppar tvärs över vägen, och de andra gör likadant och får fart i nitron.',
+    twist: { boss: { name: 'Älgen Ingrid', face: 'horse', body: 'atv', color: '#8c5a3c', power: 1.03, skill: 0.97 }, rivalHop: 7, rivalNitro: 12 },
   },
   isdrottningen: {
     id: 'isdrottningen',
@@ -44,6 +45,15 @@ export const BOSS_DEFS: Record<BossId, BossDef> = {
     intro: '“Brrr! Min bana är min. Här blir det halt för alla!”',
     trick: 'Vägen är is: det är halt för alla, och Isdrottningen dundrar iväg med nitro.',
     twist: { boss: { name: 'Isdrottningen', face: 'cat', body: 'coupe', color: '#bfe9ff', power: 1.04, skill: 1.02 }, grip: 0.72, rivalNitro: 9 },
+  },
+  kanin: {
+    id: 'kanin',
+    name: 'Kapten Kanin',
+    emoji: '🐰',
+    course: BOSS_COURSE.kanin,
+    intro: '“Hopp hopp! På månen väger man ingenting. Fånga mig om ni kan, jag kör soffa!”',
+    trick: 'Månen har låg tyngdkraft: Kapten Kanin och de andra studsar i jättehopp och drar på nitron.',
+    twist: { boss: { name: 'Kapten Kanin', face: 'rabbit', body: 'sofa', color: '#6a4fd8', power: 1.05, skill: 1.0 }, rivalHop: 4.5, rivalNitro: 10 },
   },
 };
 
@@ -81,12 +91,11 @@ export function targetTimeMs(course: RallyCourse, laps: number): number {
 export function planRace(node: MapNode, calm: boolean): RacePlan {
   const act = node.act;
   const course = node.course ?? 'farm';
-  const rules: RaceRules = { ...defaultRules(), course, laps: 2, ai: [3, 4, 5][act] ?? 5, difficulty: act >= 2 ? 'hard' : 'normal' };
-  // later acts: weather and the time of day
-  const dice = (node.seed >>> 3) % 100;
-  if (act >= 1 && dice < 28) rules.weather = 'rain';
-  if (act >= 1 && dice >= 28 && dice < 50) rules.time = 'sunset';
-  if (act >= 2 && dice >= 50 && dice < 75) rules.time = 'night';
+  let rules: RaceRules = { ...defaultRules(), course, laps: 2, ai: [3, 4, 5][act] ?? 5, difficulty: act >= 2 ? 'hard' : 'normal' };
+  // later acts: weather and the time of day come from the node's seed (and never rain on the moon)
+  const sky = skyFor(course, variationFor(course, node.seed), act);
+  rules.time = sky.time;
+  rules.weather = sky.weather;
   let prize = 1;
   let title = `${RALLY_COURSE_NAMES[course]}-loppet`;
   let twist: RaceTwist | undefined;
@@ -109,6 +118,7 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
     rules.difficulty = stepDiff(rules.difficulty, 1);
     rules.damage = true;
     if (node.boss === 'isdrottningen') rules.time = 'night';
+    if (node.boss === 'kanin') rules = { ...rules, time: 'day', weather: 'clear' };
     prize = 2;
   } else if (node.type === 'challenge' && node.challenge) {
     title = CHALLENGE_NAMES[node.challenge];

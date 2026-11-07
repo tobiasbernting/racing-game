@@ -237,6 +237,11 @@ export interface Layout {
   farCz: number;
   /** Trees along the lake shore. */
   shoreTrees: boolean;
+  /** The water's colour and a glow (lava, chocolate): the default blue-green water when left out. */
+  waterColor?: string;
+  waterGlow?: string;
+  /** The volcano's crater (x, z). */
+  vent?: [number, number];
   /** The ground without the road (cx, cz, ex, ez: the course's centre and half extents). */
   natural(x: number, z: number, cx: number, cz: number, ex: number, ez: number): number;
 }

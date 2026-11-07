@@ -295,6 +295,7 @@ export function buildRoad(track: Track, terrain: Terrain, quality: 'high' | 'low
       ? new THREE.MeshStandardMaterial({ map: tex, roughness: surf === Surf.Ice ? 0.18 : 0.32, metalness: 0.05, envMap: opts.envMap ?? null, envMapIntensity: surf === Surf.Ice ? 0.9 : 0.75, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 })
       : new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     if (shiny && surf === Surf.Asphalt) material.color.set('#a2a2aa');
+    if (course?.theme.roadTint && surf !== Surf.Ice) material.color.multiply(new THREE.Color(course.theme.roadTint));
     const m = new THREE.Mesh(strip(surf), material);
     m.receiveShadow = shadows;
     group.add(m);
@@ -450,7 +451,7 @@ export function buildRoad(track: Track, terrain: Terrain, quality: 'high' | 'low
   }
 
   // ---- fences along both sides of the run-off ----
-  const kinds = [Fence.Pole, Fence.Bales, Fence.Rail, Fence.Stone, FenceX.Snow, FenceX.Tyres, FenceX.Rope, FenceX.Logs, FenceX.Barrier] as const;
+  const kinds = [Fence.Pole, Fence.Bales, Fence.Rail, Fence.Stone, FenceX.Snow, FenceX.Tyres, FenceX.Rope, FenceX.Logs, FenceX.Barrier, FenceX.Candy, FenceX.Cubes, FenceX.Rocks] as const;
   const pieceLen = (kind: number): number =>
     kind === Fence.Bales ? 2.4 : kind === Fence.Rail ? 2.0 : kind === Fence.Stone ? 2.6 : kind === Fence.Pole ? 3.0 : themeFencePiece(kind, true).len;
   const placed = new Map<string, [number, number][]>();

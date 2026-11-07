@@ -36,7 +36,7 @@ describe('rules', () => {
   it('cleans junk into valid rules', () => {
     expect(cleanRules(null)).toEqual(defaultRules());
     expect(cleanRules('fast')).toEqual(defaultRules());
-    const r = cleanRules({ course: 'moon', laps: 99, ai: -3, damage: 'yes', difficulty: 'insane', time: 'night', weather: 'snow', nitro: 0, sameCars: 1, pickups: false, extra: 1 });
+    const r = cleanRules({ course: 'narnia', laps: 99, ai: -3, damage: 'yes', difficulty: 'insane', time: 'night', weather: 'snow', nitro: 0, sameCars: 1, pickups: false, extra: 1 });
     expect(r).toEqual({ ...defaultRules(), laps: 5, ai: 0, time: 'night', pickups: false });
     expect(cleanRules({ laps: Number.POSITIVE_INFINITY }).laps).toBe(defaultRules().laps);
     expect(Object.keys(r).sort()).toEqual(Object.keys(defaultRules()).sort());
@@ -74,7 +74,7 @@ describe('prizes and medals', () => {
 describe('picks', () => {
   it('cleans stored prefs into valid ones', () => {
     expect(cleanPrefs(null)).toEqual(defaultPrefs());
-    expect(cleanPrefs({ course: 'moon', body: 'tank', paint: 'red' })).toEqual(defaultPrefs());
+    expect(cleanPrefs({ course: 'narnia', body: 'tank', paint: 'red' })).toEqual(defaultPrefs());
     expect(cleanPrefs({ course: 'ice', body: 'buggy', paint: CAR_PAINTS[3] })).toEqual({ course: 'ice', body: 'buggy', paint: CAR_PAINTS[3] });
   });
 

@@ -2,12 +2,66 @@
 // changes), the opponents' engines, tyres, gravel, grass, wind, kerbs, bumps, beeps, cheers, a fanfare
 // and a cheerful little music loop.
 import { noise as noiseShot, tone } from '../arcade/sfx.ts';
+import type { CarBody } from '../shared/rally.ts';
 import { clamp } from './util.ts';
 
 interface Voice {
   osc: OscillatorNode[];
+  /** Level of each oscillator (the timbre). */
+  lvl: GainNode[];
   gain: GainNode;
   filter: BiquadFilterNode;
+  /** The tremolo that makes a tractor chug and a moped buzz. */
+  trem: GainNode;
+  lfo: OscillatorNode;
+  lfoDepth: GainNode;
+  /** The engine sound this voice has now. */
+  kind: EngineKind;
+}
+
+/** What an engine sounds like: the oscillator mix, the pitch, how bright, and a tremolo (the chug or the buzz). */
+export type EngineKind = 'car' | 'atv' | 'moto' | 'moped' | 'tractor' | 'sofa' | 'monster';
+interface EngineProfile {
+  types: [OscillatorType, OscillatorType, OscillatorType];
+  mul: [number, number, number];
+  lvl: [number, number, number];
+  pitch: number;
+  cut: number;
+  q: number;
+  /** Tremolo depth 0..1 and its rate: a + rpm·b Hz. */
+  chug: number;
+  chugA: number;
+  chugB: number;
+  level: number;
+}
+const ENGINES: Record<EngineKind, EngineProfile> = {
+  car: { types: ['sawtooth', 'square', 'sawtooth'], mul: [1, 0.5, 2.01], lvl: [0.6, 0.45, 0.25], pitch: 1, cut: 1, q: 2.2, chug: 0, chugA: 0, chugB: 0, level: 1 },
+  monster: { types: ['sawtooth', 'square', 'square'], mul: [0.8, 0.5, 1.5], lvl: [0.6, 0.55, 0.2], pitch: 0.8, cut: 0.8, q: 2.4, chug: 0.2, chugA: 6, chugB: 0.002, level: 1.1 },
+  // the brappy four-wheeler
+  atv: { types: ['sawtooth', 'square', 'sawtooth'], mul: [1, 0.5, 1.5], lvl: [0.6, 0.5, 0.3], pitch: 1.25, cut: 1.1, q: 3, chug: 0.25, chugA: 8, chugB: 0.0035, level: 1 },
+  // the howling bike
+  moto: { types: ['sawtooth', 'sawtooth', 'triangle'], mul: [1, 2, 3.01], lvl: [0.5, 0.35, 0.3], pitch: 1.7, cut: 1.7, q: 3.5, chug: 0, chugA: 0, chugB: 0, level: 0.9 },
+  // the moped: thin and buzzing like a hornet in a tin
+  moped: { types: ['sawtooth', 'square', 'square'], mul: [1, 2, 4.02], lvl: [0.45, 0.4, 0.35], pitch: 2.6, cut: 2.6, q: 4.5, chug: 0.5, chugA: 30, chugB: 0.005, level: 0.8 },
+  // the tractor: low and chugging, put-put-put
+  tractor: { types: ['square', 'sawtooth', 'square'], mul: [0.5, 1, 0.25], lvl: [0.7, 0.4, 0.3], pitch: 0.55, cut: 0.5, q: 1.4, chug: 0.65, chugA: 3, chugB: 0.0025, level: 1.3 },
+  // the sofa: a wheezy, lumpy purr
+  sofa: { types: ['triangle', 'square', 'sawtooth'], mul: [1, 0.5, 2], lvl: [0.6, 0.4, 0.2], pitch: 0.9, cut: 0.8, q: 1.8, chug: 0.3, chugA: 2, chugB: 0.002, level: 1 },
+};
+
+/** Which engine each body has. */
+export function engineOf(body: CarBody | undefined): EngineKind {
+  switch (body) {
+    case 'atv':
+    case 'moto':
+    case 'moped':
+    case 'tractor':
+    case 'sofa':
+    case 'monster':
+      return body;
+    default:
+      return 'car';
+  }
 }
 
 const NOTE = (n: string): number => {
@@ -142,6 +196,7 @@ export class RallyAudio {
     const mix = a.createGain();
     mix.gain.value = 0.45;
     const oscs: OscillatorNode[] = [];
+    const lvls: GainNode[] = [];
     for (const [type, mul, lvl] of [
       ['sawtooth', 1, 0.6],
       ['square', 0.5, 0.45],
@@ -153,22 +208,57 @@ export class RallyAudio {
       const og = a.createGain();
       og.gain.value = lvl;
       o.connect(og).connect(mix);
+      lvls.push(og);
       o.start();
       (o as OscillatorNode & { mul?: number }).mul = mul;
       oscs.push(o);
       this.sources.push(o);
     }
-    mix.connect(shaper).connect(f).connect(g).connect(this.bus!);
-    return { osc: oscs, gain: g, filter: f };
+    // the tremolo: an LFO on a gain stage after the engine (depth 0 for the plain car)
+    const trem = a.createGain();
+    trem.gain.value = 1;
+    const lfo = a.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 10;
+    const lfoDepth = a.createGain();
+    lfoDepth.gain.value = 0;
+    lfo.connect(lfoDepth).connect(trem.gain);
+    lfo.start();
+    this.sources.push(lfo);
+    mix.connect(shaper).connect(f).connect(g).connect(trem).connect(this.bus!);
+    return { osc: oscs, lvl: lvls, gain: g, filter: f, trem, lfo, lfoDepth, kind: 'car' };
+  }
+
+  /** Gives a voice another engine's timbre. */
+  private dress(v: Voice, kind: EngineKind): void {
+    if (v.kind === kind) return;
+    v.kind = kind;
+    const p = ENGINES[kind];
+    const t = this.a!.currentTime;
+    v.osc.forEach((o, i) => {
+      o.type = p.types[i]!;
+      (o as OscillatorNode & { mul?: number }).mul = p.mul[i]!;
+      v.lvl[i]!.gain.setTargetAtTime(p.lvl[i]!, t, 0.02);
+    });
+    v.filter.Q.setTargetAtTime(p.q, t, 0.02);
+    v.trem.gain.setTargetAtTime(1 - p.chug * 0.5, t, 0.02);
+    v.lfoDepth.gain.setTargetAtTime(p.chug * 0.5, t, 0.02);
   }
 
   private setVoice(v: Voice, rpm: number, load: number, level: number): void {
     const a = this.a!;
     const t = a.currentTime;
-    const f0 = (rpm / 60) * 1.5;
+    const p = ENGINES[v.kind];
+    const f0 = (rpm / 60) * 1.5 * p.pitch;
     for (const o of v.osc) o.frequency.setTargetAtTime(f0 * ((o as OscillatorNode & { mul?: number }).mul ?? 1), t, 0.03);
-    v.filter.frequency.setTargetAtTime(300 + rpm * 0.28 * (0.45 + 0.55 * load), t, 0.05);
-    v.gain.gain.setTargetAtTime(level, t, 0.05);
+    v.filter.frequency.setTargetAtTime((300 + rpm * 0.28 * (0.45 + 0.55 * load)) * p.cut, t, 0.05);
+    v.gain.gain.setTargetAtTime(level * p.level, t, 0.05);
+    if (p.chug > 0) v.lfo.frequency.setTargetAtTime(p.chugA + rpm * p.chugB, t, 0.05);
+  }
+
+  /** The player's engine sound for the vehicle (once per change). */
+  setEngine(body: CarBody): void {
+    if (this.a && this.engine) this.dress(this.engine, engineOf(body));
   }
 
   /** The player's engine, every frame. `shift` is +1/−1 on a gear change. */
@@ -184,9 +274,10 @@ export class RallyAudio {
   }
 
   /** Two nearest opponents: their revs and how loud (0..1 by distance). */
-  otherEngine(k: number, rpm: number, level: number): void {
+  otherEngine(k: number, rpm: number, level: number, body?: CarBody): void {
     const v = this.others[k];
     if (!this.a || !v || this.paused) return;
+    this.dress(v, engineOf(body));
     this.setVoice(v, rpm, 0.7, level * 0.07);
   }
 
@@ -276,6 +367,46 @@ export class RallyAudio {
     tone(this.a, this.out, f * 1.05, 0.13, { type: 'square', to: f * 0.5, vol: 0.07, at: 0.02, attack: 0.01 });
     tone(this.a, this.out, f * 0.9, 0.14, { type: 'sawtooth', to: f * 0.45, vol: 0.12, at: 0.15, attack: 0.01 });
     noiseShot(this.a, this.out, 0.05, { freq: 1800, q: 1.2, vol: 0.08 });
+  }
+
+  /** The horn, one for each vehicle: a beep, a bike's toot, the tractor's moo-horn, and the moped's high ring-ring. */
+  horn(body: CarBody | undefined): void {
+    const a = this.a;
+    const out = this.out;
+    switch (body) {
+      case 'moped': {
+        // a bicycle bell: two quick rings, each a bright pair of sines with a shimmer
+        for (const at of [0, 0.3]) {
+          for (let i = 0; i < 4; i++) {
+            const f = i % 2 ? 3136 : 2637;
+            tone(a, out, f, 0.14, { type: 'sine', vol: 0.09, at: at + i * 0.045, attack: 0.002 });
+            tone(a, out, f * 1.505, 0.1, { type: 'sine', vol: 0.04, at: at + i * 0.045, attack: 0.002 });
+          }
+        }
+        break;
+      }
+      case 'tractor':
+        tone(a, out, 150, 0.7, { type: 'sawtooth', vol: 0.1, attack: 0.03 });
+        tone(a, out, 190, 0.7, { type: 'square', vol: 0.06, attack: 0.03 });
+        break;
+      case 'moto':
+        tone(a, out, 720, 0.16, { type: 'square', vol: 0.07 });
+        tone(a, out, 720, 0.22, { type: 'square', vol: 0.07, at: 0.2 });
+        break;
+      case 'atv':
+        tone(a, out, 520, 0.2, { type: 'square', to: 480, vol: 0.08 });
+        tone(a, out, 520, 0.2, { type: 'square', to: 480, vol: 0.08, at: 0.26 });
+        break;
+      case 'sofa':
+        // a squeaky cushion
+        tone(a, out, 300, 0.35, { type: 'triangle', to: 90, vol: 0.14 });
+        noiseShot(a, out, 0.3, { freq: 700, q: 1.5, vol: 0.12 });
+        tone(a, out, 520, 0.12, { type: 'sine', to: 240, vol: 0.06, at: 0.3 });
+        break;
+      default:
+        tone(a, out, 415, 0.4, { type: 'square', vol: 0.07 });
+        tone(a, out, 524, 0.4, { type: 'square', vol: 0.06 });
+    }
   }
 
   /** A springy boing. */

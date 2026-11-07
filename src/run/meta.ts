@@ -5,7 +5,7 @@ import { TRINKETS, isTrinket, type TrinketDef } from './trinkets.ts';
 import { ACTS } from './map.ts';
 
 /** Trophies needed per body (the rally car and the buggy are there from the start). */
-export const BODY_UNLOCK: Record<CarBody, number> = { hatch: 0, buggy: 0, pickup: 3, coupe: 8, monster: 15 };
+export const BODY_UNLOCK: Record<CarBody, number> = { hatch: 0, buggy: 0, pickup: 3, moped: 4, atv: 6, coupe: 8, tractor: 11, moto: 13, monster: 15, sofa: 20 };
 
 export const unlockedBodies = (trophies: number): CarBody[] => CAR_BODIES.filter((b) => BODY_UNLOCK[b] <= trophies);
 export const unlockedTrinkets = (trophies: number): TrinketDef[] => TRINKETS.filter((t) => t.unlock <= trophies);

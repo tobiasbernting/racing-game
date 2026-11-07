@@ -16,15 +16,23 @@ export const ROWS = 5;
 
 export const CHALLENGES = ['win', 'toptwo', 'night', 'time'] as const;
 export type ChallengeKind = (typeof CHALLENGES)[number];
-export const BOSSES = ['bengt', 'ingrid', 'isdrottningen'] as const;
+export const BOSSES = ['bengt', 'ingrid', 'isdrottningen', 'kanin'] as const;
 export type BossId = (typeof BOSSES)[number];
 
-/** The courses each act picks from: the countryside, the wild, and then everything including the city. */
+/**
+ * The courses each act picks from, one pick per entry (a course twice comes up twice as often): act 1 is the
+ * countryside, act 2 the wild (the desert and the volcano) among the old mountains and beaches, act 3 the crazy
+ * (candy land, the moon, the kitchen) with the city and the ice for company.
+ */
 export const ACT_COURSES: readonly (readonly RallyCourse[])[] = [
   ['farm', 'meadow', 'forest'],
-  ['beach', 'ice', 'mountain'],
-  ['city', 'city', ...RALLY_COURSES],
+  ['desert', 'desert', 'volcano', 'volcano', 'beach', 'ice', 'mountain'],
+  ['candy', 'candy', 'moon', 'moon', 'kitchen', 'kitchen', 'city', 'mountain'],
 ];
+
+/** Every course any act can pick (for tests and the collection). */
+export const ALL_ACT_COURSES: readonly RallyCourse[] = [...new Set(ACT_COURSES.flat())];
+void RALLY_COURSES;
 
 export interface MapNode {
   id: string;
@@ -63,7 +71,14 @@ const WEIGHTS: Record<number, Partial<Record<NodeType, number>>> = {
 /** Types that may not follow themselves along a path. */
 const NO_REPEAT: ReadonlySet<NodeType> = new Set(['elite', 'shop', 'workshop', 'event']);
 
-export const BOSS_COURSE: Record<BossId, RallyCourse> = { bengt: 'farm', ingrid: 'mountain', isdrottningen: 'ice' };
+export const BOSS_COURSE: Record<BossId, RallyCourse> = { bengt: 'farm', ingrid: 'mountain', isdrottningen: 'ice', kanin: 'moon' };
+
+/** The boss of an act: Bengt on the farm, then Ingrid or the Ice Queen (the seed picks), and Captain Rabbit on the moon. */
+export function bossFor(seed: number, act: number): BossId {
+  if (act <= 0) return 'bengt';
+  if (act === 1) return Rng.for(seed, 'boss', act).chance(0.5) ? 'ingrid' : 'isdrottningen';
+  return 'kanin';
+}
 
 export function generateAct(seed: number, act: number): ActMap {
   const rg = Rng.for(seed, 'map', act);
@@ -143,7 +158,7 @@ export function generateAct(seed: number, act: number): ActMap {
   let bag: RallyCourse[] = [];
   let last: RallyCourse | null = null;
   const nextCourse = (): RallyCourse => {
-    if (bag.length === 0) bag = rg.shuffle([...new Set(courses)]);
+    if (bag.length === 0) bag = rg.shuffle([...courses]);
     let c = bag.shift()!;
     if (c === last && bag.length) {
       const swap = bag.shift()!;
@@ -158,7 +173,7 @@ export function generateAct(seed: number, act: number): ActMap {
       if (node.type === 'race' || node.type === 'elite' || node.type === 'challenge') node.course = nextCourse();
       if (node.type === 'challenge') node.challenge = rg.weighted(CHALLENGES, (k) => (k === 'time' ? 1.2 : 1));
       if (node.type === 'boss') {
-        node.boss = BOSSES[Math.min(act, BOSSES.length - 1)]!;
+        node.boss = bossFor(seed, act);
         node.course = BOSS_COURSE[node.boss];
       }
     }

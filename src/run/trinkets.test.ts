@@ -92,6 +92,7 @@ function recorder(): { api: RaceApi; calls: string[] } {
     banana: log('banana'),
     cannon: log('cannon'),
     squashLeader: log('squash'),
+    swapVehicle: log('swap'),
     slowBehind: log('slow'),
     shove: log('shove'),
     kronor: log('kronor'),

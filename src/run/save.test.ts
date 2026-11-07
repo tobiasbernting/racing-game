@@ -129,7 +129,7 @@ describe('meta progress', () => {
   it('starts with the rally car and the buggy', () => {
     expect(unlockedBodies(0)).toEqual(['hatch', 'buggy']);
     expect(unlockedBodies(BODY_UNLOCK.pickup)).toContain('pickup');
-    expect(unlockedBodies(100)).toHaveLength(5);
+    expect(unlockedBodies(100)).toHaveLength(10);
   });
 
   it('trophies put more trinkets in the pool', () => {

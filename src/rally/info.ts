@@ -19,8 +19,8 @@ export const RALLY_HOW_TO = {
   keys: [
     '↑ / W gasar, ↓ / S bromsar och backar',
     '← → / A D styr · Mellanslag: handbroms – sladda länge för turbo!',
-    'L: nitro (har bilen turbo) · C / Enter: byter kamera · R: tillbaka på vägen',
+    'L: nitro (har bilen turbo) · H: tuta · C / Enter: byter kamera · R: tillbaka på vägen',
     'Handkontroll: RT gas, LT broms, A handbroms, X nitro, B tillbaka på vägen',
   ],
-  touch: ['Bilen gasar själv – du styr med ◀ ▶', '▼ bromsar (håll kvar för att backa)', '🌀 handbroms – sladda länge för turbo', '🔥 nitro när bilen har turbo · 🎥 byter kamera'],
+  touch: ['Bilen gasar själv – du styr med ◀ ▶', '▼ bromsar (håll kvar för att backa)', '🌀 handbroms – sladda länge för turbo', '🔥 nitro när bilen har turbo · 🎥 byter kamera', 'Moppen ringer i klockan av sig själv bakom andra bilar'],
 };
