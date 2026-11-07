@@ -232,3 +232,32 @@ En utmaning är data (`CHALLENGES`): vilket fordon den öppnar, ett mål, och en
 Framstegen sparas i `Meta.progress`, de öppna fordonen i `Meta.bodies`. Nya fordon (fas 10) är fler rader i `CHALLENGES` och `KITS`; testerna kräver en utmaning för varje fordon som inte är en starter.
 **Migrering**: en gammal sparning utan `bodies` får starters plus allt troféerna en gång öppnat (`LEGACY_BODY_UNLOCK`), så ingen förlorar något. Troféer låser fortfarande upp prylar i potten.
 Bilvalet visar lutning, stjärnor, passiv, aktiv (namn, rad, nedkylning) och startpryl, och för låsta fordon villkoret med en framstegsstapel ("Takedowns i en runda: 6/10").
+
+## Grövre look (fas 9)
+
+Spelet ska se ut som ett punkigt, lite smutsigt arkadspel med attityd, inte som ett barnprogram (inspirerat av hur Tape to Tape känns, men allt är egenritat).
+Den gemensamma stilen bor i `src/rally/look.ts` så att fas 10:s tio nya fordon får den på köpet.
+
+- **Ljus och färg** (`look.ts`): loppet ritas till ett halvflyt-mål och går genom ett efterpass med färgton per bana (`GRADES`: ljusare pastellbanor som godis, köket och månen
+  avmättas och mörknar, öknen och vulkanen blir varma, isen och månen kalla), S-kurva för djupare skuggor, vinjett och lite korn. På `high` finns också en mjuk bloom på
+  nitroflammor, eldar, lampor och explosioner (värden över 1 i HDR). Utan halvflyt-stöd, eller om `adapt()` sänkt upplösningen för långt på `low`, ritas bilden rakt på
+  skärmen med en vinjett i CSS (`.rg-vignette`). `low` har alltså ett enda extra pass och inga konturer, ingen bloom och inget korn-extra.
+- **Konturer**: `outlineMesh` lägger ett omvänt skal (några pixlar brett oavsett avstånd, tunnare långt bort, dimmigt som resten) på bilar, förare, hjul och på spårkantens
+  rekvisita. Bara på `high`. Nya modeller anropar `outlineMesh(mesh, hi)`.
+- **Bilar**: sponsorlappar med påhittade märken (Grusolja, Kaosbensin, Däck & Dunder, Skrotfix, Mackens kiosk, Surstark) är standard i stället för hjärtan och stjärnor
+  (de gamla klistermärkena finns kvar, `CAR_DECALS`), rivalerna får egna lackeringar och sponsorer (`rivalLook` i `tuning.ts`), och startnumret är en sliten rondell.
+  Smuts byggs upp under loppet (`Entrant.dirt` → `CarModel.setWear(dirt, damage)`, snabbare utanför asfalten och i regn), repor och sotfläckar kommer med skadan. I Blandat och
+  Blodbad syns skadan som bucklor, spricka i vindrutan, en stötfångare som först lossnar och sedan hänger (från 50, 70, 90 av 100), rök från huven och eld när det är nära slutet
+  (`wearOf` i `index.ts`: hälsan i Blodbad, plåten annars). Nitroflammorna är längre och glöder.
+- **Förare**: alla har hjälm med visir eller skyddsglasögon (`helmet`, `driverHead` i `models.ts`) och overall med rand och selar (`overallsColor`): grisen har hjälm, tuppen aviatorglasögon,
+  kon visir och horn ut genom hjälmen. Mopedens och buggyns förare syns tydligast.
+- **Banorna** (`src/rally/attitude.ts`, ett lager över varje bana, alla former i få ritanrop): däckväggar på ytterkanten av de skarpaste kurvorna, höbalar (lådor på månen och i godislandet)
+  med sponsorbanderoller vid start och mål, reklamskyltar för påhittade märken, skrotupplag med vrak, oljefat där några brinner (flammor i en egen shader, rök och på `high` ett
+  flimrande ljus), ljustorn vid start och i kurvor, flaggor, handskrivna skyltar och bloss med röd rök bland publiken. Varje bana får sin palett (`PALS`): godis blir slitet godis,
+  månen får lastlådor, köket sotiga burkar. Tätheten följer `low`/`high` och bansättets variation.
+- **Effekter** (`fx.ts`, `index.ts`): gnistor som studsar och glöder, spillror (`Debris`, riktiga bitar som flyger och landar), en eldboll med rökpelare och flygande skrot när en bil blir
+  vrak (ingen gore, bara plåt), tunnare däckrök. Damm och rök tonas fortfarande ut mellan kameran och din egen bil.
+- **Menyerna** (`src/poster.css`, lagt ovanpå `style.css`): betongvägg med sprayfärg, stencilrubriker, pappersbitar med tejp, ink-kantade knappar, kartans platser som stickers och rivalerna som
+  samlarkort i en lek man drar i sidled (porträtt, körsätt, tre stjärnbetyg, en replik). Bara färger, kanter och typsnitt ändras där, aldrig storlekar, så alla layouter för mobil, surfplatta och
+  dator är desamma som förut. Handritade pilar finns på titeln och kartan.
+- **Test**: `?rallydebug` (bara i dev) har nya krokar: `warp()`, `cam(x, y, z, tx, ty, tz)`, `smoker(k)`, `hide('attitude' | 'fx' | 'scenery')`, och `window.__forceCourse` väljer bana.

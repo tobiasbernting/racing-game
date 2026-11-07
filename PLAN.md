@@ -138,6 +138,9 @@ run strong, which is right; the rivals and courses must keep up. Design directio
 9. **Art direction**: grittier, Tape to Tape-inspired: stronger contrast and colour grade, light outlines,
    dirt/scratches/damage on cars, drivers with helmets and race gear, courses with attitude (scrapyards, tyre
    walls, rowdy crowds, made-up sponsor boards), sparks and explosions, sticker/poster menus, rival collector cards.
+   Built (see README, "Grövre look"): a post pass with a grade per course, vignette, grain and bloom on high, outline shells, sponsor decals and
+   rival liveries, dirt that builds up and visible damage states, helmets and goggles, a trackside layer for every course (`attitude.ts`),
+   sparks, debris and a fireball on wrecks, sticker/poster menus with collector cards, a new icon. The shared helpers are in `src/rally/look.ts`.
 10. **Ten new vehicles**, in the new style: e.g. EPA-traktor, glassbil, sopbil, snöskoter, gokart, golfbil,
     åkgräsklippare, husbil, limousin, kundvagn med raketmotor.
 11. **The car grows**: pick 1 of 3 upgrades, the Ram/Race trees and the Fuffens/Stunt/Girig side paths, visible

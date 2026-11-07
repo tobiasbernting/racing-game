@@ -1470,3 +1470,12 @@ body { font-family: var(--body); background: var(--asphalt); }
   .rs-hl-l { font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) { .rs-res { animation: none; } }
+
+/* ---- phase 9: a vignette over the race canvas where the post pass is not available ---- */
+.rg-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(ellipse at 50% 48%, transparent 52%, rgba(0, 0, 0, 0.42) 100%);
+}

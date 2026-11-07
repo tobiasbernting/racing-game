@@ -2,6 +2,7 @@
 // paint, stickers and parts. Loaded with import() through loadRallyPreview() in the package index so
 // Three.js stays out of the farm game's first download. A small studio: a soft backdrop, a turntable
 // with a contact shadow, a room reflection for the paint, and a night mode for the lights.
+import { setOutlineScreen } from './look.ts';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { GarageCar } from '../shared/rally.ts';
@@ -134,6 +135,7 @@ export function mountCarPreview(root: HTMLElement, car: GarageCar, opts: CarPrev
     const w = r.width;
     const h = r.height;
     renderer.setSize(w, h, false);
+    setOutlineScreen(w * renderer.getPixelRatio(), h * renderer.getPixelRatio());
     camera.aspect = w / h;
     // keep the whole car in view in narrow panels too
     const fit = camera.aspect < 1.3 ? 1.3 / camera.aspect : 1;
@@ -226,6 +228,7 @@ export function mountCarPreview(root: HTMLElement, car: GarageCar, opts: CarPrev
       model.root.rotation.y = yaw;
       model.shadow.rotation.y = yaw;
     }
+    setOutlineScreen(renderer.domElement.width, renderer.domElement.height);
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(tick);

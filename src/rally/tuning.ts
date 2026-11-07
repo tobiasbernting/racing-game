@@ -1,7 +1,7 @@
 // What a GarageCar does to the handling (body stats and tuning parts), the computer cars' cars, the
 // damage rules, and the player's smoke colour.
 import * as THREE from 'three';
-import { CAR_BODIES, CAR_BODY_DEFS, PART_EFFECTS, defaultStyle, emptyParts, newCar, type CarBody, type CarDriver, type CarSmoke, type Feel, type GarageCar } from '../shared/rally.ts';
+import { CAR_BODIES, CAR_BODY_DEFS, PART_EFFECTS, defaultStyle, emptyParts, newCar, type CarBody, type CarDecal, type CarDriver, type CarSmoke, type CarStyle, type Feel, type GarageCar } from '../shared/rally.ts';
 import { clamp } from './util.ts';
 
 export interface Tune {
@@ -84,10 +84,26 @@ export function rivalFeel(body: CarBody): Feel {
   return f.top > 0 ? { ...f, top: Math.max(34, f.top * 1.7) } : f;
 }
 
+const RIVAL_LIVERIES = ['stripe', 'none', 'checker', 'zigzag', 'stripes2', 'camo', 'flames', 'none'] as const;
+const SPONSORS = ['grusolja', 'kaosbensin', 'dackdunder', 'skrotfix', 'mackens', 'surstark'] as const;
+const RIVAL_TRIM = ['#f4f1ea', '#15171c', '#ffd23f', '#f4f1ea', '#e8e2d0', '#ff7a1a', '#15171c', '#f4f1ea'];
+
+/** Every rival its own look: a livery, a trim colour and a different set of sponsors (from its slot). */
+function rivalLook(k: number, paint: string): Pick<CarStyle, 'livery' | 'paint2' | 'decals' | 'finish'> {
+  const dark = new THREE.Color(paint).getHSL({ h: 0, s: 0, l: 0 }).l < 0.35;
+  const pick = (i: number): CarDecal => SPONSORS[(k * 2 + i * 3) % SPONSORS.length]!;
+  return {
+    livery: RIVAL_LIVERIES[k % RIVAL_LIVERIES.length]!,
+    paint2: dark ? '#e8e2d0' : RIVAL_TRIM[k % RIVAL_TRIM.length]!,
+    decals: { hood: pick(0), doors: pick(1), back: pick(2) },
+    finish: k % 3 === 2 ? 'matte' : 'gloss',
+  };
+}
+
 /** A computer car for the online grid and the remote screens: body, colour and number from its slot. */
 export function aiCar(k: number, color: string, driver: CarDriver, body?: CarBody): GarageCar {
   const c = newCar(-1 - k, body ?? AI_BODIES[k % AI_BODIES.length] ?? 'hatch', '', color);
-  c.style = { ...defaultStyle(color), number: k + 2, driver };
+  c.style = { ...defaultStyle(color), number: k + 2, driver, ...rivalLook(k, color) };
   return c;
 }
 

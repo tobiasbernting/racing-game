@@ -71,7 +71,7 @@ export class Particles {
   private readonly mat: THREE.ShaderMaterial;
   private readonly nearFade: [number, number];
 
-  constructor(private cap: number, nearFade: [number, number] = [1.5, 8]) {
+  constructor(private cap: number, nearFade: [number, number] = [1.5, 8], additive = false) {
     this.nearFade = nearFade;
     this.pos = new Float32Array(cap * 3);
     this.vel = new Float32Array(cap * 3);
@@ -97,6 +97,7 @@ export class Particles {
       fragmentShader: PART_FRAG,
       transparent: true,
       depthWrite: false,
+      blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
       fog: true,
     });
     this.points = new THREE.Points(geo, this.mat);
@@ -359,6 +360,114 @@ export class Confetti {
     }
     this.mesh.instanceMatrix.needsUpdate = true;
     if (!alive) this.live = 0;
+  }
+
+  dispose(): void {
+    this.mesh.geometry.dispose();
+    (this.mesh.material as THREE.Material).dispose();
+    this.mesh.dispose();
+  }
+}
+
+/** Bits of a wrecked car: little boxes in the car's paint and in dark metal that fly, bounce and settle. */
+export class Debris {
+  readonly mesh: THREE.InstancedMesh;
+  private readonly p: Float32Array;
+  private readonly v: Float32Array;
+  private readonly rot: Float32Array;
+  private readonly spin: Float32Array;
+  private readonly size: Float32Array;
+  private readonly life: Float32Array;
+  private next = 0;
+  private live = 0;
+  private readonly m = new THREE.Matrix4();
+  private readonly q = new THREE.Quaternion();
+  private readonly e = new THREE.Euler();
+  private readonly vv = new THREE.Vector3();
+  private readonly sc = new THREE.Vector3();
+  private readonly c = new THREE.Color();
+
+  constructor(private cap: number) {
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    const mat = new THREE.MeshLambertMaterial({ flatShading: true });
+    this.mesh = new THREE.InstancedMesh(geo, mat, cap);
+    this.mesh.frustumCulled = false;
+    this.mesh.castShadow = false;
+    // nothing flying: nothing drawn (no draw call at all)
+    this.mesh.visible = false;
+    for (let i = 0; i < cap; i++) {
+      this.mesh.setColorAt(i, this.c.set('#222222'));
+      this.mesh.setMatrixAt(i, this.m.makeScale(0, 0, 0));
+    }
+    this.p = new Float32Array(cap * 3);
+    this.v = new Float32Array(cap * 3);
+    this.rot = new Float32Array(cap * 3);
+    this.spin = new Float32Array(cap * 3);
+    this.size = new Float32Array(cap * 3);
+    this.life = new Float32Array(cap);
+  }
+
+  /** One bit at (x, y, z) flying with (vx, vy, vz); `w, h, d` metres; it lies about for `life` seconds. */
+  emit(x: number, y: number, z: number, vx: number, vy: number, vz: number, w: number, h: number, d: number, color: THREE.Color, life = 5): void {
+    const i = this.next;
+    this.next = (this.next + 1) % this.cap;
+    this.mesh.setColorAt(i, color);
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+    this.p[i * 3] = x;
+    this.p[i * 3 + 1] = y;
+    this.p[i * 3 + 2] = z;
+    this.v[i * 3] = vx;
+    this.v[i * 3 + 1] = vy;
+    this.v[i * 3 + 2] = vz;
+    this.size[i * 3] = w;
+    this.size[i * 3 + 1] = h;
+    this.size[i * 3 + 2] = d;
+    for (let k = 0; k < 3; k++) {
+      this.rot[i * 3 + k] = Math.random() * 6;
+      this.spin[i * 3 + k] = (Math.random() - 0.5) * 18;
+    }
+    this.life[i] = life;
+    this.live = this.cap;
+    this.mesh.visible = true;
+  }
+
+  update(dt: number, ground: (x: number, z: number) => number): void {
+    if (!this.live) return;
+    let alive = 0;
+    for (let i = 0; i < this.cap; i++) {
+      if (this.life[i]! <= 0) continue;
+      this.life[i]! -= dt;
+      const gy = ground(this.p[i * 3]!, this.p[i * 3 + 2]!);
+      const rest = this.size[i * 3 + 1]! * 0.5;
+      let moving = true;
+      this.v[i * 3 + 1]! -= 16 * dt;
+      this.p[i * 3]! += this.v[i * 3]! * dt;
+      this.p[i * 3 + 1]! += this.v[i * 3 + 1]! * dt;
+      this.p[i * 3 + 2]! += this.v[i * 3 + 2]! * dt;
+      if (this.p[i * 3 + 1]! < gy + rest) {
+        this.p[i * 3 + 1] = gy + rest;
+        if (this.v[i * 3 + 1]! < -1.5) this.v[i * 3 + 1] = -this.v[i * 3 + 1]! * 0.38;
+        else this.v[i * 3 + 1] = 0;
+        this.v[i * 3]! *= 0.72;
+        this.v[i * 3 + 2]! *= 0.72;
+        for (let k = 0; k < 3; k++) this.spin[i * 3 + k]! *= 0.6;
+        moving = Math.abs(this.v[i * 3]!) + Math.abs(this.v[i * 3 + 2]!) > 0.3;
+      }
+      if (moving) for (let k = 0; k < 3; k++) this.rot[i * 3 + k]! += this.spin[i * 3 + k]! * dt;
+      const s = this.life[i]! > 0 ? Math.min(1, this.life[i]! * 1.5) : 0;
+      this.m.compose(
+        this.vv.set(this.p[i * 3]!, this.p[i * 3 + 1]!, this.p[i * 3 + 2]!),
+        this.q.setFromEuler(this.e.set(this.rot[i * 3]!, this.rot[i * 3 + 1]!, this.rot[i * 3 + 2]!)),
+        this.sc.set(this.size[i * 3]! * s, this.size[i * 3 + 1]! * s, this.size[i * 3 + 2]! * s),
+      );
+      this.mesh.setMatrixAt(i, this.m);
+      if (this.life[i]! > 0) alive++;
+    }
+    this.mesh.instanceMatrix.needsUpdate = true;
+    if (!alive) {
+      this.live = 0;
+      this.mesh.visible = false;
+    }
   }
 
   dispose(): void {

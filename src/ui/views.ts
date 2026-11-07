@@ -19,7 +19,7 @@ import { currentNode, currentPlan } from '../run/flow.ts';
 import { mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
 import { TRINKETS, trinketById } from '../run/trinkets.ts';
 import { btn, el, plural } from './dom.ts';
-import { ACT_NAMES, chip, seedLabel, statusBar, trinketCard, trinketIcons } from './parts.ts';
+import { ACT_NAMES, arrowSvg, chip, seedLabel, statusBar, trinketCard, trinketIcons } from './parts.ts';
 import { countUp } from './juice.ts';
 import type { Settings } from '../settings.ts';
 import { SCHEMES, SCHEME_NAMES, SCHEME_TEXT, SIZES, SIZE_NAMES, isManual, type ControlPrefs, type Scheme } from '../controls.ts';
@@ -83,7 +83,7 @@ export function titleView(o: TitleOpts): HTMLElement {
       el('div', 'rg-saveinfo', `Akt ${s.act + 1}/${ACTS} · ${s.hearts}/${s.maxHearts} ❤️ · ${s.kronor} kr · ${s.trinkets.reduce((a, t) => a + t.n, 0)} prylar`),
     );
   }
-  right.append(newBtn, el('div', 'rg-pair', ghost('⚡ Snabbrace', o.onQuick), ghost('📖 Skrytlådan', o.onCollection)), el('div', 'rg-pair', calm, ghost('⚙️ Inställningar', o.onSettings)));
+  right.append(el('div', 'rg-newwrap', arrowSvg('rg-arrow'), newBtn), el('div', 'rg-pair', ghost('⚡ Snabbrace', o.onQuick), ghost('📖 Skrytlådan', o.onCollection)), el('div', 'rg-pair', calm, ghost('⚙️ Inställningar', o.onSettings)));
   if (o.homeHint) right.append(el('small', 'rg-homehint', 'Fusktips: Dela, sedan Lägg till på hemskärmen. Ingen webbläsarkant.'));
   return screen('rg-title', left, right);
 }
@@ -274,7 +274,7 @@ export function mapView(o: MapOpts): HTMLElement {
     field,
     legend,
     kinds,
-    el('div', 'rg-maphint', run.at === null ? 'Välj en glödande plats. Börja nånstans.' : 'Nästa stopp: en glödande plats.', el('small', 'rg-seed', seedLabel(run.seed))),
+    el('div', 'rg-maphint', arrowSvg('rg-arrow sm'), run.at === null ? 'Välj en glödande plats. Börja nånstans.' : 'Nästa stopp: en glödande plats.', el('small', 'rg-seed', seedLabel(run.seed))),
   );
 }
 
@@ -297,9 +297,12 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
     plan.field.narrow < 1 ? chip('↔️ Smal väg') : null,
     chip(`${kitOf(run.car.body).active.emoji} ${kitOf(run.car.body).active.name} (F)`),
   ].filter((x): x is HTMLElement => !!x);
-  const rivals = el('ul', 'rg-rivals');
+  // the rivals as collector cards: a portrait, the name, how they drive, three stats and a quote
+  const stars = (n: number): string => '★'.repeat(n) + '☆'.repeat(5 - n);
+  const rate = (x: number, lo: number, hi: number): number => 1 + Math.round(Math.max(0, Math.min(1, (x - lo) / (hi - lo))) * 4);
+  const rivals = el('div', 'rg-deck');
   const talkers: { name: string; talk: string }[] = [];
-  for (const sp of plan.field.rivals) {
+  plan.field.rivals.forEach((sp, ix) => {
     const boss = sp.boss ? plan.twist?.boss : undefined;
     const rv = sp.boss ? undefined : rivalById(sp.id);
     if (rv) talkers.push({ name: rv.name, talk: rv.talk });
@@ -309,15 +312,26 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
       if (m) icons.append(Object.assign(el('i', 'rg-mod', m.emoji), { title: `${m.name}: ${m.text}` }));
     }
     const face = CAR_DRIVER_EMOJI[boss?.face ?? rv?.face ?? 'human'];
-    const li = el(
-      'li',
-      sp.boss ? 'boss' : '',
-      el('span', 'rg-rname', `${face} ${boss?.name ?? rv?.name ?? '???'}`, el('em', `rg-arch a-${sp.archetype}`, ` ${ARCHETYPE_EMOJI[sp.archetype]} ${ARCHETYPE_NAMES[sp.archetype]}`), icons),
-      el('small', null, sp.boss ? (plan.boss?.nick ?? '') : rv?.nick ?? ''),
+    const quote = sp.boss ? (plan.boss?.nick ?? '') : (rv?.nick ?? '');
+    const card = el(
+      'div',
+      `rg-ccard a-${sp.archetype}${sp.boss ? ' boss' : ''}`,
+      el('div', 'rg-cport', el('span', 'rg-cface', face), el('b', 'rg-cno', `#${ix + 2}`), icons),
+      el('div', 'rg-cname', boss?.name ?? rv?.name ?? '???'),
+      el('div', `rg-arch a-${sp.archetype}`, `${ARCHETYPE_EMOJI[sp.archetype]} ${ARCHETYPE_NAMES[sp.archetype]}`),
+      el(
+        'div',
+        'rg-cstats',
+        el('span', null, 'Fart', el('i', null, stars(rate(sp.power, 0.9, 1.15)))),
+        el('span', null, 'Knuff', el('i', null, stars(rate(sp.aggro, 0, 1)))),
+        el('span', null, 'Skärpa', el('i', null, stars(rate(sp.skill, 0.75, 1)))),
+      ),
+      el('p', 'rg-cquote', `”${quote}”`),
     );
-    li.title = `${ARCHETYPE_NAMES[sp.archetype]}: ${ARCHETYPE_TEXT[sp.archetype]}`;
-    rivals.append(li);
-  }
+    card.title = `${ARCHETYPE_NAMES[sp.archetype]}: ${ARCHETYPE_TEXT[sp.archetype]}`;
+    card.style.setProperty('--tilt', `${((ix * 37) % 7) - 3}deg`);
+    rivals.append(card);
+  });
   const talk = talkers.length ? talkers[node.seed % talkers.length]! : null;
   const counts = archetypeCounts(plan.field);
   const info: Node[] = [el('div', 'rg-chips', ...chips), el('div', `rg-kindbox k-${kind}`, el('b', null, `${KIND_EMOJI[kind]} ${KIND_NAMES[kind]}: `), KIND_TEXT[kind], kind === 'carnage' ? el('small', null, ` Poäng för placering: ${PLACE_POINTS.join('/')} och ${TAKEDOWN_POINTS} per vrak. Placeringen på poäng avgör priset och hjärtat.`) : null)];

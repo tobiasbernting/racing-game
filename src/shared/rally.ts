@@ -137,8 +137,8 @@ export type CarFinish = (typeof CAR_FINISHES)[number];
 export const CAR_LIVERIES = ['none', 'stripe', 'stripes2', 'flames', 'checker', 'dots', 'zigzag', 'stars', 'hearts', 'camo', 'lightning', 'rainbow'] as const;
 export type CarLivery = (typeof CAR_LIVERIES)[number];
 
-/** Stickers. `number` paints the car's number in a roundel. */
-export const CAR_DECALS = ['number', 'star', 'heart', 'flame', 'lightning', 'flower', 'rainbow', 'paw', 'cow', 'hen', 'pig', 'sheep', 'crown', 'smiley', 'flag', 'strawberry'] as const;
+/** Stickers. `number` paints the car's number in a roundel; the made-up sponsors (Grusolja, Kaosbensin…) are the default look. */
+export const CAR_DECALS = ['number', 'grusolja', 'kaosbensin', 'dackdunder', 'skrotfix', 'mackens', 'surstark', 'star', 'heart', 'flame', 'lightning', 'flower', 'rainbow', 'paw', 'cow', 'hen', 'pig', 'sheep', 'crown', 'smiley', 'flag', 'strawberry'] as const;
 export type CarDecal = (typeof CAR_DECALS)[number];
 /** Where a sticker can go; `doors` is mirrored on both sides. */
 export const DECAL_SLOTS = ['hood', 'roof', 'doors', 'back'] as const;
@@ -214,7 +214,7 @@ export function defaultStyle(paint = '#e8412c'): CarStyle {
     paint2: '#f2f2f2',
     finish: 'gloss',
     livery: 'none',
-    decals: {},
+    decals: { hood: 'dackdunder', doors: 'grusolja', back: 'kaosbensin' },
     number: 7,
     wheels: 'steel',
     rimColor: '#c9c9c9',

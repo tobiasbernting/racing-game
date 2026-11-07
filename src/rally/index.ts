@@ -20,7 +20,9 @@ import { BASE_POWER, Car, collideCars, Ground_, type Controls, type HitInfo } fr
 import { courseFor } from './variant.ts';
 import { canRain, variationFor } from '../shared/variation.ts';
 import { Coins } from './coins.ts';
-import { Confetti, Particles, Skids } from './fx.ts';
+import { Confetti, Debris, Particles, Skids } from './fx.ts';
+import { buildAttitude, type Attitude } from './attitude.ts';
+import { Post, canPost, gradeFor, setOutlineScreen } from './look.ts';
 import { settings } from '../settings.ts';
 import { buzz } from '../haptics.ts';
 import { shiftLight } from './gears.ts';
@@ -102,6 +104,8 @@ interface Entrant {
   aimT: number;
   /** Seconds since the last hit on this car (for the boss that heals). */
   calmT: number;
+  /** 0..1: mud and grime on the paint, building up during the race. */
+  dirt: number;
   /** Seconds until a computer car uses its vehicle's ability, and how far its front wheel is lifted (a bike on boost). */
   abilNext: number;
   wheelie: number;
@@ -263,22 +267,43 @@ const rally = (ctx: GameContext): GameInstance => {
   const renderer = new THREE.WebGLRenderer({ antialias: high && ctx.dpr < 1.6, powerPreference: 'high-performance' });
   renderer.setPixelRatio(ctx.dpr);
   renderer.toneMapping = TONE === 'aces' ? THREE.ACESFilmicToneMapping : TONE === 'agx' ? THREE.AgXToneMapping : THREE.NeutralToneMapping;
-  renderer.toneMappingExposure = skyPreset.exposure;
+  const grade = gradeFor(course.id, night, rain);
+  renderer.toneMappingExposure = skyPreset.exposure * grade.exp;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  // the post pass renders more than once a frame: the stats add them up (reset in render())
+  renderer.info.autoReset = false;
   renderer.shadowMap.enabled = high;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   const canvas = renderer.domElement;
+  // the colour grade, vignette and (on 'high') bloom: one extra pass; without half-float targets a CSS vignette stands in
+  const post = canPost(renderer) ? new Post(renderer, high, grade, high && ctx.dpr < 1.6) : null;
+  let postOn = !!post;
+  let vignette: HTMLElement | null = null;
+  if (!post || !high) {
+    vignette = document.createElement('div');
+    vignette.className = 'rg-vignette';
+    vignette.style.display = post ? 'none' : 'block';
+    ctx.root.prepend(vignette);
+  }
   Object.assign(canvas.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', display: 'block' });
   ctx.root.prepend(canvas);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.3, 5200);
   let W = 1;
   let H = 1;
+  /** The drawing buffer changed size: the grade's targets and the outlines' pixel width follow. */
+  const bufSize = new THREE.Vector2();
+  const syncPost = (): void => {
+    const v = renderer.getDrawingBufferSize(bufSize);
+    setOutlineScreen(v.x, v.y);
+    post?.resize();
+  };
   const fit = (): void => {
     const r = ctx.root.getBoundingClientRect();
     W = Math.max(1, r.width);
     H = Math.max(1, r.height);
     renderer.setSize(W, H, false);
+    syncPost();
     camera.aspect = W / H;
     camera.updateProjectionMatrix();
   };
@@ -292,11 +317,15 @@ const rally = (ctx: GameContext): GameInstance => {
   let road: Road;
   let water: Water;
   let scenery: Scenery;
+  let attitude: Attitude;
   let particles: Particles;
   /** The green gas clouds: never faded out in front of the chase camera, so the cloud behind your own car shows. */
   let gasFx: Particles;
   let skids: Skids;
   let confetti: Confetti;
+  /** Fire and sparks (additive, so they glow and bloom), and the flying bits of a wreck. */
+  let glow: Particles;
+  let debris: Debris;
   let weather: Weather | null = null;
   let coins: Coins | null = null;
   const obstacles = new Obstacles();
@@ -366,6 +395,9 @@ const rally = (ctx: GameContext): GameInstance => {
     scenery = course.id === 'farm' ? buildScenery(track, terrain, ctx.quality, timeU) : buildThemeScenery(track, terrain, course, ctx.quality, timeU, course.theme.lit || night, vary);
     scene.add(scenery.group);
     disposers.push(() => scenery.dispose());
+    attitude = buildAttitude(track, terrain, course, ctx.quality, timeU, course.theme.lit || night, vary, scenery.crowds);
+    scene.add(attitude.group);
+    disposers.push(() => attitude.dispose());
     if (rain || course.theme.snow) {
       const w = (weather = new Weather(rain ? 'rain' : 'snow', ctx.quality));
       scene.add(w.object);
@@ -398,8 +430,12 @@ const rally = (ctx: GameContext): GameInstance => {
     gasFx = new Particles(high ? 360 : 180, [2.5, 9]);
     skids = new Skids(high ? 3000 : 1200);
     confetti = new Confetti(high ? 420 : 200);
-    scene.add(particles.points, gasFx.points, skids.mesh, confetti.mesh);
+    glow = new Particles(high ? 500 : 220, [2.5, 9], true);
+    debris = new Debris(high ? 44 : 18);
+    scene.add(particles.points, gasFx.points, skids.mesh, confetti.mesh, glow.points, debris.mesh);
     disposers.push(
+      () => glow.dispose(),
+      () => debris.dispose(),
       () => particles.dispose(),
       () => gasFx.dispose(),
       () => skids.dispose(),
@@ -430,13 +466,45 @@ const rally = (ctx: GameContext): GameInstance => {
         tally[key] = (tally[key] ?? 0) + tri * inst;
       });
       const w = window as unknown as Record<string, unknown>;
+      {
+        let tris = 0;
+        let meshes = 0;
+        scene.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh && !(o as THREE.Points).isPoints) return;
+          if (!m.geometry) return;
+          const g = m.geometry;
+          const t = (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+          tris += t * ((o as THREE.InstancedMesh).isInstancedMesh ? (o as THREE.InstancedMesh).count : 1);
+          meshes++;
+        });
+        w.__rallyStatic = { tris: Math.round(tris), meshes };
+      }
       w.__rallyTris = Object.entries(tally)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 25)
         .map(([k, v]) => `${k}=${Math.round(v)}`);
     }
     // test hooks (dev build only): crash the player's bike, honk, swap the vehicle
-    if (DEBUG)
+    if (DEBUG) {
+      const warp = (at?: number): number => {
+        const me = meE!;
+        let s = at ?? 0;
+        if (at === undefined) {
+          let k = 0;
+          for (let i = 0; i < track.n; i++) if (Math.abs(track.curv[i]!) > Math.abs(track.curv[k]!)) k = i;
+          s = k * track.ds - 45;
+        }
+        me.car.place(s, 0, ground);
+        const h = me.car.heading;
+        me.car.vx = Math.sin(h) * 20;
+        me.car.vz = Math.cos(h) * 20;
+        me.lastS = me.car.proj.s;
+        me.u = s;
+        camPos.set(me.car.x - Math.sin(h) * 7, me.car.y + 2.5, me.car.z - Math.cos(h) * 7);
+        camYaw = h;
+        return s;
+      };
       (window as unknown as { __rallyDebug: unknown }).__rallyDebug = {
         tumble: () => knock(player(), 99, 1),
         honk: () => honk(player()),
@@ -464,6 +532,24 @@ const rally = (ctx: GameContext): GameInstance => {
           }
         },
         drift: (tier = 3) => topUpNitro(tier),
+        warp,
+        /** Hide a part of the world to see what it costs: 'attitude', 'fx', 'scenery'. */
+        hide: (what: string) => {
+          if (what === 'attitude') attitude.group.visible = false;
+          if (what === 'scenery') scenery.group.visible = false;
+          if (what === 'fx') glow.points.visible = debris.mesh.visible = false;
+        },
+        /** A fixed camera (x, y, z looking at x, y, z); no arguments puts the chase camera back. */
+        cam: (...v: number[]) => (dbgCam = v.length === 6 ? v : null),
+        /** Where the k-th burning barrel or flare is. */
+        smokerAt: (k = 0) => attitude.smokers[k] ?? null,
+        /** Warp to just before the k-th burning barrel or flare. */
+        smoker: (k = 0, back = 20) => {
+          const sm = attitude.smokers[k];
+          if (!sm) return -1;
+          const pr = track.project(sm.x, sm.z, -1, { i: 0, u: 0, s: 0, d: 0 });
+          return warp(pr.s - back);
+        },
         abilityState: () => ({ cd: abilCd, kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, nitro: nitroLeft, uses: stats.abilityUses }),
         /** Wreck the n-th rival at once, crediting the player with the takedown. */
         takedown: (n = 0) => {
@@ -475,6 +561,7 @@ const rally = (ctx: GameContext): GameInstance => {
         /** Take health off the n-th rival (or the player when n is -1). */
         hurt: (n: number, hp: number) => damageHp(n < 0 ? meE! : entrants.filter((e) => e !== meE)[n]!, hp, null),
       };
+    }
     loop = new Loop((dt) => {
       for (let k = 0; k < TURBO && !ended; k++) update(dt);
     }, render);
@@ -593,6 +680,7 @@ const rally = (ctx: GameContext): GameInstance => {
         nitroNext: 5 + Math.random() * 6,
         aimT: Math.random() * 0.5,
         calmT: 9,
+        dirt: 0,
         abilNext: 9 + Math.random() * 10,
         wheelie: 0,
       };
@@ -719,6 +807,7 @@ const rally = (ctx: GameContext): GameInstance => {
   const colFlame = new THREE.Color('#ffb040');
   const colWater = new THREE.Color('#cfe8f5');
   const colDark = new THREE.Color('#3a3634');
+  const colFlareSmoke = new THREE.Color('#ff4a52');
   const TIER_COL = [colSpark, new THREE.Color('#4fb3ff'), new THREE.Color('#ff9a2a'), new THREE.Color('#c070ff')];
 
   /** One Runner per car, kept and refreshed (runners() is called several times a frame). */
@@ -899,7 +988,7 @@ const rally = (ctx: GameContext): GameInstance => {
       }
       // smoke when sliding on tarmac
       if (onRoad && slip > 0.35 && Math.random() < rate * slip * 0.9) {
-        particles.emit({ x, y: c.y + 0.25, z, vx: (Math.random() - 0.5) * 1.5, vy: 0.6 + Math.random(), vz: (Math.random() - 0.5) * 1.5, life: 1.2 + Math.random(), size0: 0.7, size1: 3.2, color: smoke, alpha: 0.42 * slip, drag: 1.8, gravity: -0.3 });
+        particles.emit({ x, y: c.y + 0.25, z, vx: (Math.random() - 0.5) * 1.5, vy: 0.6 + Math.random(), vz: (Math.random() - 0.5) * 1.5, life: 0.8 + Math.random() * 0.6, size0: 0.6, size1: 2.5, color: smoke, alpha: 0.34 * slip, drag: 2.2, gravity: -0.3 });
       }
       // grass and earth flying off the tyres
       if (surf === Ground_.Grass && sp > 5 && Math.random() < rate * 0.6) {
@@ -910,6 +999,11 @@ const rally = (ctx: GameContext): GameInstance => {
   }
 
   /** Damage from a knock of strength `j` (m/s), scaled by the rules and the car's toughness. */
+  /** How battered a car looks and acts, 0..100: plating in the races with damage, health in Blodbad. */
+  function wearOf(e: Entrant): number {
+    return carnage ? Math.round(100 * (1 - e.hp / e.maxHp) * 0.9) : e.damage;
+  }
+
   function hurt(e: Entrant, j: number, k = 1): void {
     if (damageK <= 0 || j <= 0 || (e === meE && dodgeT > 0)) return;
     const before = e.damage;
@@ -917,8 +1011,11 @@ const rally = (ctx: GameContext): GameInstance => {
     if (Math.floor(e.damage / 4) !== Math.floor(before / 4)) e.model.setDamage(e.damage);
   }
 
+  const colSparkHot = new THREE.Color(3.2, 2.1, 0.7);
+  const colSparkWhite = new THREE.Color(3, 2.8, 2.2);
+  /** Hot sparks: bright, quick, thrown low and bouncing off the road (additive, so they glow). */
   function sparks(x: number, y: number, z: number, n: number): void {
-    for (let k = 0; k < n; k++) particles.emit({ x, y: y + 0.5, z, vx: (Math.random() - 0.5) * 9, vy: 1 + Math.random() * 4, vz: (Math.random() - 0.5) * 9, life: 0.35 + Math.random() * 0.25, size0: 0.22, size1: 0.08, color: colHot, alpha: 1, drag: 1, gravity: 9 });
+    for (let k = 0; k < n; k++) glow.emit({ x, y: y + 0.45, z, vx: (Math.random() - 0.5) * 11, vy: 1.5 + Math.random() * 5, vz: (Math.random() - 0.5) * 11, life: 0.3 + Math.random() * 0.35, size0: 0.2, size1: 0.05, color: k % 3 ? colSparkHot : colSparkWhite, alpha: 1, drag: 0.8, gravity: 12 });
   }
 
   // ---- the player's tricks: nitro, the drift boost, style points ----
@@ -1847,6 +1944,15 @@ const rally = (ctx: GameContext): GameInstance => {
       particles.emit({ x: info.x, y: info.y + 0.6, z: info.z, vx: (Math.random() - 0.5) * 8, vy: 1.5 + Math.random() * 4, vz: (Math.random() - 0.5) * 8, life: 0.8, size0: 0.3, size1: 0.22, color: colDebris, alpha: 1, drag: 0.9, gravity: 10 });
     }
     if (hit > 5) particles.emit({ x: info.x, y: info.y + 0.5, z: info.z, vy: 0.8, life: 0.7, size0: 0.8, size1: 2.4, color: colSmoke, alpha: 0.35, drag: 2 });
+    // chunks of paint and plastic that really fly
+    if (hit > 3.5) {
+      const bits = Math.min(high ? 5 : 2, Math.round(hit / 3));
+      for (let k = 0; k < bits; k++) {
+        colDebris.set(k % 3 === 2 ? '#26262c' : k % 2 ? ea.color : eb.color);
+        const sz = 0.1 + Math.random() * 0.16;
+        debris.emit(info.x, info.y + 0.5, info.z, (Math.random() - 0.5) * 9, 2 + Math.random() * 4, (Math.random() - 0.5) * 9, sz * 1.6, sz * 0.5, sz, colDebris, 4);
+      }
+    }
   }
 
 
@@ -1936,11 +2042,31 @@ const rally = (ctx: GameContext): GameInstance => {
     if (x.hp <= 0) wreck(x);
   }
 
-  function explode(c: Car): void {
-    sparks(c.x, c.y, c.z, high ? 26 : 12);
-    for (let k = 0; k < (high ? 16 : 8); k++) {
-      particles.emit({ x: c.x + (Math.random() - 0.5) * 1.6, y: c.y + 0.6, z: c.z + (Math.random() - 0.5) * 1.6, vx: (Math.random() - 0.5) * 7, vy: 2 + Math.random() * 4, vz: (Math.random() - 0.5) * 7, life: 0.5 + Math.random() * 0.4, size0: 1.2, size1: 3.4, color: k % 3 ? colFire : colHot, alpha: 0.85, drag: 2, gravity: -1 });
-      particles.emit({ x: c.x, y: c.y + 0.8, z: c.z, vx: (Math.random() - 0.5) * 3, vy: 1.5 + Math.random() * 2, vz: (Math.random() - 0.5) * 3, life: 1.1 + Math.random() * 0.8, size0: 1.0, size1: 2.8, color: colDark, alpha: 0.32, drag: 1.4, gravity: -0.5 });
+  const colFireball = new THREE.Color(1.9, 0.55, 0.06);
+  const colFireCore = new THREE.Color(2.4, 1.5, 0.5);
+  const colMetal = new THREE.Color('#2a2a30');
+  /** A wreck going up: a fireball, a black column of smoke, a shower of sparks and bits of the car flying (no gore, just scrap). */
+  function explode(c: Car, paint?: string): void {
+    sparks(c.x, c.y, c.z, high ? 40 : 18);
+    // the fireball: big additive puffs, a white-hot core, rising
+    for (let k = 0; k < (high ? 9 : 6); k++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * 1.2;
+      glow.emit({ x: c.x + Math.cos(a) * r, y: c.y + 0.7 + Math.random() * 0.8, z: c.z + Math.sin(a) * r, vx: Math.cos(a) * (1 + Math.random() * 4), vy: 1.5 + Math.random() * 3.5, vz: Math.sin(a) * (1 + Math.random() * 4), life: 0.35 + Math.random() * 0.45, size0: 1.8, size1: 4.5 + Math.random() * 2.5, color: colFireball, alpha: 0.8, drag: 2.4, gravity: -1.5 });
+    }
+    glow.emit({ x: c.x, y: c.y + 1.0, z: c.z, vy: 1, life: 0.25, size0: 2.2, size1: 5, color: colFireCore, alpha: 0.9, drag: 3 });
+    // the smoke column
+    for (let k = 0; k < (high ? 12 : 6); k++) {
+      particles.emit({ x: c.x + (Math.random() - 0.5) * 1.5, y: c.y + 1.2, z: c.z + (Math.random() - 0.5) * 1.5, vx: (Math.random() - 0.5) * 3, vy: 3 + Math.random() * 4, vz: (Math.random() - 0.5) * 3, life: 1.8 + Math.random() * 1.4, size0: 1.6, size1: 6, color: colDark, alpha: 0.5, drag: 1.1, gravity: -0.6 });
+    }
+    // scrap: panels in the car's colour, dark metal and a tyre or two
+    colDebris.set(paint ?? '#c0392b');
+    for (let k = 0; k < (high ? 14 : 6); k++) {
+      const big = k % 5 === 4;
+      const sz = big ? 0.5 : 0.18 + Math.random() * 0.3;
+      if (big) colDebris.copy(colMetal);
+      else colDebris.set(k % 3 === 2 ? '#26262c' : (paint ?? '#c0392b'));
+      debris.emit(c.x, c.y + 0.9, c.z, (Math.random() - 0.5) * 16, 5 + Math.random() * 8, (Math.random() - 0.5) * 16, big ? sz : sz * 1.8, big ? sz : sz * 0.4, big ? sz * 0.5 : sz, colDebris, 6);
     }
   }
 
@@ -1959,7 +2085,7 @@ const rally = (ctx: GameContext): GameInstance => {
     c.vz *= 0.7;
     c.ghost = WRECK_SECONDS + 0.4;
     x.model.setDamage(100);
-    explode(c);
+    explode(c, x.color);
     const by = ledger.credit(x.id, timeU.value);
     const attacker = by ? entrants.find((e) => e.id === by) ?? null : null;
     dbg.wrecks++;
@@ -2314,6 +2440,12 @@ const rally = (ctx: GameContext): GameInstance => {
     for (const e of entrants) {
       const c = e.car;
       const isMe = e === me;
+      // grime builds up over the race, faster off the tarmac and when it is wet
+      if (phase === 'race' && c.speed > 3) {
+        const rough = c.surface !== Ground_.Asphalt ? 3.5 : 1;
+        e.dirt = Math.min(1, e.dirt + dt * 0.0045 * rough * (rain ? 1.8 : 1));
+        e.model.setWear(e.dirt, wearOf(e));
+      }
       if (c.wallHit > 1.5) {
         const hay = c.wallKind === Fence.Bales;
         if (c.feel.two && !hay) knock(e, c.wallHit, 8.5);
@@ -2357,11 +2489,17 @@ const rally = (ctx: GameContext): GameInstance => {
         }
       }
       c.landed = 0;
-      // a battered car smokes from the bonnet
-      if (e.damage > 60 && Math.random() < (high ? 0.35 : 0.15) * ((e.damage - 60) / 40 + 0.3)) {
+      // a battered car smokes from the bonnet, and a nearly dead one burns a little
+      const worn = wearOf(e);
+      if (worn > 50 && e.wreckT <= 0) {
         const sinH = Math.sin(c.heading);
         const cosH = Math.cos(c.heading);
-        particles.emit({ x: c.x + sinH * 1.6, y: c.y + 1.1, z: c.z + cosH * 1.6, vx: c.vx * 0.3, vy: 1.2, vz: c.vz * 0.3, life: 1.6, size0: 0.6, size1: 2.6, color: colDark, alpha: 0.45, drag: 1.5, gravity: -0.4 });
+        const k = (worn - 50) / 50;
+        if (Math.random() < (high ? 0.4 : 0.2) * (k + 0.35)) {
+          particles.emit({ x: c.x + sinH * 1.6, y: c.y + 1.1, z: c.z + cosH * 1.6, vx: c.vx * 0.3, vy: 1.4, vz: c.vz * 0.3, life: 1.5, size0: 0.5, size1: 2.3, color: k > 0.5 ? colDark : colSmoke, alpha: 0.18 + 0.3 * k, drag: 1.5, gravity: -0.4 });
+        }
+        if (worn > 80 && Math.random() < 0.3) glow.emit({ x: c.x + sinH * 1.5 + (Math.random() - 0.5) * 0.5, y: c.y + 0.95, z: c.z + cosH * 1.5 + (Math.random() - 0.5) * 0.5, vx: c.vx * 0.4, vy: 1.6, vz: c.vz * 0.4, life: 0.3, size0: 0.45, size1: 0.12, color: colFireball, alpha: 0.7, drag: 2 });
+        if (worn > 65 && Math.random() < 0.08) sparks(c.x - sinH * 0.6, c.y + 0.1, c.z - cosH * 0.6, 3);
       }
       // backfire on a quick upshift at high revs
       if (c.shifted > 0 && isMe && c.throttleIn > 0.8) {
@@ -2431,6 +2569,8 @@ const rally = (ctx: GameContext): GameInstance => {
     // ---- effects ----
     entrants.forEach((e, i) => carEffects(e.car, i, e === me, dt, e.model.wheelPos));
     particles.update(dt);
+    glow.update(dt);
+    debris.update(dt, ground.height);
     gasFx.update(dt);
     skids.flush();
     confetti.update(dt, timeU.value);
@@ -2448,6 +2588,16 @@ const rally = (ctx: GameContext): GameInstance => {
       hud.setCoins(Math.round(coinKr), true);
     }
     scenery.update(timeU.value, tmpV.set(mc.x, mc.y, mc.z), phase === 'finish' || phase === 'over' ? 1 : phase === 'count' || (phase === 'race' && phaseT < 3) ? 0.8 : 0);
+    {
+      attitude.update(timeU.value, tmpV.set(mc.x, mc.y, mc.z));
+      // burning barrels and flares smoke (only near the player; never in front of the chase camera)
+      for (const sm of attitude.smokers) {
+        if ((sm.x - mc.x) ** 2 + (sm.z - mc.z) ** 2 > 75 * 75) continue;
+        if (Math.random() > (sm.kind === 0 ? 0.16 : 0.1) * (high ? 1 : 0.6) * dt * 60) continue;
+        if (sm.kind === 0) particles.emit({ x: sm.x, y: sm.y, z: sm.z, vx: 0.4 + Math.random() * 0.6, vy: 2.2 + Math.random(), vz: (Math.random() - 0.5) * 0.5, life: 2.6, size0: 0.7, size1: 4.5, color: colDark, alpha: 0.4, drag: 0.5, gravity: -0.3 });
+        else particles.emit({ x: sm.x, y: sm.y, z: sm.z, vx: 0.3 + Math.random() * 0.4, vy: 1.4, vz: (Math.random() - 0.5) * 0.4, life: 2.4, size0: 0.4, size1: 3, color: colFlareSmoke, alpha: 0.32, drag: 0.6, gravity: -0.2 });
+      }
+    }
     if (phase === 'finish' && phaseT < 3.2) {
       const k = Math.floor(phaseT / 0.8);
       if (k !== Math.floor((phaseT - dt) / 0.8)) {
@@ -2653,6 +2803,7 @@ const rally = (ctx: GameContext): GameInstance => {
     }
   }
 
+  let dbgCam: number[] | null = null;
   function placeCamera(dt: number): void {
     const me = player();
     const c = me.car;
@@ -2709,6 +2860,11 @@ const rally = (ctx: GameContext): GameInstance => {
     }
     camera.up.copy(up);
     camera.lookAt(camLook);
+    if (DEBUG && dbgCam) {
+      // test hook: a fixed camera for screenshots of the scenery
+      camera.position.set(dbgCam[0]!, dbgCam[1]!, dbgCam[2]!);
+      camera.lookAt(dbgCam[3]!, dbgCam[4]!, dbgCam[5]!);
+    }
     camera.near = camMode === 1 && phase !== 'finish' && phase !== 'over' ? 0.1 : 0.3;
     if (camera.fov !== camFov || dt === 0) {
       camera.fov = camFov;
@@ -2743,6 +2899,14 @@ const rally = (ctx: GameContext): GameInstance => {
       fastT = 0;
       renderer.setPixelRatio(Math.max(0.6, ctx.dpr * resScale));
       renderer.setSize(W, H, false);
+      syncPost();
+      // the bloom is the first thing a struggling machine gives up
+      post?.setBloom(resScale > 0.8);
+      // and on 'low' the whole pass: below this the plain CSS vignette stands in and the picture is drawn straight to the screen
+      if (post && !high) {
+        postOn = resScale > 0.62;
+        if (vignette) vignette.style.display = postOn ? 'none' : 'block';
+      }
     }
   }
   /** Small health bars over the rivals' heads (Blodbad): projected to the screen each frame. */
@@ -2769,9 +2933,12 @@ const rally = (ctx: GameContext): GameInstance => {
     particles.setScale(H * ctx.dpr, camera.fov);
     gasFx.setScale(H * ctx.dpr, camera.fov);
     gasFx.setViewer(0);
+    glow.setScale(H * ctx.dpr, camera.fov);
     {
       const pc = player().car;
-      particles.setViewer(camMode === 1 || phase === 'intro' ? 0 : Math.hypot(camera.position.x - pc.x, camera.position.y - pc.y, camera.position.z - pc.z));
+      const dView = camMode === 1 || phase === 'intro' ? 0 : Math.hypot(camera.position.x - pc.x, camera.position.y - pc.y, camera.position.z - pc.z);
+      particles.setViewer(dView);
+      glow.setViewer(dView);
     }
     weather?.update(timeU.value, camera.position);
     // the minimap and speedometer
@@ -2786,7 +2953,9 @@ const rally = (ctx: GameContext): GameInstance => {
       });
       hud.drawMap(runners().map(toRacer), timeU.value);
     }
-    renderer.render(scene, camera);
+    renderer.info.reset();
+    if (post && postOn) post.render(scene, camera, timeU.value);
+    else renderer.render(scene, camera);
     if (carnage && phase !== 'intro') projectBars();
     if (DEBUG) {
       const me = player();
@@ -2798,6 +2967,7 @@ const rally = (ctx: GameContext): GameInstance => {
         laps: me.lapsDone,
         u: me.u,
         x: me.car.x,
+        y: me.car.y,
         z: me.car.z,
         speed: me.car.speed,
         gear: me.car.reverse ? -1 : me.car.gear,
@@ -2870,6 +3040,8 @@ const rally = (ctx: GameContext): GameInstance => {
         }
       });
       for (const l of headlights) l.dispose();
+      post?.dispose();
+      vignette?.remove();
       renderer.dispose();
       renderer.forceContextLoss();
       canvas.remove();
