@@ -4,7 +4,7 @@ import { type RunState } from '../run/state.ts';
 import { RARITY_NAMES, trinketById, type Owned, type TrinketDef } from '../run/trinkets.ts';
 import { btn, el } from './dom.ts';
 
-export const ACT_NAMES = ['Landsbygden', 'Vildmarken', 'Galna stan'] as const;
+export const ACT_NAMES = ['Bondlandet', 'Vildmarken', 'Galna stan'] as const;
 
 export function hearts(h: number, max: number): HTMLElement {
   const box = el('span', 'rg-hearts');
@@ -52,7 +52,7 @@ export function trinketCard(def: TrinketDef, o: { n?: number; price?: number; on
   if (o.price !== undefined) foot.append(el('b', 'rg-price', `${o.price} kr`));
   if (o.note) foot.append(el('em', null, o.note));
   const kids = [el('span', 'rg-tem', def.emoji), el('span', 'rg-tname', def.name), el('span', 'rg-ttext', def.text), foot];
-  if (o.n && o.n > 0) kids.push(el('span', 'rg-own', `Du har ×${o.n}`));
+  if (o.n && o.n > 0) kids.push(el('span', 'rg-own', `Du äger ×${o.n}`));
   if (o.tag) kids.push(el('span', 'rg-tag', o.tag));
   const cls = `rg-tcard r-${def.rarity}`;
   if (!o.onClick) return el('div', cls, ...kids);

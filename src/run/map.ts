@@ -8,7 +8,7 @@ export const NODE_TYPES = ['race', 'challenge', 'elite', 'shop', 'workshop', 'ev
 export type NodeType = (typeof NODE_TYPES)[number];
 
 export const NODE_EMOJI: Record<NodeType, string> = { race: '🏁', challenge: '⏱️', elite: '💀', shop: '🛒', workshop: '🔧', event: '❓', boss: '👑' };
-export const NODE_NAMES: Record<NodeType, string> = { race: 'Lopp', challenge: 'Utmaning', elite: 'Elitlopp', shop: 'Mackens kiosk', workshop: 'Verkstad', event: 'Händelse', boss: 'Bossen' };
+export const NODE_NAMES: Record<NodeType, string> = { race: 'Lopp', challenge: 'Utmaning', elite: 'Dödslopp', shop: 'Mackens kiosk', workshop: 'Skruvhörnan', event: 'Helt random', boss: 'Bossen' };
 
 export const ACTS = 3;
 /** Rows before the boss row. */

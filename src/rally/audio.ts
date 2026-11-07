@@ -370,6 +370,103 @@ export class RallyAudio {
     noiseShot(this.a, this.out, 0.05, { freq: 1800, q: 1.2, vol: 0.08 });
   }
 
+  /**
+   * A fart. A buzzing sawtooth whose pitch sags and wobbles, chopped by a fast square flutter (the "brrrrt"),
+   * squeezed through a low-pass that closes, with a breath of low noise under it and a little squeak at the end.
+   * `size` stretches it: 1 is a quick toot, 2 a long rumbling one.
+   */
+  fart(size = 1): void {
+    const a = this.a;
+    const out = this.out;
+    if (!a || !out) return;
+    const t = a.currentTime;
+    const dur = Math.min(1.6, (0.38 + Math.random() * 0.25) * (0.8 + 0.6 * size));
+    const f0 = 88 + Math.random() * 40;
+    const osc = a.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(f0, t);
+    osc.frequency.linearRampToValueAtTime(f0 * 0.6, t + dur * 0.72);
+    osc.frequency.exponentialRampToValueAtTime(f0 * (1.5 + Math.random() * 0.5), t + dur);
+    // the pitch wobble
+    const wob = a.createOscillator();
+    wob.frequency.value = 11 + Math.random() * 9;
+    const wobG = a.createGain();
+    wobG.gain.value = 13;
+    wob.connect(wobG).connect(osc.frequency);
+    // the flutter: gain = 0.45 + 0.55 · square(20..38 Hz), so the sound stutters instead of humming
+    const flut = a.createGain();
+    flut.gain.value = 0.45;
+    const fl = a.createOscillator();
+    fl.type = 'square';
+    fl.frequency.setValueAtTime(38, t);
+    fl.frequency.linearRampToValueAtTime(19, t + dur);
+    const flG = a.createGain();
+    flG.gain.value = 0.55;
+    fl.connect(flG).connect(flut.gain);
+    const lp = a.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 4;
+    lp.frequency.setValueAtTime(900, t);
+    lp.frequency.exponentialRampToValueAtTime(260, t + dur);
+    const env = a.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(0.34, t + 0.03);
+    env.gain.setValueAtTime(0.3, t + dur * 0.75);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(flut).connect(lp).connect(env).connect(out);
+    for (const n of [osc, wob, fl]) {
+      n.start(t);
+      n.stop(t + dur + 0.05);
+    }
+    noiseShot(a, out, dur * 0.9, { freq: 210, q: 1.1, vol: 0.12 });
+    noiseShot(a, out, 0.06, { freq: 1500, q: 1.5, vol: 0.05, at: dur * 0.85 });
+  }
+
+  /** A burp: a low voiced "uuuuurp", two vowel-ish band-passes sliding while the throat flutters. */
+  burp(): void {
+    const a = this.a;
+    const out = this.out;
+    if (!a || !out) return;
+    const t = a.currentTime;
+    const dur = 0.62;
+    const osc = a.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(74, t);
+    osc.frequency.linearRampToValueAtTime(58, t + dur * 0.55);
+    osc.frequency.exponentialRampToValueAtTime(40, t + dur);
+    const flut = a.createGain();
+    flut.gain.value = 0.55;
+    const fl = a.createOscillator();
+    fl.type = 'sine';
+    fl.frequency.setValueAtTime(16, t);
+    fl.frequency.linearRampToValueAtTime(30, t + dur);
+    const flG = a.createGain();
+    flG.gain.value = 0.45;
+    fl.connect(flG).connect(flut.gain);
+    const env = a.createGain();
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(0.5, t + 0.06);
+    env.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(flut);
+    // two formants that glide from "uh" to "orp"
+    for (const [f0, f1, q, v] of [[420, 700, 4, 1], [900, 520, 5, 0.6]] as const) {
+      const bp = a.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.Q.value = q;
+      bp.frequency.setValueAtTime(f0, t);
+      bp.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      const g = a.createGain();
+      g.gain.value = v;
+      flut.connect(bp).connect(g).connect(env);
+    }
+    env.connect(out);
+    for (const n of [osc, fl]) {
+      n.start(t);
+      n.stop(t + dur + 0.05);
+    }
+    noiseShot(a, out, 0.12, { freq: 500, q: 0.9, vol: 0.08, at: dur * 0.8 });
+  }
+
   /** The horn, one for each vehicle: a beep, a bike's toot, the tractor's moo-horn, and the moped's high ring-ring. */
   horn(body: CarBody | undefined): void {
     const a = this.a;

@@ -7,14 +7,14 @@ import { clamp, fmtTime } from './util.ts';
 
 const CSS = `
 .rl-hud { position: absolute; inset: 0; pointer-events: none; color: #fff; z-index: 1; --s: 1;
-  font-family: 'Nunito', 'Trebuchet MS', system-ui, sans-serif; }
+  font-family: var(--body, system-ui), system-ui, sans-serif; }
 .rl-hud * { box-sizing: border-box; }
 .rl-panel { background: rgba(16, 20, 34, 0.5); border-radius: calc(14px * var(--s)); padding: calc(6px * var(--s)) calc(12px * var(--s));
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22); }
 .rl-tl { position: absolute; left: max(calc(12px * var(--s)), env(safe-area-inset-left)); top: max(calc(10px * var(--s)), env(safe-area-inset-top));
   display: flex; flex-direction: column; gap: calc(6px * var(--s)); align-items: flex-start; }
 .rl-pos { display: flex; align-items: baseline; gap: calc(4px * var(--s)); font-weight: 900; line-height: 1; }
-.rl-pos b { font-size: calc(52px * var(--s)); text-shadow: 0 3px 0 rgba(0,0,0,0.35); }
+.rl-pos b { font-family: var(--display, Impact, system-ui); font-weight: 400; font-style: italic; font-size: calc(52px * var(--s)); text-shadow: 0 3px 0 rgba(0,0,0,0.35); }
 .rl-pos i { font-style: normal; font-size: calc(22px * var(--s)); }
 .rl-pos small { font-size: calc(16px * var(--s)); opacity: 0.85; margin-left: calc(4px * var(--s)); font-weight: 700; }
 .rl-pos.first b { color: #ffd23f; }
@@ -58,9 +58,11 @@ const CSS = `
   animation: rl-blink 0.8s steps(2) infinite; }
 .rl-wrong.show { display: block; }
 @keyframes rl-blink { 50% { opacity: 0.55; } }
-.rl-toast { position: absolute; left: 50%; top: 47%; transform: translateX(-50%); padding: calc(6px * var(--s)) calc(16px * var(--s));
-  border-radius: 999px; background: rgba(16, 20, 34, 0.7); font-size: calc(17px * var(--s)); font-weight: 800; opacity: 0; transition: opacity 0.25s; }
-.rl-toast.show { opacity: 1; }
+.rl-top { position: relative; }
+.rl-feed { position: absolute; left: calc(100% + 8px * var(--s)); top: calc(2px * var(--s)); display: flex; flex-direction: column; gap: calc(4px * var(--s)); align-items: flex-start; z-index: 3; pointer-events: none; width: max-content; max-width: calc(240px * var(--s)); }
+.rl-line { padding: calc(3px * var(--s)) calc(10px * var(--s)); border-radius: calc(10px * var(--s)); background: rgba(16, 20, 34, 0.55); font-size: calc(13px * var(--s)); font-weight: 800; line-height: 1.25; animation: rl-line 3.2s ease-out forwards; }
+.rl-line.taunt { border-left: calc(3px * var(--s)) solid #ff3d7f; font-style: italic; }
+@keyframes rl-line { 0% { opacity: 0; transform: translateX(-8px); } 8% { opacity: 1; transform: none; } 80% { opacity: 0.9; } 100% { opacity: 0; } }
 .rl-veil { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 55%, rgba(0,0,0,0) 55%, rgba(20,8,0,0.35) 100%); }
 .rl-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
   background: linear-gradient(180deg, #f3c58e 0%, #e9a56b 40%, #6f9a4a 41%, #4f7d36 100%); font-size: calc(26px * var(--s)); font-weight: 900;
@@ -104,19 +106,18 @@ const CSS = `
 .rl-result td.r { text-align: right; }
 .rl-btns { position: absolute; right: max(calc(12px * var(--s)), env(safe-area-inset-right)); top: calc(max(calc(62px * var(--s)), 54px) + calc(166px * var(--s))); display: flex; flex-direction: column; align-items: flex-end; gap: calc(8px * var(--s)); }
 .rl-btn { pointer-events: auto; border: 2px solid rgba(255,255,255,0.5); background: rgba(16, 20, 34, 0.6); color: #fff; border-radius: 999px;
-  font: 900 calc(16px * var(--s)) 'Nunito', system-ui, sans-serif; padding: calc(6px * var(--s)) calc(12px * var(--s)); display: none; cursor: pointer; }
+  font: 800 calc(16px * var(--s)) var(--body, system-ui), system-ui, sans-serif; padding: calc(6px * var(--s)) calc(12px * var(--s)); display: none; cursor: pointer; }
 .rl-btn.show { display: block; }
 .rl-trinkets { position: absolute; left: 50%; top: calc(88px * var(--s)); transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center;
   gap: calc(4px * var(--s)); max-width: 46%; }
 .rl-tr { position: relative; font-size: calc(24px * var(--s)); line-height: 1; padding: calc(3px * var(--s)) calc(5px * var(--s)); border-radius: calc(10px * var(--s));
   background: rgba(16, 20, 34, 0.5); }
 .rl-tr b { position: absolute; right: -2px; bottom: -3px; font-size: calc(11px * var(--s)); background: #ffd23f; color: #2a1b00; border-radius: 999px; padding: 0 calc(4px * var(--s)); }
-.rl-tr.pulse { animation: rl-tr 0.7s ease-out; }
-@keyframes rl-tr { 0% { transform: scale(1); } 20% { transform: scale(1.9) rotate(-8deg); background: #ffd23f; } 100% { transform: scale(1); } }
-.rl-tsay { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); padding: calc(6px * var(--s)) calc(16px * var(--s)); border-radius: 999px;
-  background: rgba(255, 210, 63, 0.92); color: #2a1b00; font-size: calc(21px * var(--s)); font-weight: 900; white-space: nowrap; opacity: 0; transition: opacity 0.2s; }
-.rl-tsay.show { opacity: 1; animation: rl-pop2 0.4s cubic-bezier(0.2, 1.6, 0.4, 1); }
-@keyframes rl-pop2 { from { transform: translateX(-50%) scale(0.5); } to { transform: translateX(-50%) scale(1); } }
+.rl-tr.pulse { animation: rl-tr 0.8s ease-out; }
+@keyframes rl-tr { 0% { transform: scale(1); } 20% { transform: scale(1.4) rotate(-6deg); background: #ffd23f; box-shadow: 0 0 calc(14px * var(--s)) #ffd23f; } 100% { transform: scale(1); } }
+.rl-trl { position: absolute; left: 50%; top: calc(100% + 3px * var(--s)); transform: translateX(-50%); white-space: nowrap; font-size: calc(11px * var(--s)); font-weight: 800; padding: 0 calc(6px * var(--s)); border-radius: 999px; background: rgba(16, 20, 34, 0.45); opacity: 0; pointer-events: none; z-index: 2; }
+.rl-trl.show { animation: rl-trl 1.3s ease-out forwards; }
+@keyframes rl-trl { 0% { opacity: 0; } 15% { opacity: 0.85; } 70% { opacity: 0.7; } 100% { opacity: 0; } }
 .rl-disco { position: absolute; inset: 0; opacity: 0; mix-blend-mode: screen; transition: opacity 0.5s;
   background: conic-gradient(from 0deg at 50% -10%, rgba(255, 0, 150, 0.4), rgba(0, 200, 255, 0.4), rgba(255, 230, 0, 0.4), rgba(120, 0, 255, 0.4), rgba(255, 0, 150, 0.4));
   animation: rl-disco 2.4s linear infinite; }
@@ -172,11 +173,10 @@ export class Hud {
   private lightsEl: HTMLElement;
   private lightEls: HTMLElement[] = [];
   private wrong: HTMLElement;
-  private toastEl: HTMLElement;
+  private feed: HTMLElement;
   private loading: HTMLElement | null;
   private loadBar: HTMLElement;
   private msgTimer: ReturnType<typeof setTimeout> | null = null;
-  private toastTimer: ReturnType<typeof setTimeout> | null = null;
   private scale = 1;
   private ro: ResizeObserver;
   private mapScale = 1;
@@ -193,8 +193,6 @@ export class Hud {
   private tagsEl: HTMLElement;
   private trinketRow: HTMLElement;
   private trinketEls = new Map<string, HTMLElement>();
-  private tsay: HTMLElement;
-  private tsayTimer: ReturnType<typeof setTimeout> | null = null;
   private discoEl: HTMLElement;
   private coinChip: HTMLElement;
   private tagEls = new Map<string, HTMLElement>();
@@ -221,7 +219,8 @@ export class Hud {
     this.root = el('div', `rl-hud${touch ? ' touch' : ''}`, parent);
     el('div', 'rl-veil', this.root);
     const tl = el('div', 'rl-tl', this.root);
-    const top = el('div', 'rl-panel', tl);
+    const top = el('div', 'rl-panel rl-top', tl);
+    this.feed = el('div', 'rl-feed', top);
     this.pos = el('div', 'rl-pos', top);
     this.lap = el('div', 'rl-lap', top);
     this.times = el('div', 'rl-panel rl-times', tl);
@@ -231,13 +230,11 @@ export class Hud {
     this.lightsEl = el('div', 'rl-lights', this.root);
     for (let k = 0; k < 4; k++) this.lightEls.push(el('div', 'rl-light', this.lightsEl));
     this.wrong = el('div', 'rl-wrong', this.root);
-    this.wrong.textContent = '↺ Fel håll! Vänd!';
+    this.wrong.textContent = '↺ Fel håll, geniet! Vänd!';
     this.msgEl = el('div', 'rl-msg', this.root);
     this.sub = el('div', 'rl-sub', this.root);
-    this.toastEl = el('div', 'rl-toast', this.root);
     this.discoEl = el('div', 'rl-disco', this.root);
     this.trinketRow = el('div', 'rl-trinkets', this.root);
-    this.tsay = el('div', 'rl-tsay', this.root);
     this.speedEl = el('div', 'rl-speed', this.root);
     this.tagsEl = el('div', 'rl-tags', this.root);
     this.br = el('div', 'rl-br', this.root);
@@ -259,7 +256,7 @@ export class Hud {
     this.camBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.loading = el('div', 'rl-loading', this.root);
     el('div', 'car', this.loading).textContent = '🏎️';
-    el('div', '', this.loading).textContent = 'Bygger banan…';
+    el('div', '', this.loading).textContent = 'Slänger ihop en bana…';
     this.loadBar = el('i', '', el('div', 'bar', this.loading));
     this.hideRace(true);
     this.ro = new ResizeObserver(() => this.fit());
@@ -347,6 +344,7 @@ export class Hud {
       e.textContent = it.emoji;
       e.title = it.name;
       if (it.n > 1) el('b', '', e).textContent = `×${it.n}`;
+      el('span', 'rl-trl', e);
       this.trinketEls.set(it.id, e);
     }
   }
@@ -359,13 +357,12 @@ export class Hud {
       void e.offsetWidth;
       e.classList.add('pulse');
     }
-    if (text === null) return;
-    if (this.tsayTimer) clearTimeout(this.tsayTimer);
-    this.tsay.textContent = `${e?.firstChild?.textContent ?? ''} ${text}`.trim();
-    this.tsay.classList.remove('show');
-    void this.tsay.offsetWidth;
-    this.tsay.classList.add('show');
-    this.tsayTimer = setTimeout(() => this.tsay.classList.remove('show'), 1500);
+    const l = e?.querySelector<HTMLElement>('.rl-trl');
+    if (text === null || !l) return;
+    l.textContent = text;
+    l.classList.remove('show');
+    void l.offsetWidth;
+    l.classList.add('show');
   }
 
   disco(on: boolean): void {
@@ -418,7 +415,7 @@ export class Hud {
     this.resultEl.classList.toggle('show', !!rows);
     if (!rows) return;
     const line = (r: ResultRow): string =>
-      `<tr class="${r.me ? 'me' : ''}"><td>${r.place > 0 ? r.place + '.' : '–'}</td><td>${escape(r.name)}</td><td class="r">${r.time !== null ? fmtTime(r.time / 1000) : 'Ej i mål'}</td><td class="r">${r.prize !== undefined ? `+${r.prize} kr` : ''}</td><td>${r.medal ? MEDAL[r.medal] : ''}</td></tr>`;
+      `<tr class="${r.me ? 'me' : ''}"><td>${r.place > 0 ? r.place + '.' : '–'}</td><td>${escape(r.name)}</td><td class="r">${r.time !== null ? fmtTime(r.time / 1000) : 'Ingen mål'}</td><td class="r">${r.prize !== undefined ? `+${r.prize} kr` : ''}</td><td>${r.medal ? MEDAL[r.medal] : ''}</td></tr>`;
     this.resultEl.innerHTML = `<h3>${escape(title)}</h3><table>${rows.map(line).join('')}</table>`;
   }
 
@@ -631,11 +628,17 @@ export class Hud {
     this.wrong.classList.toggle('show', on);
   }
 
-  toast(text: string): void {
-    if (this.toastTimer) clearTimeout(this.toastTimer);
-    this.toastEl.textContent = text;
-    this.toastEl.classList.add('show');
-    this.toastTimer = setTimeout(() => this.toastEl.classList.remove('show'), 1300);
+  /** A small line under the position box that fades by itself (never in the middle of the screen). */
+  toast(text: string, cls = ''): void {
+    const l = el('div', `rl-line ${cls}`.trim(), this.feed);
+    l.textContent = text;
+    while (this.feed.childElementCount > 2) this.feed.firstElementChild?.remove();
+    setTimeout(() => l.remove(), 3300);
+  }
+
+  /** A rival's trash talk, same place, a little louder. */
+  taunt(text: string): void {
+    this.toast(text, 'taunt');
   }
 
   private same(key: string, v: string | number): boolean {
@@ -652,8 +655,6 @@ export class Hud {
 
   destroy(): void {
     if (this.msgTimer) clearTimeout(this.msgTimer);
-    if (this.toastTimer) clearTimeout(this.toastTimer);
-    if (this.tsayTimer) clearTimeout(this.tsayTimer);
     this.ro.disconnect();
     this.root.remove();
     this.style.remove();

@@ -3,7 +3,7 @@
 //
 //  * `tune`   static numbers read when the race starts (bigger wheels, longer nitro, low gravity…)
 //  * `bus`    dynamic hooks the race calls as things happen (tick, boost, drift, hit, lap, pickup, finish)
-//  * `RaceApi` what a hook may do to the race (bounce the car, drop a banana, quack, fire the confetti cannon…)
+//  * `RaceApi` what a hook may do to the race (bounce the car, drop slime, fart, fire the confetti cannon…)
 //
 // New vehicles or trinkets in later phases only add data: a field here plus a line where the race reads it.
 
@@ -137,7 +137,11 @@ export interface FinishAdjust {
 export interface RaceApi {
   /** Pop the trinket's toast and pulse its icon (rate-limited). `text` replaces the default line. */
   say(id: string, text?: string): void;
-  quack(): void;
+  /** A fart (size 1 = a toot, 2 = a long one). Counts for the "pruttade" stat. */
+  fart(size?: number): void;
+  burp(): void;
+  /** A green cloud behind the car; cars close behind swerve (unless `push` is false). */
+  gas(strength: number, push?: boolean): void;
   boing(): void;
   party(): void;
   /** Hop the car: add vertical speed (m/s). Counts as a bounce. */
@@ -148,9 +152,9 @@ export interface RaceApi {
   boost(sec: number, strength?: number): void;
   /** Drive through other cars for a while. */
   ghost(sec: number): void;
-  /** Drop a banana peel behind the car. */
+  /** Drop a slimy puddle behind the car (internally still `banana`). */
   banana(): void;
-  /** Confetti cannon: shove the cars ahead aside. */
+  /** Hot-dog cannon: shove the cars ahead aside. */
   cannon(strength: number): void;
   /** The front-most computer car goes flat for a while. */
   squashLeader(sec: number): void;

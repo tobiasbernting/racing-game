@@ -2,8 +2,9 @@
 
 The 3D rally game from `lilla-garden` (`packages/arcade/src/games/rally`) becomes its own game here: a
 roguelite in the spirit of Tape to Tape. The run structure, trinkets that change the rules, and silly
-chaos are the point. It is for a kid who already loves the rally, so it stays in Swedish, stays
-forgiving, and gets *more* fun, not harder to get into. The rally stays in Lilla Gården too, untouched.
+chaos are the point. It is for an adult and his 10-year-old son playing together, so it stays in Swedish, stays
+forgiving, and gets *more* fun, not harder to get into. Tone: absurd, cheeky, gross-out funny (fart boosts, kebab
+magnets, sock gas), like Tape to Tape; never babyish. The rally stays in Lilla Gården too, untouched.
 
 ## Tech
 
@@ -32,7 +33,7 @@ path, as in Tape to Tape / Slay the Spire. Node types:
   jumps across the road; Isdrottningen makes the road icy).
 
 **Lives, not instant death**: the run has ❤️ hearts (start 3). Finishing in the bottom places or a DNF
-costs a heart; 0 hearts ends the run. Kid-friendly but with stakes.
+costs a heart; 0 hearts ends the run. Forgiving but with stakes.
 
 **Trinkets** (the heart of it, aim for 40+), each one a small, loud rule change, with stacking and
 synergies, rarity common/rare/legendary, emoji icon + a short Swedish line. Examples:
@@ -66,7 +67,7 @@ the same theme never plays exactly the same.
 paint/liveries. A run summary screen shows the trinket build and the funniest stat ("Studsade 47 gånger").
 
 **Polish**: big juicy feedback (screen shake, confetti, quack sounds), a seed shown for a run, pause,
-volume, and a "lugnt läge" (easy mode) toggle that gives 5 hearts and slower AI.
+volume, and a "Söndagsåkare" mode (easy mode, save key `calm`) toggle that gives 5 hearts and slower AI.
 
 ## Phases (each its own PR, merged when it builds, tests pass and the game runs)
 
@@ -80,6 +81,47 @@ volume, and a "lugnt läge" (easy mode) toggle that gives 5 hearts and slower AI
    themes, procedural variation, more trinkets (to 40+), bosses with gimmicks.
 4. **Devices and polish**: phone/tablet layouts checked in Playwright at phone, tablet and desktop
    sizes, performance on low quality, juice, balancing, run summary.
+
+5. **Rebrand**: the voice for an adult and a 10-year-old (Tape to Tape style): new names and lines for all trinkets,
+   twelve named rivals with trash talk and overtake taunts, meaner bosses, sharper events, a dark neon arcade look,
+   fart and burp sounds with a green gas cloud, trinket triggers shown by a pulsing icon instead of a centred pop-up.
+   Ids and save keys are unchanged.
+
+### Next: two directions, and a car that grows (agreed with the owner after the first full playtest)
+
+Playtest: a normal run was won comfortably, and the final race lapped the field. The player's car ends the
+run strong, which is right; the rivals and courses must keep up. Design direction:
+
+- **Ram vs Race.** Race nodes come in three kinds, shown on the map: 🏁 **Rally** (clean, technical racing),
+  ⚖️ **Blandat** (racing with shoving) and 💥 **Blodbad** (mayhem: health bars, takedowns, wrecked cars out for
+  a few seconds; the winner is decided by **points** for finishing position plus takedowns, so a rammer can
+  win from 3rd). The path you choose biases the rewards, which is how you steer your build.
+- **Rivals** are rammers, racers or in between, and they scale through the run: upgrades, trinkets of their
+  own, sharper driving, catch-up when far behind. Act 3 must be a fight even with a strong build.
+- **Upgrade paths**: two main trees, 🛡️ Ram (armour, mass, spikes, ram damage, shockwave) and 🏎️ Race
+  (engine, grip, drift, nitro, aero), plus side paths that fit either: 🦨 **Fuffens** (dirty tricks: oil,
+  mines, fart clouds, exploding fake coins), 🤸 **Stunt** (airtime, flips, two wheels and near misses fill
+  nitro; ramps and shortcuts on courses) and 🤑 **Girig** (interest, bounty on the leader, wreck insurance,
+  discounts). 🎲 **Kaos** is a flavour of legendary trinkets. Everything is tagged with its path; the summary
+  shows the build mix; some cross-path combos give bonuses.
+- **Vehicles**: 20 in total, 5 starters (rallybil, sandbuggy, pickup, moppe, traktor) and 15 unlocked by a
+  mix of wins and challenges. Each has stats, a passive, an active ability on its own button, a starting
+  trinket, and leans toward ram or race.
+- **Manual shifting** as an option (default automatic, per device): gear display, rev bar, shift light,
+  limiter, a small boost for a perfect shift; each vehicle has its own gearbox.
+- **Heat levels** after a win: undecided, revisit in phase 10.
+
+6. **Two directions + difficulty**: Rally/Blandat/Blodbad nodes and courses, health and takedowns, ramming
+   physics, Blodbad points, rival archetypes, rival scaling (upgrades, trinkets, driving, catch-up), harder
+   courses later in a run, a cap on runaway trinket stacks, a race-time based balance simulation.
+7. **Vehicles with abilities**: passives, active ability button, starting trinkets, ram/race lean, 5
+   starters, unlocks by wins and challenges, manual shifting.
+8. **Ten new vehicles**: e.g. EPA-traktor, glassbil, sopbil, snöskoter, gokart, golfbil, åkgräsklippare,
+   husbil, limousin, kundvagn med raketmotor.
+9. **The car grows**: pick 1 of 3 upgrades after races, the Ram/Race trees and the Fuffens/Stunt/Girig side
+   paths, visible mods on the car, combos, stunt ramps on courses.
+10. **Derby arena + balance**: last-car-standing arena for elites and bosses, playtest-driven balance, maybe
+    heat levels.
 
 Homelab (in parallel with phase 1): a `racing-game` role like Glantan's (private GHCR image,
 `ghcr-login`, Watchtower, Traefik `rally.moderskepp.lan`, LAN only, Uptime Kuma labels), its playbook,

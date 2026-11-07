@@ -7,7 +7,8 @@
 import * as THREE from 'three';
 import { CAR_BODIES, CAR_BODY_DEFS, NITRO_SECONDS, RACE_DNF_PRIZE, cleanRules, newCar, raceMedal, racePrize, type CarBody, type GarageCar } from '../shared/rally.ts';
 import { Loop } from '../arcade/kit.ts';
-import { CAR_BODY_NAMES, RIVAL_NAMES } from '../shared/names.ts';
+import { CAR_BODY_NAMES } from '../shared/names.ts';
+import { rivalCast } from '../shared/rivals.ts';
 import type { GameContext, GameInstance } from '../arcade/types.ts';
 import { Driver, steerTo } from './ai.ts';
 import { RallyAudio } from './audio.ts';
@@ -49,6 +50,8 @@ interface Entrant {
   /** 0..1 after a smaller knock: the rider wobbles. */
   wobble: number;
   name: string;
+  /** What this rival shouts when it passes the player. */
+  taunt: string;
   color: string;
   car: Car;
   model: CarModel;
@@ -91,12 +94,13 @@ interface Runner {
   me: boolean;
 }
 
+/** The skill of each grid slot; the names and faces come from the cast (shared/rivals.ts). */
 const ROSTER: { name: string; face: Face; skill: number; power: number; bias: number; wobble: number }[] = [
-  { name: RIVAL_NAMES[0], face: 'cow', skill: 0.93, power: 1.0, bias: 0.3, wobble: 0.4 },
-  { name: RIVAL_NAMES[1], face: 'horse', skill: 0.91, power: 0.98, bias: -0.6, wobble: 0.8 },
-  { name: RIVAL_NAMES[2], face: 'pig', skill: 0.88, power: 0.96, bias: 0.9, wobble: 1.0 },
-  { name: RIVAL_NAMES[3], face: 'rooster', skill: 0.86, power: 0.94, bias: -1.0, wobble: 1.2 },
-  { name: RIVAL_NAMES[4], face: 'sheep', skill: 0.83, power: 0.91, bias: 0.2, wobble: 0.9 },
+  { name: '', face: 'cow', skill: 0.93, power: 1.0, bias: 0.3, wobble: 0.4 },
+  { name: '', face: 'horse', skill: 0.91, power: 0.98, bias: -0.6, wobble: 0.8 },
+  { name: '', face: 'pig', skill: 0.88, power: 0.96, bias: 0.9, wobble: 1.0 },
+  { name: '', face: 'rooster', skill: 0.86, power: 0.94, bias: -1.0, wobble: 1.2 },
+  { name: '', face: 'sheep', skill: 0.83, power: 0.91, bias: 0.2, wobble: 0.9 },
 ];
 const PALETTE = ['#2f6fe0', '#f4c20d', '#2fa84f', '#8a4fd8', '#ff8a1f', '#e8412c', '#18b7c9', '#f06ba8', '#f2f2f2'];
 /** Difficulty: the computer cars' courage and how hard the rubber band pulls. */
@@ -226,6 +230,8 @@ const rally = (ctx: GameContext): GameInstance => {
   let water: Water;
   let scenery: Scenery;
   let particles: Particles;
+  /** The green gas clouds: never faded out in front of the chase camera, so the cloud behind your own car shows. */
+  let gasFx: Particles;
   let skids: Skids;
   let confetti: Confetti;
   let weather: Weather | null = null;
@@ -324,11 +330,13 @@ const rally = (ctx: GameContext): GameInstance => {
     disposers.push(() => shadowTex.dispose());
     buildCars();
     particles = new Particles(high ? 1600 : 600);
+    gasFx = new Particles(high ? 500 : 240, [1.5, 6]);
     skids = new Skids(high ? 3000 : 1200);
     confetti = new Confetti(high ? 420 : 200);
-    scene.add(particles.points, skids.mesh, confetti.mesh);
+    scene.add(particles.points, gasFx.points, skids.mesh, confetti.mesh);
     disposers.push(
       () => particles.dispose(),
+      () => gasFx.dispose(),
       () => skids.dispose(),
       () => confetti.dispose(),
     );
@@ -379,6 +387,7 @@ const rally = (ctx: GameContext): GameInstance => {
   /** The grid: the computer cars, and me at the back. */
   function buildCars(): void {
     const colors = pickColors(ctx.player.color, ROSTER.length);
+    const cast = rivalCast(opts?.seed ?? 20261030, ROSTER.length);
     const meId = 'me';
     const total = 1 + nAi;
     const mySlot = Math.min(4, nAi);
@@ -389,7 +398,8 @@ const rally = (ctx: GameContext): GameInstance => {
       const isMe = slot === mySlot;
       const k = isMe ? -1 : ai++;
       const boss = !isMe && k === 0 ? twist?.boss : undefined;
-      const r0 = isMe ? null : ROSTER[k]!;
+      const rv = isMe ? null : cast[k]!;
+      const r0 = isMe ? null : { ...ROSTER[k]!, name: rv!.name, face: rv!.face as Face };
       // a boss takes the first rival's place with its own name, face, body and colour
       const r = r0 && boss ? { ...r0, name: boss.name, face: boss.face, skill: boss.skill, power: boss.power, bias: 0 } : r0;
       const color = isMe ? (opts ? myCar.style.paint : ctx.player.color) : boss ? boss.color : colors[k] ?? PALETTE[k]!;
@@ -433,6 +443,7 @@ const rally = (ctx: GameContext): GameInstance => {
         tumbleDir: 1,
         wobble: 0,
         name: isMe ? ctx.player.name || 'Du' : r!.name,
+        taunt: boss ? '' : rv?.taunt ?? '',
         color,
         car,
         model,
@@ -497,6 +508,9 @@ const rally = (ctx: GameContext): GameInstance => {
   let thrPrev = false;
   let boosted = false;
   let place = 1;
+  const wasAhead = new Map<string, boolean>();
+  const tauntIds = new Map<string, number>();
+  let tauntAt = -99;
   let ended = false;
   let finishPlace = 0;
   let finishTime = 0;
@@ -516,7 +530,6 @@ const rally = (ctx: GameContext): GameInstance => {
   let hbPrev = false;
   let mudSaid = -9;
   let beatT = 0;
-  let sayAt = -9;
   const sayIds = new Map<string, number>();
   const drift = { on: false, t: 0, grace: 0, pts: 0, tier: 0 };
   let driftBoostT = 0;
@@ -545,6 +558,8 @@ const rally = (ctx: GameContext): GameInstance => {
   }
   const colMySmoke = new THREE.Color();
   const colGrass = new THREE.Color('#6f9a3f');
+  const colGas = new THREE.Color('#7ee81c');
+  const hotdogs = ['#c8402a', '#e9a23b', '#f4d27a', '#8a2f1c'].map((c) => new THREE.Color(c));
   const colDirt = new THREE.Color('#8a7350');
   const colMud = new THREE.Color('#5c4226');
   const colSkid = new THREE.Color('#16161a');
@@ -668,7 +683,7 @@ const rally = (ctx: GameContext): GameInstance => {
     poof(c.x, c.y, c.z);
     if (e === player()) {
       audio.poof();
-      hud.toast('Tillbaka på vägen!');
+      hud.toast('Tillbaka på vägen. Skärp dig.');
       drift.on = false;
     }
   }
@@ -765,7 +780,7 @@ const rally = (ctx: GameContext): GameInstance => {
         stats.boosts++;
         audio.boost();
         hud.toast('🔥 Nitro!');
-      } else hud.toast('Slut på nitro');
+      } else hud.toast('Nitron är slut');
     }
     nitroT = Math.max(0, nitroT - dt);
     driftBoostT = Math.max(0, driftBoostT - dt);
@@ -964,7 +979,7 @@ const rally = (ctx: GameContext): GameInstance => {
       if (e === meE) {
         audio.slip();
         setTimeout(() => !destroyed && audio.boing(), 380);
-        hud.toast(['Hoppsan, du ramlade!', 'Aj! Upp på hjulen igen!', 'Salto! 10 poäng!', 'Plums! Det var på låtsas!'][Math.floor(Math.random() * 4)]!);
+        hud.toast(['Pang! Du ramlade!', 'Aj! Upp med dig!', 'Salto! 10 poäng!', 'Det där syntes från månen!'][Math.floor(Math.random() * 4)]!);
         shake = Math.max(shake, 0.4);
       }
       sparkleAt(e.car.x, e.car.y + 0.5, e.car.z, 8, 0.8);
@@ -1100,18 +1115,64 @@ const rally = (ctx: GameContext): GameInstance => {
 
   const api: RaceApi = {
     say(id, text) {
-      // the icon always pulses; the pop-up line is rate-limited so a busy build does not flood the screen
+      // the icon always pulses; its small label under the icon is rate-limited per trinket
       const now = timeU.value;
-      const quiet = now - sayAt < 1.6 || now - (sayIds.get(id) ?? -9) < 4.5;
+      const quiet = now - (sayIds.get(id) ?? -9) < 4;
       hud.trinketSay(id, quiet || !text ? null : text);
-      if (!quiet && text) {
-        sayAt = now;
-        sayIds.set(id, now);
-      }
+      if (!quiet && text) sayIds.set(id, now);
     },
-    quack() {
-      audio.quack();
+    fart(size = 1) {
+      audio.fart(size);
       stats.quacks++;
+    },
+    burp() {
+      audio.burp();
+      stats.quacks++;
+    },
+    gas(strength, push = true) {
+      const me = player();
+      const c = me.car;
+      const sinH = Math.sin(c.heading);
+      const cosH = Math.cos(c.heading);
+      // a fat green cloud hanging behind the car
+      const n = Math.round(((high ? 26 : 14) + strength * 4) * (push ? 1 : 0.5));
+      // the cloud puffs out to both sides of the car (never right behind it, where it would hide the car from the chase camera)
+      for (let k = 0; k < n; k++) {
+        const high3 = k % 4 === 0;
+        const fwd = high3 ? -(2 + Math.random() * 3) : -1.5 + Math.random() * 3.5;
+        const side = (Math.random() < 0.5 ? -1 : 1) * (high3 ? Math.random() * 1.5 : 1.3 + Math.random() * 2);
+        gasFx.emit({
+          x: c.x + sinH * fwd + cosH * side,
+          y: c.y + (high3 ? 2.2 + Math.random() * 1.4 : 0.4 + Math.random() * 1.4),
+          z: c.z + cosH * fwd - sinH * side,
+          vx: cosH * side * 0.5 + (Math.random() - 0.5) * 1.5,
+          vy: 0.3 + Math.random() * 1.2,
+          vz: -sinH * side * 0.5 + (Math.random() - 0.5) * 1.5,
+          life: 2.2 + Math.random() * 1.2,
+          size0: 1.6,
+          size1: 4.6 + strength * 0.5,
+          color: colGas,
+          alpha: push ? 0.55 : 0.32,
+          drag: 1.6,
+          gravity: -0.2,
+        });
+      }
+      if (!push) return;
+      // whoever drives into the cloud swerves
+      for (const e of entrants) {
+        if (e === me) continue;
+        const dx = e.car.x - c.x;
+        const dz = e.car.z - c.z;
+        const fwd = dx * sinH + dz * cosH;
+        const lat = dx * cosH - dz * sinH;
+        if (fwd > 1 || fwd < -26 || Math.abs(lat) > 8) continue;
+        const sg = Math.abs(lat) < 0.3 ? (Math.random() < 0.5 ? 1 : -1) : Math.sign(lat);
+        e.car.yawRate += sg * (1.8 + 0.5 * strength);
+        e.car.vx += cosH * sg * (3 + strength);
+        e.car.vz -= sinH * sg * (3 + strength);
+        e.car.vx *= 0.93;
+        e.car.vz *= 0.93;
+      }
     },
     boing: () => audio.boing(),
     party() {
@@ -1151,7 +1212,7 @@ const rally = (ctx: GameContext): GameInstance => {
       const sinH = Math.sin(c.heading);
       const cosH = Math.cos(c.heading);
       audio.party();
-      confetti.burst(c.x + sinH * 2, c.y + 1.2, c.z + cosH * 2, high ? 110 : 55, 9);
+      confetti.burst(c.x + sinH * 2, c.y + 1.2, c.z + cosH * 2, high ? 110 : 55, 9, hotdogs);
       for (const e of entrants) {
         if (e === me) continue;
         const dx = e.car.x - c.x;
@@ -1175,7 +1236,8 @@ const rally = (ctx: GameContext): GameInstance => {
       stats.squashed++;
       poof(lead.car.x, lead.car.y, lead.car.z);
       audio.boing();
-      hud.toast(`🥞 ${lead.name} blev en pannkaka!`);
+      for (let k = 0; k < 8; k++) particles.emit({ x: lead.car.x, y: lead.car.y + 1, z: lead.car.z, vx: (Math.random() - 0.5) * 3, vy: 1 + Math.random() * 2, vz: (Math.random() - 0.5) * 3, life: 1.8, size0: 1.2, size1: 4, color: colGas, alpha: 0.55, drag: 1.5, gravity: -0.2 });
+      hud.toast(`🧦 ${lead.name} svimmade av sockluften!`);
     },
     slowBehind(radius, k, dt) {
       const me = player();
@@ -1192,7 +1254,7 @@ const rally = (ctx: GameContext): GameInstance => {
         const f = Math.exp(-k * dt * 0.6);
         e.car.vx *= f;
         e.car.vz *= f;
-        if (Math.random() < 0.15) particles.emit({ x: e.car.x, y: e.car.y + 1.2, z: e.car.z, vy: 1.2, life: 0.9, size0: 0.8, size1: 2.4, color: colGrass, alpha: 0.5, drag: 1.5, gravity: -0.3 });
+        if (Math.random() < 0.15) particles.emit({ x: e.car.x, y: e.car.y + 1.2, z: e.car.z, vy: 1.2, life: 0.9, size0: 0.8, size1: 2.4, color: colGas, alpha: 0.5, drag: 1.5, gravity: -0.3 });
       }
     },
     shove(radius, strength) {
@@ -1239,7 +1301,7 @@ const rally = (ctx: GameContext): GameInstance => {
     if (phase === 'intro') {
       if (phaseT < dt * 1.5) {
         hud.msg('Gör dig redo!', 1700, 'small');
-        hud.subtitle(ctx.touch ? 'Bilen gasar själv – du styr med ◀ ▶' : 'Gasa när lampan blir grön!');
+        hud.subtitle(ctx.touch ? 'Bilen gasar själv. Du styr med ◀ ▶' : 'Gasa när lampan blir grön!');
       }
       if (phaseT > 2.6) {
         phase = 'count';
@@ -1402,20 +1464,39 @@ const rally = (ctx: GameContext): GameInstance => {
     // positions
     const order = ranking();
     place = order.findIndex((r) => r.me) + 1;
+    if (phase === 'race' && !me.finished && raceT > 4) {
+      // a rival that has just got past the player shouts something (not too often)
+      for (const e of entrants) {
+        if (e === me || !e.taunt) continue;
+        const ahead = e.u > me.u + 2;
+        const was = wasAhead.get(e.id);
+        if (was === undefined || (ahead === was)) {
+          if (was === undefined) wasAhead.set(e.id, ahead);
+          continue;
+        }
+        if (!ahead && e.u > me.u - 2) continue;
+        wasAhead.set(e.id, ahead);
+        if (ahead && raceT - tauntAt > 14 && raceT - (tauntIds.get(e.id) ?? -99) > 45) {
+          tauntAt = raceT;
+          tauntIds.set(e.id, raceT);
+          hud.taunt(`${e.name}: ”${e.taunt}”`);
+        }
+      }
+    }
     if (phase === 'race' && entrants.every((e) => e === me || e.finished) && !me.finished && entrants.length > 1) {
       if (allDoneT < 0) allDoneT = 0;
       allDoneT += dt;
       const left = Math.ceil(30 - allDoneT);
       if (left !== slowNote) {
         slowNote = left;
-        hud.subtitle(`Alla andra är i mål – ${left} s kvar!`);
+        hud.subtitle(`Alla andra är i mål – ${left} s kvar. Klantskalle!`);
       }
       if (allDoneT > 30) {
         hud.subtitle('');
         phase = 'finish';
         phaseT = 0;
         finishPlace = 0;
-        hud.msg('Bra kämpat!', 2500, 'small gold');
+        hud.msg('Du hann inte. Pinsamt.', 2500, 'small gold');
         audio.fanfare(false);
       }
     }
@@ -1533,6 +1614,7 @@ const rally = (ctx: GameContext): GameInstance => {
     // ---- effects ----
     entrants.forEach((e, i) => carEffects(e.car, i, e === me, dt, e.model.wheelPos));
     particles.update(dt);
+    gasFx.update(dt);
     skids.flush();
     confetti.update(dt, timeU.value);
     road.update(timeU.value);
@@ -1593,7 +1675,7 @@ const rally = (ctx: GameContext): GameInstance => {
     bestLap = Math.min(bestLap, lt);
     if (me.lapsDone >= LAPS) return;
     if (me.lapsDone === LAPS - 1) {
-      hud.msg('Sista varvet!', 1800, 'small gold');
+      hud.msg('SISTA VARVET!', 1800, 'small gold');
       audio.lap(true);
     } else {
       hud.msg(`Varv ${me.lapsDone + 1}`, 1300, 'small');
@@ -1615,7 +1697,7 @@ const rally = (ctx: GameContext): GameInstance => {
       finishAdj = mods.bus.finish(info);
     }
     hud.msg('MÅL!', 1800, 'gold');
-    hud.subtitle(finishPlace === 1 ? `🏆 Du vann! ${fmtTime(finishTime)}` : `Du kom ${ordinal(finishPlace)}! ${fmtTime(finishTime)}`);
+    hud.subtitle(finishPlace === 1 ? `🏆 Du kukade dem! ${fmtTime(finishTime)}` : `Du kom ${ordinal(finishPlace)}. ${fmtTime(finishTime)}`);
     hud.wrongWay(false);
     audio.fanfare(finishPlace === 1);
     audio.cheer(1);
@@ -1828,6 +1910,8 @@ const rally = (ctx: GameContext): GameInstance => {
     adapt();
     sky.update(timeU.value, camera, tmpV.set(player().car.x, player().car.y, player().car.z));
     particles.setScale(H * ctx.dpr, camera.fov);
+    gasFx.setScale(H * ctx.dpr, camera.fov);
+    gasFx.setViewer(0);
     {
       const pc = player().car;
       particles.setViewer(camMode === 1 || phase === 'intro' ? 0 : Math.hypot(camera.position.x - pc.x, camera.position.y - pc.y, camera.position.z - pc.z));

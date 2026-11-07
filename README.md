@@ -1,6 +1,6 @@
 # Galna Rallyt
 
-Ett 3D-rallyspel i webbläsaren (three.js): kom först i mål mot gårdens djur på sju banor. Det är
+Ett 3D-rallyspel i webbläsaren (three.js): kom först i mål mot en gäng galna förare på tolv banor. Spelet är gjort för en vuxen och en tioåring som spelar tillsammans: absurt, fräckt och gärna lite äckligt (prutt, kebab och korvkanoner). Det är
 en egen fristående version av rallyt från Lilla Gården och ska bli en roguelite (se [PLAN.md](PLAN.md)).
 Fas 1 var porten (ett lopp på dator, surfplatta och mobil), fas 2 gjorde det till en roguelite: en runda är tre
 akter med varsin förgrenad karta och en boss, och på vägen samlar man galna prylar. Fas 3 (den här) lägger till
@@ -12,10 +12,11 @@ Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
 ## Så fungerar en runda
 
 - **Titel**: Ny runda, Fortsätt runda (rundan sparas i localStorage efter varje plats), Snabbrace (ett enda lopp som förr),
-  Samling (upplåsta bilar och sedda prylar) och Lugnt läge (5 hjärtan i stället för 3 och snällare rivaler).
-- **Karta**: tre akter (Landsbygden, Vildmarken, Galna stan), fem rader med 2–4 platser och sedan en boss. Platserna är
-  🏁 lopp, ⏱️ utmaning (vinn på 2 varv, topp 2 i regn, nattrace, slå tiden), 💀 elitlopp, 🛒 Mackens kiosk, 🔧 verkstad,
-  ❓ händelse och 👑 boss (Bonden Bengt med höbalar, Älgen Ingrid som hoppar, Isdrottningen med isig väg).
+  Skrytlådan (upplåsta bilar och sedda prylar) och Söndagsåkare (5 hjärtan i stället för 3 och snällare rivaler).
+- **Karta**: tre akter (Bondlandet, Vildmarken, Galna stan), fem rader med 2–4 platser och sedan en boss. Platserna är
+  🏁 lopp, ⏱️ utmaning (vinn eller skäms, topp 2 i spöregn, mörkerrallyt, slå klockan), 💀 dödslopp, 🛒 Mackens kiosk, 🔧 Skruvhörnan,
+  ❓ helt random och 👑 boss (Sura Bengt med höbalar, Ingrid Ingenväjning som hoppar, Frost-Frida med isig väg, Kapten Kanin på månen).
+  Tolv rivaler med eget skryt och eget hån när de kör om dig (`src/shared/rivals.ts`).
 - **Hjärtan och kronor**: kommer man sist (nedersta tredjedelen) eller bryter förlorar man ett hjärta; vid 0 är rundan slut.
   Loppen ger kronor (pris + mynt på banan + prylbonus, skalat per akt) som går till kiosken (prylar, laga bilen, läka
   hjärta, nya varor) och verkstaden (en gratis uppgradering av en del, eller måla om).
@@ -60,13 +61,13 @@ Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
   spelet kan läggas på hemskärmen och köra i helskärm.
 - **Prestanda**: `quality: 'low'` (pek/små skärmar) har inga skuggor, färre partiklar, tunnare rekvisita och lägre pixelratio, och
   loppet sänker upplösningen själv om bildfrekvensen sjunker (`adapt()` i `src/rally/index.ts`).
-- **Inställningar** (`src/settings.ts`, från titeln och pausmenyn): ljudvolym, musik, skakningar, lugnt läge, visa FPS, helskärm.
+- **Inställningar** (`src/settings.ts`, från titeln och pausmenyn): ljudvolym, musik, skakningar, söndagsåkare (lugnt läge, sparnyckeln heter fortfarande `calm`), visa FPS, helskärm.
 - **Fest**: konfetti vid vinst, "NY PRYL!" med fanfar, kronorna räknas upp på resultatkortet, räknarpip, kameraskak (kan stängas av).
 - **Slutskärm**: fordon och förare, prylarna, rundans roligaste siffra, troféer och vad som låstes upp. Rundans frö (`Frö: …`)
   visas smått på kartan och i summeringen.
 - **Sparning**: en avslutad runda ligger kvar sparad (med `end`) tills summeringen lämnas, så en omladdning på det sista
   resultatkortet visar slutskärmen igen och räknar troféerna bara en gång.
-- **Balans** (`src/run/balance.test.ts`): simulerade rundor med spelare av olika skicklighet. Lugnt läge: bara bryta eller sist
+- **Balans** (`src/run/balance.test.ts`): simulerade rundor med spelare av olika skicklighet. Söndagsåkare: bara bryta eller sist
   kostar ett hjärta, bossar läker två hjärtan. Ett hjärta i kiosken kostar ungefär ett lopps lön och är en fjärdedel billigare på
   sista hjärtat.
 

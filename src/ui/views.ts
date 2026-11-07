@@ -1,7 +1,8 @@
 // The run screens, as plain DOM builders: each takes the data and callbacks it needs and returns the
 // element for the card. No state lives here; the App decides what happens on each press.
 import { CAR_BODIES, CAR_DRIVERS, CAR_PAINTS, PART_MAX_LEVEL, CAR_PARTS, carStars, newCar, type CarBody, type CarDriver, type CarPart } from '../shared/rally.ts';
-import { CAR_BODY_NAMES, CAR_BODY_TEXT, CAR_DRIVER_EMOJI, CAR_DRIVER_NAMES, CAR_PART_EMOJI, CAR_PART_NAMES, CAR_PART_TEXT, RALLY_COURSE_NAMES, RIVAL_NAMES } from '../shared/names.ts';
+import { CAR_BODY_NAMES, CAR_BODY_TEXT, CAR_DRIVER_EMOJI, CAR_DRIVER_NAMES, CAR_PART_EMOJI, CAR_PART_NAMES, CAR_PART_TEXT, RALLY_COURSE_NAMES } from '../shared/names.ts';
+import { rivalCast } from '../shared/rivals.ts';
 import { RALLY_COURSE_DEFS } from '../shared/rally.ts';
 import { fmtTime } from '../rally/util.ts';
 import { ACTS, NODE_EMOJI, NODE_NAMES, allNodes, type MapNode, type NodeType } from '../run/map.ts';
@@ -46,7 +47,7 @@ export function titleView(o: TitleOpts): HTMLElement {
       o.onNew();
       return;
     }
-    newBtn.textContent = 'Tryck igen: den gamla rundan försvinner';
+    newBtn.textContent = 'Tryck igen. Gamla rundan dör.';
     newBtn.classList.add('warn');
     armed = setTimeout(() => {
       armed = null;
@@ -58,14 +59,14 @@ export function titleView(o: TitleOpts): HTMLElement {
     o.onCalm(!o.meta.calm);
   });
   calm.setAttribute('aria-pressed', String(o.meta.calm));
-  calm.append(el('span', null, '🌈 Lugnt läge'), el('small', null, o.meta.calm ? 'På: 5 hjärtan och snällare rivaler' : 'Av: 3 hjärtan'));
+  calm.append(el('span', null, '🛋️ Söndagsåkare'), el('small', null, o.meta.calm ? 'På: 5 hjärtan, snällare rivaler' : 'Av: 3 hjärtan, ingen nåd'));
   const left = el(
     'div',
     'rg-title-left',
     el('h1', 'arc-title', 'Galna Rallyt'),
-    el('p', 'arc-sub', 'Kör, samla galna prylar och slå bossarna!'),
-    el('div', 'rg-deco', ...['🏎️', '🐮', '🍌', '🦆', '🥞'].map((e) => el('span', null, e))),
-    el('div', 'rg-trophy', `🏆 ${o.meta.trophies}`, el('small', null, o.meta.runs ? ` · ${plural(o.meta.runs, 'runda', 'rundor')} körda` : ' · första rundan väntar')),
+    el('p', 'arc-sub', 'Kör som en galning. Samla skräp. Kuka bossarna.'),
+    el('div', 'rg-deco', ...['🏎️', '💨', '🌭', '🧦', '💩'].map((e) => el('span', null, e))),
+    el('div', 'rg-trophy', `🏆 ${o.meta.trophies}`, el('small', null, o.meta.runs ? ` · ${plural(o.meta.runs, 'runda', 'rundor')} krossade` : ' · inga rundor än. Visa vad du går för.')),
   );
   const right = el('div', 'rg-title-right');
   if (o.saved) {
@@ -75,8 +76,8 @@ export function titleView(o: TitleOpts): HTMLElement {
       el('div', 'rg-saveinfo', `Akt ${s.act + 1}/${ACTS} · ${s.hearts}/${s.maxHearts} ❤️ · ${s.kronor} kr · ${s.trinkets.reduce((a, t) => a + t.n, 0)} prylar`),
     );
   }
-  right.append(newBtn, el('div', 'rg-pair', ghost('⚡ Snabbrace', o.onQuick), ghost('📖 Samling', o.onCollection)), el('div', 'rg-pair', calm, ghost('⚙️ Inställningar', o.onSettings)));
-  if (o.homeHint) right.append(el('small', 'rg-homehint', 'Fusktips: Dela, sedan Lägg till på hemskärmen, så slipper du webbläsarens kant.'));
+  right.append(newBtn, el('div', 'rg-pair', ghost('⚡ Snabbrace', o.onQuick), ghost('📖 Skrytlådan', o.onCollection)), el('div', 'rg-pair', calm, ghost('⚙️ Inställningar', o.onSettings)));
+  if (o.homeHint) right.append(el('small', 'rg-homehint', 'Fusktips: Dela, sedan Lägg till på hemskärmen. Ingen webbläsarkant.'));
   return screen('rg-title', left, right);
 }
 
@@ -102,7 +103,7 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
     const st = carStars(newCar(1, sel.body, ''));
     desc.replaceChildren(
       el('span', 'rg-bd-text', `${CAR_BODY_NAMES[sel.body]}: ${CAR_BODY_TEXT[sel.body]}`),
-      el('span', 'rg-bd-stars', `Fart ${stars(st.speed)}  Grepp ${stars(st.grip)}  Tålighet ${stars(st.tough)}`),
+      el('span', 'rg-bd-stars', `Fart ${stars(st.speed)}  Grepp ${stars(st.grip)}  Hållbarhet ${stars(st.tough)}`),
     );
   };
   const pick = (b: HTMLElement, isOn: () => boolean, set: () => void): void => {
@@ -159,7 +160,7 @@ export interface MapOpts {
 }
 
 const nodeLabel = (n: MapNode): string => {
-  if (n.type === 'boss') return 'Bossen';
+  if (n.type === 'boss') return 'Bossen. Den är sur.';
   if (n.course && n.type !== 'shop') return `${NODE_NAMES[n.type]} · ${RALLY_COURSE_NAMES[n.course]}`;
   return NODE_NAMES[n.type];
 };
@@ -231,10 +232,10 @@ export function mapView(o: MapOpts): HTMLElement {
   menu.setAttribute('aria-label', 'Meny');
   return screen(
     'rg-mapscreen',
-    statusBar(run, btn('rg-icon wide', '🎒 Prylar', o.onBag), menu),
+    statusBar(run, btn('rg-icon wide', '🎒 Skräpet', o.onBag), menu),
     field,
     legend,
-    el('div', 'rg-maphint', run.at === null ? 'Välj var du ska börja – tryck på en glödande plats!' : 'Tryck på en glödande plats för att åka dit.', el('small', 'rg-seed', seedLabel(run.seed))),
+    el('div', 'rg-maphint', run.at === null ? 'Välj en glödande plats. Börja nånstans.' : 'Nästa stopp: en glödande plats.', el('small', 'rg-seed', seedLabel(run.seed))),
   );
 }
 
@@ -247,22 +248,26 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
   const chips = [
     chip(`${RALLY_COURSE_DEFS[plan.course].emoji} ${RALLY_COURSE_NAMES[plan.course]}`),
     chip(`🔁 ${plural(r.laps, 'varv', 'varv')}`),
-    chip(`🚗 ${plural(r.ai, 'rival', 'rivaler')}`),
+    chip(`🏎️ ${plural(r.ai, 'rival', 'rivaler')}`),
     r.weather === 'rain' ? chip('🌧️ Regn') : null,
     r.time === 'night' ? chip('🌙 Natt') : r.time === 'sunset' ? chip('🌇 Solnedgång') : null,
-    r.difficulty === 'hard' ? chip('💪 Svårt') : r.difficulty === 'easy' ? chip('🌈 Lugnt') : null,
-    r.damage ? chip('🔧 Bilen kan skadas') : null,
+    r.difficulty === 'hard' ? chip('💀 Hårt') : r.difficulty === 'easy' ? chip('🛋️ Söndagsåkning') : null,
+    r.damage ? chip('🔧 Bilen kan gå sönder') : null,
   ].filter((x): x is HTMLElement => !!x);
   const rivals = el('ul', 'rg-rivals');
-  const faces: CarDriver[] = ['cow', 'horse', 'pig', 'rooster', 'sheep'];
+  const cast = rivalCast(node.seed, r.ai);
+  const talkers: { name: string; talk: string }[] = [];
   for (let i = 0; i < r.ai; i++) {
     const boss = i === 0 ? plan.twist?.boss : undefined;
-    rivals.append(el('li', boss ? 'boss' : '', `${CAR_DRIVER_EMOJI[boss?.face ?? faces[i]!]} ${boss?.name ?? RIVAL_NAMES[i]}`));
+    const rv = cast[i]!;
+    if (!boss) talkers.push({ name: rv.name, talk: rv.talk });
+    rivals.append(el('li', boss ? 'boss' : '', `${CAR_DRIVER_EMOJI[boss?.face ?? rv.face]} ${boss?.name ?? rv.name}`, el('small', null, boss ? (plan.boss?.nick ?? '') : rv.nick)));
   }
+  const talk = talkers.length ? talkers[node.seed % talkers.length]! : null;
   const info: Node[] = [el('div', 'rg-chips', ...chips)];
-  if (plan.boss) info.push(el('div', 'rg-bossbox', el('div', 'rg-bossname', `${plan.boss.emoji} ${plan.boss.name}`), el('p', null, plan.boss.intro), el('p', 'rg-trick', `⚠️ ${plan.boss.trick}`)));
-  if (plan.goal) info.push(el('div', 'rg-goal', '🎯 ', el('b', null, plan.goal.text), el('small', null, ' Klarar du det får du extra kronor och en pryl!')));
-  if (node.type === 'elite') info.push(el('div', 'rg-goal', '💀 Tuffare rivaler, men du får välja en pryl om du tar dig i mål!'));
+  if (plan.boss) info.push(el('div', 'rg-bossbox', el('div', 'rg-bossname', `${plan.boss.emoji} ${plan.boss.name}`), el('div', 'rg-bossnick', plan.boss.nick), el('p', 'rg-quote', plan.boss.intro), el('p', 'rg-trick', `⚠️ ${plan.boss.trick}`)));
+  if (plan.goal) info.push(el('div', 'rg-goal', '🎯 ', el('b', null, plan.goal.text), el('small', null, ' Fixar du det får du extra kronor och en pryl.')));
+  if (node.type === 'elite') info.push(el('div', 'rg-goal', '💀 Mördarrivaler. Tar du dig i mål får du välja en pryl.'));
   return screen(
     'rg-pre',
     statusBar(run),
@@ -270,9 +275,9 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
       'div',
       'rg-prebody',
       el('div', 'rg-preleft', el('div', 'rg-pretitle', el('span', 'rg-bigem', NODE_EMOJI[node.type]), el('h2', null, plan.title)), ...info),
-      el('div', 'rg-preright', el('div', 'arc-h', 'Rivaler'), rivals, el('div', 'arc-h', 'Dina prylar'), run.trinkets.length ? trinketIcons(run.trinkets, 12) : el('small', null, 'Inga än')),
+      el('div', 'rg-preright', el('div', 'arc-h', 'Motståndare'), rivals, talk ? el('div', 'rg-talk', el('b', null, `${talk.name}:`), ` ”${talk.talk}”`) : null, el('div', 'arc-h', 'Ditt skräp'), run.trinkets.length ? trinketIcons(run.trinkets, 12) : el('small', null, 'Inget än. Fattigt.')),
     ),
-    foot(ghost('← Till kartan', o.onBack), go('Kör! 🏁', o.onGo)),
+    foot(ghost('← Fega ur', o.onBack), go('KÖR! 🏁', o.onGo)),
   );
 }
 
@@ -280,7 +285,7 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
 
 export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postrace' }>, o: { onNext(): void; onCount?: () => void }): HTMLElement {
   const s = scr.summary;
-  const head = !s.finished ? 'Nästan i mål!' : s.place === 1 ? '🏆 Du vann!' : `${s.place}:a plats`;
+  const head = !s.finished ? 'Du kom aldrig i mål. Aj.' : s.place === 1 ? '🏆 DU VANN!' : s.place === 2 ? '2:a. Första förloraren.' : s.place === 3 ? '3:a. Nära pallen, långt från ära.' : `${s.place}:a plats. Fy.`;
   const medal = s.medal ? { gold: '🥇', silver: '🥈', bronze: '🥉' }[s.medal] : '';
   const lines: Node[] = [];
   if (s.finished) lines.push(el('div', 'rg-time', `⏱️ ${fmtTime(s.time / 1000)} ${medal}`));
@@ -297,23 +302,23 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
   );
   lines.push(
     s.heartLost
-      ? el('div', 'rg-heartline lost', '💔 −1 hjärta', el('small', null, run.status === 'dead' ? ' – det var det sista…' : ` – ${run.hearts} kvar`))
-      : el('div', 'rg-heartline', '❤️ Alla hjärtan kvar'),
+      ? el('div', 'rg-heartline lost', '💔 −1 hjärta', el('small', null, run.status === 'dead' ? ' – det var sista. RIP.' : ` – ${run.hearts} kvar`))
+      : el('div', 'rg-heartline', '❤️ Hjärtat klarade sig'),
   );
-  if (s.goal) lines.push(el('div', `rg-goal ${s.goal.met ? 'ok' : 'miss'}`, s.goal.met ? '✅ Utmaning klar! ' : '❌ Inte denna gång. ', el('small', null, s.goal.text)));
-  if (s.reward) lines.push(el('div', 'rg-goal ok', '🎁 Du får välja en pryl!'));
+  if (s.goal) lines.push(el('div', `rg-goal ${s.goal.met ? 'ok' : 'miss'}`, s.goal.met ? '✅ Utmaning krossad! ' : '❌ Misslyckades. Skärp dig. ', el('small', null, s.goal.text)));
+  if (s.reward) lines.push(el('div', 'rg-goal ok', '🎁 Du får välja en pryl.'));
   return screen('rg-post', statusBar(run), el('div', 'rg-postbody', el('h2', 'rg-bigh', head), ...lines), foot(go(run.status === 'dead' ? 'Fortsätt' : s.reward ? 'Välj pryl 🎁' : 'Till kartan', o.onNext)));
 }
 
 // ---- reward ----
 
 export function rewardView(run: RunState, scr: Extract<Screen, { kind: 'reward' }>, o: { onPick(i: number): void }): HTMLElement {
-  const title = scr.source === 'boss' ? 'Bossen är besegrad! Välj en pryl' : scr.source === 'elite' ? 'Elitbelöning! Välj en pryl' : 'Välj en pryl!';
+  const title = scr.source === 'boss' ? 'Bossen ligger i diket! Ta en pryl' : scr.source === 'elite' ? 'Du överlevde dödsloppet! Ta en pryl' : 'Välj en pryl. Chansa!';
   const cards = scr.choices.map((id, i) => {
     const d = trinketById(id)!;
-    return trinketCard(d, { n: run.trinkets.find((t) => t.id === id)?.n, onClick: () => o.onPick(i), tag: run.trinkets.some((t) => t.id === id) ? 'Staplas!' : undefined });
+    return trinketCard(d, { n: run.trinkets.find((t) => t.id === id)?.n, onClick: () => o.onPick(i), tag: run.trinkets.some((t) => t.id === id) ? 'Staplas! Stinkigare!' : undefined });
   });
-  return screen('rg-reward', statusBar(run), el('h2', 'rg-h', title), el('div', 'rg-cards', ...cards), foot(ghost('Hoppa över (+30 kr)', () => o.onPick(-1))));
+  return screen('rg-reward', statusBar(run), el('h2', 'rg-h', title), el('div', 'rg-cards', ...cards), foot(ghost('Nej tack (+30 kr)', () => o.onPick(-1))));
 }
 
 // ---- shop ----
@@ -331,19 +336,19 @@ export function shopView(run: RunState, scr: Extract<Screen, { kind: 'shop' }>, 
   const cards = scr.stock.map((it, i) => {
     const d = trinketById(it.id)!;
     const price = trinketPrice(run, it.id);
-    return trinketCard(d, { price: it.sold ? undefined : price, note: it.sold ? 'Såld!' : undefined, n: run.trinkets.find((t) => t.id === it.id)?.n, disabled: it.sold || run.kronor < price, onClick: () => o.onBuy(i) });
+    return trinketCard(d, { price: it.sold ? undefined : price, note: it.sold ? 'Såld, lillen!' : undefined, n: run.trinkets.find((t) => t.id === it.id)?.n, disabled: it.sold || run.kronor < price, onClick: () => o.onBuy(i) });
   });
-  const heal = btn('rg-svc', [el('span', 'rg-sve', '❤️'), el('span', null, 'Läk ett hjärta'), el('b', null, scr.healed ? 'Köpt' : run.hearts >= run.maxHearts ? 'Full' : `${healPrice(run)} kr`)], o.onHeal);
+  const heal = btn('rg-svc', [el('span', 'rg-sve', '❤️'), el('span', null, 'Lappa hjärtat'), el('b', null, scr.healed ? 'Köpt' : run.hearts >= run.maxHearts ? 'Full' : `${healPrice(run)} kr`)], o.onHeal);
   heal.disabled = scr.healed || run.hearts >= run.maxHearts || run.kronor < healPrice(run);
-  const repair = btn('rg-svc', [el('span', 'rg-sve', '🔧'), el('span', null, 'Laga bilen'), el('b', null, scr.repaired || run.car.damage <= 0 ? 'Hel' : `${repairPrice(run)} kr`)], o.onRepair);
+  const repair = btn('rg-svc', [el('span', 'rg-sve', '🔧'), el('span', null, 'Klistra bilen'), el('b', null, scr.repaired || run.car.damage <= 0 ? 'Hel' : `${repairPrice(run)} kr`)], o.onRepair);
   repair.disabled = scr.repaired || run.car.damage <= 0 || run.kronor < repairPrice(run);
-  const re = btn('rg-svc', [el('span', 'rg-sve', '🎲'), el('span', null, 'Nya varor'), el('b', null, `${rerollPrice(scr)} kr`)], o.onReroll);
+  const re = btn('rg-svc', [el('span', 'rg-sve', '🎲'), el('span', null, 'Nytt lager'), el('b', null, `${rerollPrice(scr)} kr`)], o.onReroll);
   re.disabled = run.kronor < rerollPrice(scr);
   return screen(
     'rg-shop',
     statusBar(run),
-    el('div', 'rg-shopbody', el('div', 'rg-shophead', el('h2', 'rg-h', '🛒 Mackens kiosk'), el('div', 'rg-svcs', heal, repair, re)), el('span', 'rg-note', o.note || 'Köp prylar – samma pryl två gånger gör den starkare!'), el('div', 'rg-cards shop', ...cards)),
-    foot(go('Lämna kiosken', o.onLeave)),
+    el('div', 'rg-shopbody', el('div', 'rg-shophead', el('h2', 'rg-h', '🛒 Mackens kiosk'), el('div', 'rg-svcs', heal, repair, re)), el('span', 'rg-note', o.note || 'Köp skräp. Samma skräp två gånger gör det starkare. Och stinkigare.'), el('div', 'rg-cards shop', ...cards)),
+    foot(go('Sticka', o.onLeave)),
   );
 }
 
@@ -354,7 +359,7 @@ export function workshopView(run: RunState, scr: Extract<Screen, { kind: 'worksh
     const lvl = run.car.parts[p] ?? 0;
     const pips = el('span', 'rg-pips', ...Array.from({ length: PART_MAX_LEVEL }, (_, i) => el('i', i < lvl ? 'on' : '', i < lvl ? '●' : '○')));
     const can = !scr.used && canUpgrade(run, p);
-    const b = btn('rg-part', [el('span', 'rg-pe', CAR_PART_EMOJI[p]), el('span', 'rg-pn', CAR_PART_NAMES[p]), pips, el('small', null, lvl >= PART_MAX_LEVEL ? 'Full nivå' : CAR_PART_TEXT[p])], () => o.onUpgrade(p));
+    const b = btn('rg-part', [el('span', 'rg-pe', CAR_PART_EMOJI[p]), el('span', 'rg-pn', CAR_PART_NAMES[p]), pips, el('small', null, lvl >= PART_MAX_LEVEL ? 'Maxat' : CAR_PART_TEXT[p])], () => o.onUpgrade(p));
     b.disabled = !can;
     return b;
   });
@@ -366,7 +371,7 @@ export function workshopView(run: RunState, scr: Extract<Screen, { kind: 'worksh
     x.setAttribute('aria-pressed', String(run.car.style.paint === c));
     paints.append(x);
   }
-  const repair = btn('rg-btn', `🔧 Laga bilen helt${run.car.damage > 0 ? '' : ' (den är hel)'}`, o.onRepair);
+  const repair = btn('rg-btn', `🔧 Laga allt${run.car.damage > 0 ? '' : ' (den är hel)'}`, o.onRepair);
   repair.disabled = scr.used || run.car.damage <= 0;
   return screen(
     'rg-work',
@@ -374,11 +379,11 @@ export function workshopView(run: RunState, scr: Extract<Screen, { kind: 'worksh
     el(
       'div',
       'rg-workbody',
-      el('div', 'rg-shophead', el('h2', 'rg-h', '🔧 Verkstaden'), el('span', 'rg-note', scr.used ? 'Klart! Bilen blev bättre.' : 'Välj EN sak att fixa gratis:')),
+      el('div', 'rg-shophead', el('h2', 'rg-h', '🔧 Skruvhörnan'), el('span', 'rg-note', scr.used ? 'Klart! Bilen är mer rätt nu.' : 'Välj EN sak. Gratis. Skruva!')),
       el('div', 'rg-parts', ...parts),
-      el('div', 'rg-workrow', repair, el('div', 'rg-paintbox', el('span', 'arc-h', '🎨 Måla om (alltid gratis)'), paints)),
+      el('div', 'rg-workrow', repair, el('div', 'rg-paintbox', el('span', 'arc-h', '🎨 Måla om (gratis)'), paints)),
     ),
-    foot(go(scr.used ? 'Klar – till kartan' : 'Hoppa över', o.onLeave)),
+    foot(go(scr.used ? 'Klar – till kartan' : 'Skit i det', o.onLeave)),
   );
 }
 
@@ -397,7 +402,7 @@ export function eventView(run: RunState, scr: Extract<Screen, { kind: 'event' }>
   const choices = ev.choices.map((c, i) => {
     const b = btn('rg-choice', c.label, () => o.onChoose(i));
     b.disabled = !choiceAllowed(run, c);
-    if (b.disabled) b.append(el('small', null, 'Du har inte råd'));
+    if (b.disabled) b.append(el('small', null, 'Du är barskrapad'));
     return b;
   });
   return screen('rg-event', statusBar(run), el('div', 'rg-eventbody', el('div', 'rg-bigem big', ev.emoji), el('h2', 'rg-h', ev.title), el('p', 'rg-etext', ev.text)), el('div', 'rg-choices', ...choices));
@@ -411,15 +416,15 @@ export function bagView(run: RunState, o: { onClose(): void }): HTMLElement {
         const d = trinketById(t.id)!;
         return trinketCard(d, { n: undefined, note: t.n > 1 ? `×${t.n}` : undefined });
       })
-    : [el('p', 'rg-note', 'Du har inga prylar än. Vinn elitlopp och bossar, eller handla i kiosken!')];
-  return screen('rg-bag', statusBar(run), el('h2', 'rg-h', '🎒 Dina prylar'), el('div', 'rg-cards bag', ...rows), foot(go('Stäng', o.onClose)));
+    : [el('p', 'rg-note', 'Tomt. Vinn dödslopp, kuka bossar eller handla i kiosken.')];
+  return screen('rg-bag', statusBar(run), el('h2', 'rg-h', '🎒 Ditt skräp'), el('div', 'rg-cards bag', ...rows), foot(go('Stäng', o.onClose)));
 }
 
 export function menuView(run: RunState, o: { onClose(): void; onTitle(): void; onSettings(): void }): HTMLElement {
   return screen(
     'rg-menu',
     statusBar(run),
-    el('div', 'rg-menubody', el('h2', 'rg-h', 'Paus'), go('Fortsätt spela', o.onClose), ghost('⚙️ Inställningar', o.onSettings), ghost('💾 Spara och gå till titeln', o.onTitle), el('small', null, `Rundan sparas av sig själv efter varje plats. ${seedLabel(run.seed)}`)),
+    el('div', 'rg-menubody', el('h2', 'rg-h', 'Paus'), go('Fortsätt köra', o.onClose), ghost('⚙️ Inställningar', o.onSettings), ghost('💾 Spara och sticka', o.onTitle), el('small', null, `Rundan sparas av sig själv efter varje plats. ${seedLabel(run.seed)}`)),
   );
 }
 
@@ -469,13 +474,13 @@ export function settingsView(o: SettingsOpts): HTMLElement {
     'div',
     'rg-setgrid',
     el('div', 'rg-setvol', el('span', 'rg-setlabel', '🔊 Ljud'), vols),
-    toggle('🎵', 'Musik', 'Soundtracken till kaoset', () => s.music, (v) => { s.music = v; o.onChange(); }),
-    toggle('📳', 'Skakningar', 'Kameran får spel vid krascher och landningar', () => s.shake, (v) => { s.shake = v; o.onChange(); }),
-    toggle('🌈', 'Lugnt läge', '5 hjärtan och rivaler som tar det lugnt (gäller nästa runda)', () => o.calm, (v) => { o.calm = v; o.onCalm(v); }),
-    toggle('📈', 'Visa FPS', 'Siffran som skvallrar om du laggar', () => s.fps, (v) => { s.fps = v; o.onChange(); }),
+    toggle('🎵', 'Musik', 'Soundtracket till kaoset', () => s.music, (v) => { s.music = v; o.onChange(); }),
+    toggle('📳', 'Skakningar', 'Kameran vibrerar vid krascher och landningar', () => s.shake, (v) => { s.shake = v; o.onChange(); }),
+    toggle('🛋️', 'Söndagsåkare', '5 hjärtan och rivaler som tar det lugnt (gäller nästa runda)', () => o.calm, (v) => { o.calm = v; o.onCalm(v); }),
+    toggle('📈', 'Visa FPS', 'Siffran som skvallrar när det laggar', () => s.fps, (v) => { s.fps = v; o.onChange(); }),
     o.fullscreen === null ? null : btn('rg-btn rg-set', '⛶ Helskärm på/av (ingen kant, ingen nåd)', o.onFullscreen),
   );
-  return screen('rg-settings', el('div', 'rg-top', el('h2', 'rg-h tight', '⚙️ Inställningar')), el('div', 'rg-setbody', grid), foot(go('Klart, kör!', o.onClose)));
+  return screen('rg-settings', el('div', 'rg-top', el('h2', 'rg-h tight', '⚙️ Inställningar')), el('div', 'rg-setbody', grid), foot(go('Klart, KÖR!', o.onClose)));
 }
 
 // ---- the end of a run ----
@@ -489,16 +494,16 @@ export function funnyStats(run: RunState): { text: string; n: number; silly: boo
   const add = (n: number, text: string, silly = true): void => {
     if (n > 0) out.push({ text, n, silly });
   };
-  add(s.bounces, `🦆 Studsade ${plural(s.bounces, 'gång', 'gånger')}`);
+  add(s.bounces, `🤸 Studsade ${plural(s.bounces, 'gång', 'gånger')}`);
   add(Math.round(s.driftSeconds), `🌀 Sladdade i ${Math.round(s.driftSeconds)} sekunder`);
-  add(s.bananas, `🍌 Tappade ${plural(s.bananas, 'bananskal', 'bananskal')}${s.bananaHits ? ` (${s.bananaHits} träffar!)` : ''}`);
-  add(s.quacks, `📣 Kvackade ${plural(s.quacks, 'gång', 'gånger')}`);
-  add(s.squashed, `🥞 Gjorde ${plural(s.squashed, 'bil', 'bilar')} till pannkaka`);
+  add(s.bananas, `🐌 Slemmade ner banan ${plural(s.bananas, 'gång', 'gånger')}${s.bananaHits ? ` (${s.bananaHits} offer!)` : ''}`);
+  add(s.quacks, `💨 Pruttade och rapade ${plural(s.quacks, 'gång', 'gånger')}`);
+  add(s.squashed, `🧦 Sockade ner ${plural(s.squashed, 'bil', 'bilar')}`);
   add(s.jumps, `🦘 Hoppade ${plural(s.jumps, 'gång', 'gånger')}`);
   add(s.coins, `🪙 Samlade ${plural(s.coins, 'mynt', 'mynt')}`, false);
   add(s.boosts, `🔥 Boostade ${plural(s.boosts, 'gång', 'gånger')}`, false);
   out.push({ text: `💰 Tjänade ${s.kronorEarned} kr`, n: 0, silly: false });
-  out.push({ text: `🏁 Vann ${s.wins} av ${plural(s.races, 'lopp', 'lopp')}`, n: 0, silly: false });
+  out.push({ text: `🏁 Vann ${s.wins} av ${plural(s.races, 'lopp', 'lopp')}. ${s.wins === 0 ? 'Aj.' : 'Respekt.'}`, n: 0, silly: false });
   return out;
 }
 
@@ -509,7 +514,7 @@ export function overView(run: RunState, info: OverInfo, o: { onAgain(): void; on
     ...info.unlockedBodies.map((b) => `🚗 Ny bil: ${CAR_BODY_NAMES[b]}`),
     ...info.unlockedTrinkets.map((id) => {
       const d = trinketById(id);
-      return `${d?.emoji ?? '🎁'} Ny pryl: ${d?.name ?? id}`;
+      return `${d?.emoji ?? '🎁'} Nytt skräp: ${d?.name ?? id}`;
     }),
   ];
   // where the trophies came from
@@ -523,25 +528,25 @@ export function overView(run: RunState, info: OverInfo, o: { onAgain(): void; on
       el(
         'div',
         'rg-overleft',
-        el('h1', 'arc-title', info.won ? 'Du vann Galna Rallyt!' : 'Rundan är slut'),
-        el('p', 'arc-sub', info.won ? '🏆 Alla tre bossar är besegrade!' : `Du nådde akt ${run.act + 1} av ${ACTS} (${ACT_NAMES[Math.min(run.act, ACTS - 1)]}).`),
+        el('h1', 'arc-title', info.won ? 'DU KUKADE ALLA!' : 'Rundan är slut. Du dog.'),
+        el('p', 'arc-sub', info.won ? '🏆 Alla bossar ligger i diket. Du är kung.' : `Du kom till akt ${run.act + 1} av ${ACTS} (${ACT_NAMES[Math.min(run.act, ACTS - 1)]}). Inte illa. Inte bra.`),
         el('div', 'rg-overcar', `🚗 ${CAR_BODY_NAMES[run.car.body]} med ${CAR_DRIVER_EMOJI[run.car.style.driver ?? 'human']} ${CAR_DRIVER_NAMES[run.car.style.driver ?? 'human']}`),
         el('div', 'rg-trophy big', `+${info.trophies} 🏆`, el('small', null, ` (totalt ${info.total})`)),
         why ? el('small', 'rg-why', why) : null,
         unlocked.length ? el('ul', 'rg-unlocks', ...unlocked.slice(0, 5).map((u) => el('li', null, u))) : null,
-        el('div', 'arc-h', `Dina prylar${total ? ` (${total})` : ''}`),
-        run.trinkets.length ? trinketIcons(run.trinkets, 24) : el('small', null, 'Inga prylar den här gången'),
+        el('div', 'arc-h', `Ditt skräp${total ? ` (${total})` : ''}`),
+        run.trinkets.length ? trinketIcons(run.trinkets, 24) : el('small', null, 'Inget skräp den här gången'),
       ),
       el(
         'div',
         'rg-overright',
-        el('div', 'arc-h', 'Rundans galna siffror'),
+        el('div', 'arc-h', 'Rundans pinsamma siffror'),
         hero ? el('div', 'rg-hero', hero.text) : null,
         el('ul', 'rg-stats', ...stats.filter((x) => x !== hero).map((x) => el('li', null, x.text))),
         el('small', 'rg-seed', seedLabel(run.seed)),
       ),
     ),
-    foot(ghost('Till titeln', o.onTitle), go('Ny runda', o.onAgain)),
+    foot(ghost('Till titeln', o.onTitle), go('Igen! 🏁', o.onAgain)),
   );
 }
 
@@ -556,13 +561,13 @@ export function collectionView(meta: Meta, o: { onBack(): void }): HTMLElement {
   const seen = new Set(meta.seen);
   const cards = TRINKETS.map((t) => {
     if (seen.has(t.id)) return trinketCard(t, {});
-    const lockedBy = open.has(t.id) ? 'Inte hittad än' : `Låses upp vid ${t.unlock} 🏆`;
+    const lockedBy = open.has(t.id) ? 'Inte hittad än. Leta!' : `Låses upp vid ${t.unlock} 🏆`;
     return el('div', 'rg-tcard unseen', el('span', 'rg-tem', '❓'), el('span', 'rg-tname', '???'), el('span', 'rg-ttext', lockedBy));
   });
   return screen(
     'rg-coll',
-    el('div', 'rg-top', el('h2', 'rg-h tight', '📖 Samling'), el('span', 'rg-grow'), el('span', 'rg-kr', `🏆 ${meta.trophies}`), el('span', 'rg-kr', `${seen.size}/${TRINKETS.length} prylar`)),
-    el('div', 'rg-collbody', el('div', 'arc-h', 'Bilar'), el('div', 'rg-bodies', ...bodies), el('div', 'arc-h', 'Prylar'), el('div', 'rg-cards bag', ...cards)),
+    el('div', 'rg-top', el('h2', 'rg-h tight', '📖 Skrytlådan'), el('span', 'rg-grow'), el('span', 'rg-kr', `🏆 ${meta.trophies}`), el('span', 'rg-kr', `${seen.size}/${TRINKETS.length} skräp`)),
+    el('div', 'rg-collbody', el('div', 'arc-h', 'Bilar'), el('div', 'rg-bodies', ...bodies), el('div', 'arc-h', 'Skräp'), el('div', 'rg-cards bag', ...cards)),
     foot(go('← Tillbaka', o.onBack)),
   );
 }

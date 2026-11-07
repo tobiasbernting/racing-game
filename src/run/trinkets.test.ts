@@ -82,7 +82,9 @@ function recorder(): { api: RaceApi; calls: string[] } {
   const log = (name: string) => (...a: unknown[]) => void calls.push(`${name}:${a.join(',')}`);
   const api: RaceApi = {
     say: log('say'),
-    quack: log('quack'),
+    fart: log('fart'),
+    burp: log('burp'),
+    gas: log('gas'),
     boing: log('boing'),
     party: log('party'),
     bounce: log('bounce'),
@@ -103,7 +105,7 @@ function recorder(): { api: RaceApi; calls: string[] } {
 }
 
 describe('the effect bus', () => {
-  it('the rubber duck bounces and quacks on a bump, harder with two', () => {
+  it('the whoopee cushion bounces and farts on a bump, harder with two', () => {
     const run = (n: number): string[] => {
       const { api, calls } = recorder();
       const m = buildMods([{ id: 'gummianka', n }]);
@@ -112,13 +114,13 @@ describe('the effect bus', () => {
       return calls;
     };
     const one = run(1);
-    expect(one.some((c) => c.startsWith('quack'))).toBe(true);
+    expect(one.some((c) => c.startsWith('fart'))).toBe(true);
     const b1 = Number(one.find((c) => c.startsWith('bounce'))!.split(':')[1]);
     const b2 = Number(run(2).find((c) => c.startsWith('bounce'))!.split(':')[1]);
     expect(b2).toBeGreaterThan(b1);
   });
 
-  it('a tiny bump does not quack', () => {
+  it('a tiny bump does not fart', () => {
     const { api, calls } = recorder();
     const m = buildMods([{ id: 'gummianka', n: 1 }]);
     m.bus.bind(api);
@@ -155,6 +157,19 @@ describe('the effect bus', () => {
   it('an empty bus does nothing', () => {
     const bus = new ModBus([]);
     expect(bus.finish({ place: 1, n: 1, finished: true, time: 1, laps: [1], kronor: 0, coins: 0 })).toEqual({ kronor: 0, time: 0 });
+  });
+
+  it('the fart boost farts and leaves a gas cloud on a nitro, but not on a start', () => {
+    const { api, calls } = recorder();
+    const m = buildMods([{ id: 'kolsyrad', n: 1 }, { id: 'trollkarl', n: 1 }]);
+    m.bus.bind(api);
+    m.bus.boost('start');
+    expect(calls.filter((c) => c.startsWith('gas'))).toEqual([]);
+    m.bus.boost('nitro');
+    expect(calls.some((c) => c.startsWith('fart'))).toBe(true);
+    expect(calls.some((c) => c.startsWith('gas'))).toBe(true);
+    m.bus.lap(1);
+    expect(calls.filter((c) => c.startsWith('fart')).length).toBe(2);
   });
 
   it('every trinket id resolves', () => {
