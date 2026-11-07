@@ -86,47 +86,37 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
   const bodies = el('div', 'rg-row');
   const drivers = el('div', 'rg-row');
   const paints = el('div', 'rg-row');
-  const draw = (): void => {
-    bodies.replaceChildren(
-      ...CAR_BODIES.map((b) => {
-        const locked = !open.includes(b);
-        const x = btn('rg-chipbtn', locked ? `🔒 ${CAR_BODY_NAMES[b]}` : CAR_BODY_NAMES[b], () => {
-          sel.body = b;
-          draw();
-          o.onChange(sel);
-        });
-        x.disabled = locked;
-        if (locked) x.append(el('small', null, `${BODY_UNLOCK[b]} 🏆`));
-        x.setAttribute('aria-pressed', String(sel.body === b));
-        return x;
-      }),
-    );
-    drivers.replaceChildren(
-      ...CAR_DRIVERS.map((d) => {
-        const x = btn('rg-chipbtn', `${CAR_DRIVER_EMOJI[d]} ${CAR_DRIVER_NAMES[d]}`, () => {
-          sel.driver = d;
-          draw();
-          o.onChange(sel);
-        });
-        x.setAttribute('aria-pressed', String(sel.driver === d));
-        return x;
-      }),
-    );
-    paints.replaceChildren(
-      ...CAR_PAINTS.slice(0, 12).map((c) => {
-        const x = btn('rg-swatch', '', () => {
-          sel.paint = c;
-          draw();
-          o.onChange(sel);
-        });
-        x.style.background = c;
-        x.setAttribute('aria-label', c);
-        x.setAttribute('aria-pressed', String(sel.paint === c));
-        return x;
-      }),
-    );
+  // built once, only the pressed state changes (so keyboard focus stays where it is)
+  const pressed: [HTMLElement, () => boolean][] = [];
+  const pick = (b: HTMLElement, isOn: () => boolean, set: () => void): void => {
+    b.addEventListener('click', () => {
+      set();
+      pressed.forEach(([x, on]) => x.setAttribute('aria-pressed', String(on())));
+      o.onChange(sel);
+    });
+    pressed.push([b, isOn]);
+    b.setAttribute('aria-pressed', String(isOn()));
   };
-  draw();
+  for (const b of CAR_BODIES) {
+    const locked = !open.includes(b);
+    const x = btn('rg-chipbtn', locked ? `🔒 ${CAR_BODY_NAMES[b]}` : CAR_BODY_NAMES[b]);
+    x.disabled = locked;
+    if (locked) x.append(el('small', null, `${BODY_UNLOCK[b]} 🏆`));
+    pick(x, () => sel.body === b, () => (sel.body = b));
+    bodies.append(x);
+  }
+  for (const d of CAR_DRIVERS) {
+    const x = btn('rg-chipbtn', `${CAR_DRIVER_EMOJI[d]} ${CAR_DRIVER_NAMES[d]}`);
+    pick(x, () => sel.driver === d, () => (sel.driver = d));
+    drivers.append(x);
+  }
+  for (const c of CAR_PAINTS.slice(0, 12)) {
+    const x = btn('rg-swatch', '');
+    x.style.background = c;
+    x.setAttribute('aria-label', c);
+    pick(x, () => sel.paint === c, () => (sel.paint = c));
+    paints.append(x);
+  }
   return screen(
     'rg-pick',
     el('h2', 'rg-h', 'Välj bil och förare'),
@@ -330,7 +320,7 @@ export function shopView(run: RunState, scr: Extract<Screen, { kind: 'shop' }>, 
   return screen(
     'rg-shop',
     statusBar(run),
-    el('div', 'rg-shopbody', el('div', 'rg-shophead', el('h2', 'rg-h', '🛒 Mackens kiosk'), el('span', 'rg-note', o.note || 'Köp prylar – samma pryl två gånger gör den starkare!')), el('div', 'rg-cards shop', ...cards), el('div', 'rg-svcs', heal, repair, re)),
+    el('div', 'rg-shopbody', el('div', 'rg-shophead', el('h2', 'rg-h', '🛒 Mackens kiosk'), el('div', 'rg-svcs', heal, repair, re)), el('span', 'rg-note', o.note || 'Köp prylar – samma pryl två gånger gör den starkare!'), el('div', 'rg-cards shop', ...cards)),
     foot(go('Lämna kiosken', o.onLeave)),
   );
 }

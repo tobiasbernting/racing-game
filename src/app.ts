@@ -9,7 +9,7 @@ import { CAR_BODIES, CAR_PAINTS, RALLY_COURSES, RALLY_COURSE_DEFS, defaultRules,
 import { CAR_BODY_NAMES, RALLY_COURSE_NAMES } from './shared/names.ts';
 import { loadPrefs, savePrefs, type Prefs } from './prefs.ts';
 import { fmtTime } from './rally/util.ts';
-import { buildMods, trinketById } from './run/trinkets.ts';
+import { buildMods } from './run/trinkets.ts';
 import { chooseEvent, continueAfterRace, currentNode, currentPlan, enterNode, finishNode, pickReward, submitRace, backToMap } from './run/flow.ts';
 import { buyHeart, buyRepair, buyTrinket, reroll, workshopPaint, workshopRepair, workshopUpgrade } from './run/economy.ts';
 import { BODY_UNLOCK, trophiesFor, unlockedBodies, unlockedTrinkets, type Meta } from './run/meta.ts';
@@ -107,8 +107,14 @@ export class App {
   private showScreen(view: HTMLElement): void {
     this.card.className = 'arc-card show menu rg';
     this.card.replaceChildren(view);
-    const first = view.querySelector<HTMLElement>('.rg-go:not(:disabled), .rg-node.reach, button:not(:disabled)');
-    first?.focus({ preventScroll: true });
+    // the main button first, else the first road on the map, else any button
+    for (const sel of ['.rg-go:not(:disabled)', '.rg-node.reach', 'button:not(:disabled)']) {
+      const first = view.querySelector<HTMLElement>(sel);
+      if (first) {
+        first.focus({ preventScroll: true });
+        break;
+      }
+    }
   }
 
   private hideCard(): void {

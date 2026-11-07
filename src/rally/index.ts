@@ -92,7 +92,7 @@ const PALETTE = ['#2f6fe0', '#f4c20d', '#2fa84f', '#8a4fd8', '#ff8a1f', '#e8412c
 const DIFF = { easy: { skill: 0.88, power: 0.96, band: 1.35 }, normal: { skill: 1, power: 1, band: 1 }, hard: { skill: 1.06, power: 1.03, band: 0.6 } } as const;
 
 /** What one coin on the road is worth (before trinkets). */
-const COIN_KR = 1.5;
+const COIN_KR = 1.2;
 
 /** Opponent colours as far from the player's as possible. */
 function pickColors(player: string, n: number): string[] {
@@ -1650,6 +1650,7 @@ const rally = (ctx: GameContext): GameInstance => {
         damage: me.damage,
         style: stylePts,
         nitro: nitroLeft,
+        mods: { stats: { ...stats }, bonusKr, coinKr, extraBoostT, bananas: obstacles.count, squashed: entrants.filter((e) => e.squashT > 0).length },
         calls: renderer.info.render.calls,
         triangles: renderer.info.render.triangles,
         geometries: renderer.info.memory.geometries,

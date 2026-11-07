@@ -13,8 +13,8 @@ export interface CoinSpot {
 }
 
 /** Coins per lap are placed in short lines; this is the number of lines. */
-const LINES = 9;
-const PER_LINE = 5;
+const LINES = 7;
+const PER_LINE = 4;
 const REACH = 2.7;
 
 export function placeCoins(track: Track, seed: number): CoinSpot[] {
@@ -54,7 +54,7 @@ export class Coins {
   constructor(track: Track, seed: number) {
     this.spots = placeCoins(track, seed);
     const n = this.spots.length;
-    const geo = new THREE.CylinderGeometry(0.62, 0.62, 0.14, 14);
+    const geo = new THREE.CylinderGeometry(0.75, 0.75, 0.16, 14);
     geo.rotateX(Math.PI / 2);
     const mat = new THREE.MeshStandardMaterial({ color: '#ffc928', emissive: '#c98a00', emissiveIntensity: 0.55, metalness: 0.6, roughness: 0.3 });
     this.mesh = new THREE.InstancedMesh(geo, mat, n);

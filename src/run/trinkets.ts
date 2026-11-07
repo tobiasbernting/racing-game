@@ -82,10 +82,10 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Jättehjul',
     emoji: '🛞',
     rarity: 'common',
-    text: 'Hjulen blir enorma och bilen klarar gräs bättre.',
+    text: 'Hjulen blir dubbelt så stora och bilen klarar gräs bättre.',
     unlock: 0,
     tune(t, n) {
-      t.wheels *= Math.min(3, 1 + 0.55 * n);
+      t.wheels *= Math.min(3, 1 + n);
       t.offroad *= 1 + 0.12 * n;
       t.size *= 1 + 0.04 * n;
     },
@@ -331,7 +331,7 @@ export const TRINKETS: TrinketDef[] = [
       t.glitter = true;
     },
     hooks: {
-      tick(c, dt, s) {
+      tick(c, _dt, s) {
         if (!s.racing) return;
         const last = c.st.place ?? s.place;
         c.st.place = s.place;

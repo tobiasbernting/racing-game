@@ -37,6 +37,10 @@ export class Obstacles {
     this.hayGeo.rotateZ(Math.PI / 2);
   }
 
+  get count(): number {
+    return this.list.length;
+  }
+
   /** Hay bales on the road, a few per lap, from a seed. */
   placeHay(track: Track, perLap: number, seed: number): void {
     const r = rng(seed ^ 0x4a7);
