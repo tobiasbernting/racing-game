@@ -172,10 +172,11 @@ export function healHeart(r: RunState, n = 1): boolean {
 export const KRONOR_SCALE = [1, 1.3, 1.7] as const;
 export const actScale = (act: number): number => KRONOR_SCALE[Math.min(act, KRONOR_SCALE.length - 1)]!;
 
-/** Finishing in the bottom third, or not at all, costs a heart. */
-export function costsHeart(place: number, n: number, finished: boolean): boolean {
+/** Finishing in the bottom third, or not at all, costs a heart. In lugnt läge only a DNF or dead last does. */
+export function costsHeart(place: number, n: number, finished: boolean, calm = false): boolean {
   if (!finished) return true;
   if (n <= 1) return false;
+  if (calm) return place >= n;
   const bottom = Math.max(1, Math.round(n / 3));
   return place > n - bottom;
 }

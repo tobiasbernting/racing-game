@@ -170,3 +170,18 @@ describe('meta progress', () => {
     expect(m.paint).toBe('#2f6fe0');
   });
 });
+
+describe('a finished run stays saved until its summary is left', () => {
+  it('keeps the last race card and how the run was counted, so a reload counts nothing twice', async () => {
+    const { newRun } = await import('./state.ts');
+    const { parseRun } = await import('./save.ts');
+    const r = newRun({ seed: 9, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
+    r.status = 'dead';
+    r.hearts = 0;
+    r.end = { won: false, trophies: 1, total: 1, unlockedBodies: [], unlockedTrinkets: [] };
+    const back = parseRun(JSON.parse(JSON.stringify(r)));
+    expect(back?.status).toBe('dead');
+    expect(back?.end).toEqual(r.end);
+    expect(parseRun({ ...JSON.parse(JSON.stringify(r)), end: undefined })?.end).toBeUndefined();
+  });
+});

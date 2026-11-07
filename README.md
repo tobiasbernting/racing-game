@@ -50,6 +50,26 @@ Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
 - **Prylar för fordonen**: Sidvagn (motorcykel), Turbofläkt (traktor), Ringklocka i guld (moppe), Ångvisslan, Fordonskarusellen
   (byter fordon varje varv) med flera. `buildMods(owned, body)` låter en pryl veta vilket fordon man kör.
 
+## Enheter och finish (fas 4)
+
+- **Dammet** på grus och sand är lätt och kortlivat, och tonas ut mellan kameran och spelarens egen bil (`Particles.setViewer`).
+- **Pek och enheter**: kontrollerna ligger utanför minikartan och pausknappen (alla knappar ≥ 44 px), respekterar safe-area, flera
+  fingrar fungerar samtidigt (styr + handbroms), tryck på menyer startar aldrig racing. Första tryck: ljudet vaknar och mobil/surfplatta
+  går till helskärm där webbläsaren tillåter det (på iPhone: tips om att lägga till på hemskärmen). Ingen dubbeltrycks-zoom, inga
+  långtrycksmenyer, ingen textmarkering. `public/manifest.webmanifest` + ikoner (`public/icon.svg`, PNG) och apple-meta gör att
+  spelet kan läggas på hemskärmen och köra i helskärm.
+- **Prestanda**: `quality: 'low'` (pek/små skärmar) har inga skuggor, färre partiklar, tunnare rekvisita och lägre pixelratio, och
+  loppet sänker upplösningen själv om bildfrekvensen sjunker (`adapt()` i `src/rally/index.ts`).
+- **Inställningar** (`src/settings.ts`, från titeln och pausmenyn): ljudvolym, musik, skakningar, lugnt läge, visa FPS, helskärm.
+- **Fest**: konfetti vid vinst, "NY PRYL!" med fanfar, kronorna räknas upp på resultatkortet, räknarpip, kameraskak (kan stängas av).
+- **Slutskärm**: fordon och förare, prylarna, rundans roligaste siffra, troféer och vad som låstes upp. Rundans frö (`Frö: …`)
+  visas smått på kartan och i summeringen.
+- **Sparning**: en avslutad runda ligger kvar sparad (med `end`) tills summeringen lämnas, så en omladdning på det sista
+  resultatkortet visar slutskärmen igen och räknar troféerna bara en gång.
+- **Balans** (`src/run/balance.test.ts`): simulerade rundor med spelare av olika skicklighet. Lugnt läge: bara bryta eller sist
+  kostar ett hjärta, bossar läker två hjärtan. Ett hjärta i kiosken kostar ungefär ett lopps lön och är en fjärdedel billigare på
+  sista hjärtat.
+
 ## Utveckling
 
 ```sh
