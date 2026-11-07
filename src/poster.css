@@ -472,7 +472,7 @@ div.rg-tcard {
   overflow-y: hidden;
   padding: 8px 4px 12px;
   margin: 0 -4px 4px;
-  touch-action: pan-x;
+  touch-action: pan-x pan-y;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
 }
@@ -881,4 +881,47 @@ div.rg-tcard {
 .rs-tl span,
 .rs-tl b {
   color: inherit;
+}
+
+/* a phone held sideways: the wide stencil title must not run into the buttons */
+@media (max-height: 520px) {
+  .rg-title .arc-title {
+    font-size: clamp(26px, 5.4vw, 46px);
+    letter-spacing: 0;
+  }
+  .rg-title-left::before {
+    display: none;
+  }
+}
+
+@media (max-height: 520px) {
+  .rg-btn,
+  .rg-choice,
+  .rg-svc,
+  .rg-chipbtn,
+  .rg-part {
+    letter-spacing: 0;
+  }
+  .rg-ccard {
+    flex-basis: 118px;
+    padding: 4px 5px 5px;
+  }
+  .rg-cport {
+    height: 44px;
+  }
+  .rg-cface {
+    font-size: 30px;
+  }
+  .rg-cname {
+    font-size: 13px;
+  }
+  .rg-cquote {
+    -webkit-line-clamp: 2;
+    font-size: 10px;
+  }
+}
+@media (max-height: 400px) {
+  .rg-cquote {
+    display: none;
+  }
 }

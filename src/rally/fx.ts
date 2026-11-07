@@ -393,6 +393,8 @@ export class Debris {
     this.mesh = new THREE.InstancedMesh(geo, mat, cap);
     this.mesh.frustumCulled = false;
     this.mesh.castShadow = false;
+    // nothing flying: nothing drawn (no draw call at all)
+    this.mesh.visible = false;
     for (let i = 0; i < cap; i++) {
       this.mesh.setColorAt(i, this.c.set('#222222'));
       this.mesh.setMatrixAt(i, this.m.makeScale(0, 0, 0));
@@ -426,6 +428,7 @@ export class Debris {
     }
     this.life[i] = life;
     this.live = this.cap;
+    this.mesh.visible = true;
   }
 
   update(dt: number, ground: (x: number, z: number) => number): void {
@@ -461,7 +464,10 @@ export class Debris {
       if (this.life[i]! > 0) alive++;
     }
     this.mesh.instanceMatrix.needsUpdate = true;
-    if (!alive) this.live = 0;
+    if (!alive) {
+      this.live = 0;
+      this.mesh.visible = false;
+    }
   }
 
   dispose(): void {
