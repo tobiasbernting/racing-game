@@ -14,18 +14,18 @@ export const CAR_BODY_NAMES: Record<CarBody, string> = {
   sofa: 'Soffbil',
 };
 
-/** One cheerful line on how each body drives. */
+/** One cheeky line on how each body drives. */
 export const CAR_BODY_TEXT: Record<CarBody, string> = {
-  hatch: 'En vanlig, go rallybil.',
-  buggy: 'Lätt och grepp i sanden.',
-  pickup: 'Stark och tålig.',
-  coupe: 'Snabb men skör.',
-  monster: 'Enorma hjul, enorm tyngd.',
-  atv: 'Lätt och yr. Älskar hopp och grus!',
-  moto: 'Rasande snabb. Lutar sig i kurvorna!',
-  moped: 'Långsam men spänstig. Ring-ring!',
-  tractor: 'Tung som en björn. Puttrar fram och puffar bort alla.',
-  sofa: 'En soffa på hjul. Helt galen.',
+  hatch: 'En hederlig rallybil. Rostig i själen.',
+  buggy: 'Lätt, sandig och livsfarlig.',
+  pickup: 'Stark som en oxe, luktar som en.',
+  coupe: 'Snabb som attan, skör som en kaka.',
+  monster: 'Enorma hjul, enorm tyngd, noll skam.',
+  atv: 'Lätt och yr. Älskar hopp och grus.',
+  moto: 'Rasande snabb. Lutar sig i kurvorna och ber.',
+  moped: 'Långsam men spänstig. Ring-ring, flytta på dig.',
+  tractor: 'Tung som en björn. Puttrar fram och puttar bort alla.',
+  sofa: 'En soffa på hjul. Mamma skulle aldrig tillåta det.',
 };
 
 export const RALLY_COURSE_NAMES: Record<RallyCourse, string> = {
@@ -45,7 +45,7 @@ export const RALLY_COURSE_NAMES: Record<RallyCourse, string> = {
 
 export const CAR_DRIVER_NAMES: Record<CarDriver, string> = {
   human: 'Du själv',
-  cow: 'Kossan',
+  cow: 'Kon',
   horse: 'Hästen',
   pig: 'Grisen',
   rooster: 'Tuppen',
@@ -69,13 +69,10 @@ export const CAR_PART_NAMES: Record<CarPart, string> = {
 export const CAR_PART_EMOJI: Record<CarPart, string> = { engine: '⚙️', tyres: '🛞', suspension: '🪀', brakes: '🛑', turbo: '🔥', armour: '🛡️' };
 
 export const CAR_PART_TEXT: Record<CarPart, string> = {
-  engine: 'Mer kraft',
-  tyres: 'Mer grepp',
-  suspension: 'Mjukare landningar, lättare att styra',
-  brakes: 'Bromsar bättre',
-  turbo: 'En nitro till i varje lopp',
-  armour: 'Tål smällar',
+  engine: 'Mer kraft. Mer oljud.',
+  tyres: 'Mer grepp. Mindre gråt.',
+  suspension: 'Mjukare landningar, lättare styrning',
+  brakes: 'Bromsar bättre. I teorin.',
+  turbo: 'En nitro till i varje lopp. FSSS!',
+  armour: 'Tål smällar. Nästan som du.',
 };
-
-/** The computer drivers in grid order (a boss takes the first one's place). */
-export const RIVAL_NAMES = ['Kossan Mu', 'Hästen Blixt', 'Grisen Kurre', 'Tuppen Kuckeli', 'Fåret Ull'] as const;

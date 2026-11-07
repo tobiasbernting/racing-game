@@ -279,6 +279,7 @@ export class Confetti {
   private readonly rot: Float32Array;
   private readonly spin: Float32Array;
   private readonly life: Float32Array;
+  private cols: THREE.Color[] = [];
   private live = 0;
   private next = 0;
   private readonly m = new THREE.Matrix4();
@@ -293,7 +294,7 @@ export class Confetti {
     const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
     this.mesh = new THREE.InstancedMesh(geo, mat, cap);
     this.mesh.frustumCulled = false;
-    const cols = ['#ff4d4d', '#ffd23f', '#3fbf5f', '#5fb7ff', '#ff4fd8', '#ffffff', '#ff9a2a'].map((c) => new THREE.Color(c));
+    const cols = this.cols = ['#ff4d4d', '#ffd23f', '#3fbf5f', '#5fb7ff', '#ff4fd8', '#ffffff', '#ff9a2a'].map((c) => new THREE.Color(c));
     for (let i = 0; i < cap; i++) {
       this.mesh.setColorAt(i, cols[i % cols.length]!);
       this.mesh.setMatrixAt(i, this.m.makeScale(0, 0, 0));
@@ -305,10 +306,14 @@ export class Confetti {
     this.life = new Float32Array(cap);
   }
 
-  burst(x: number, y: number, z: number, n: number, power = 9): void {
+  burst(x: number, y: number, z: number, n: number, power = 9, palette?: THREE.Color[]): void {
     for (let k = 0; k < n; k++) {
       const i = this.next;
       this.next = (this.next + 1) % this.cap;
+      if (this.mesh.instanceColor) {
+        this.mesh.setColorAt(i, palette ? palette[k % palette.length]! : this.cols[i % this.cols.length]!);
+        this.mesh.instanceColor.needsUpdate = true;
+      }
       const a = Math.random() * Math.PI * 2;
       const up = 0.5 + Math.random();
       this.p[i * 3] = x;

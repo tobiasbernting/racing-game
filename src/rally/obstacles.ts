@@ -1,4 +1,4 @@
-// Things lying on the road that spin whoever drives over them: banana peels (dropped by a trinket, never
+// Things lying on the road that spin whoever drives over them: slime puddles (dropped by a trinket, never
 // hurting their owner) and hay bales (the farmer boss's trick). Plain meshes, a handful at a time.
 import * as THREE from 'three';
 import type { Car } from './car.ts';
@@ -23,16 +23,16 @@ export class Obstacles {
   readonly group = new THREE.Group();
   private list: Obstacle[] = [];
   private readonly bananaGeo: THREE.BufferGeometry;
-  private readonly bananaMat = new THREE.MeshStandardMaterial({ color: '#ffe135', roughness: 0.5, emissive: '#6b5500', emissiveIntensity: 0.3 });
+  private readonly bananaMat = new THREE.MeshStandardMaterial({ color: '#7ed321', roughness: 0.25, emissive: '#2f6a00', emissiveIntensity: 0.45 });
   private readonly hayGeo: THREE.BufferGeometry;
   private readonly hayMat = new THREE.MeshLambertMaterial({ color: '#e0b84a' });
   private readonly lastHit = new WeakMap<Car, number>();
   private clock = 0;
 
   constructor() {
-    // a banana: a curved sausage lying flat
-    this.bananaGeo = new THREE.TorusGeometry(0.55, 0.17, 6, 12, Math.PI * 1.1);
-    this.bananaGeo.rotateX(-Math.PI / 2);
+    // a puddle of slime: a squashed lumpy blob
+    this.bananaGeo = new THREE.SphereGeometry(0.95, 10, 7);
+    this.bananaGeo.scale(1.3, 0.22, 1);
     this.hayGeo = new THREE.CylinderGeometry(0.85, 0.85, 1.5, 12);
     this.hayGeo.rotateZ(Math.PI / 2);
   }

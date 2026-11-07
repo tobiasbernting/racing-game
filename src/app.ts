@@ -33,7 +33,7 @@ export class App {
   private touchEl = el('div', 'arc-touch');
   private bar = el('div', 'arc-bar');
   private card = el('div', 'arc-card');
-  private rotate = el('div', 'arc-rotate', 'Vrid telefonen till liggande läge 📱↔️');
+  private rotate = el('div', 'arc-rotate', 'Vrid telefonen. Liggande. Nu. 📱↔️');
   private input = new Input();
   private audio: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -341,7 +341,7 @@ export class App {
       el(
         'div',
         'arc-panel menu-panel',
-        el('div', 'arc-head', back, el('h1', 'arc-title', 'Snabbrace'), el('p', 'arc-sub', 'Ett lopp, välj bana och bil')),
+        el('div', 'arc-head', back, el('h1', 'arc-title', 'Snabbrace'), el('p', 'arc-sub', 'Ett lopp. Välj bana och bil, sen gas.')),
         el('div', 'arc-picks', el('div', 'arc-h', 'Bana'), courseRow, el('div', 'arc-h', 'Bil'), bodyRow, previewBox, paintRow),
         go,
         how,
@@ -398,7 +398,7 @@ export class App {
     } catch (err) {
       console.error(err);
       this.factory = null;
-      if (run === this.run) this.error('Spelet gick inte att ladda. Kolla nätet och försök igen.');
+      if (run === this.run) this.error('Spelet vägrade ladda. Kolla nätet och försök igen.');
       return;
     }
     if (run !== this.run) return;
@@ -430,7 +430,7 @@ export class App {
       this.inst = factory(ctx);
     } catch (err) {
       console.error(err);
-      this.error('Något gick fel när spelet startade.');
+      this.error('Något small när spelet startade.');
     }
   }
 
@@ -466,7 +466,7 @@ export class App {
   private pauseCard(): void {
     const cont = el('button', 'arc-go', 'Fortsätt');
     cont.addEventListener('click', () => this.resume());
-    const again = el('button', 'arc-btn', this.mode === 'run' ? 'Starta om loppet' : 'Starta om');
+    const again = el('button', 'arc-btn', this.mode === 'run' ? 'Kör om loppet' : 'Starta om');
     again.addEventListener('click', () => void this.start());
     const quit = el('button', 'arc-btn', this.mode === 'run' ? 'Till kartan' : 'Till titeln');
     quit.addEventListener('click', () => (this.mode === 'run' ? this.showRun() : this.title()));
@@ -497,7 +497,7 @@ export class App {
     this.input.clear();
     this.touchEl.replaceChildren();
     const r = this.result;
-    const title = r ? (r.finished ? (r.place === 1 ? '🏆 Du vann!' : `${r.place}:a plats`) : 'Nästan i mål!') : 'Målgång';
+    const title = r ? (r.finished ? (r.place === 1 ? '🏆 DU VANN!' : `${r.place}:a plats`) : 'Du kom aldrig i mål') : 'Målgång';
     const lines: Node[] = [el('h1', 'arc-title', title)];
     if (r) {
       if (r.finished) lines.push(el('div', 'arc-detail', `⏱️ ${fmtTime(r.time / 1000)}${r.medal ? ' ' + { gold: '🥇', silver: '🥈', bronze: '🥉' }[r.medal] : ''}`));
@@ -505,7 +505,7 @@ export class App {
     } else {
       lines.push(el('div', 'arc-detail', detail ?? `${score} poäng`));
     }
-    const again = el('button', 'arc-go', 'Kör igen');
+    const again = el('button', 'arc-go', 'Kör igen!');
     again.addEventListener('click', () => void this.start());
     const menu = el('button', 'arc-btn', 'Till titeln');
     menu.addEventListener('click', () => this.title());

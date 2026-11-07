@@ -60,10 +60,10 @@ const every = (c: HookCtx, key: string, dt: number, interval: number): boolean =
 export const TRINKETS: TrinketDef[] = [
   {
     id: 'gummianka',
-    name: 'Gummianka på huven',
-    emoji: '🦆',
+    name: 'Pruttkudden',
+    emoji: '💨',
     rarity: 'common',
-    text: 'Varje stöt får dig att studsa högre. Kvack!',
+    text: 'Varje stöt går PRRRT och du studsar högre. Ingen har sagt att det var bilen.',
     unlock: 0,
     hooks: {
       tick(c, dt) {
@@ -74,17 +74,17 @@ export const TRINKETS: TrinketDef[] = [
         if ((c.st.cd ?? 0) > 0) return;
         c.st.cd = 0.5;
         c.api.bounce(Math.min(10, 3.5 + speed * 0.3) * (0.75 + 0.3 * c.n) * (kind === 'land' ? 0.7 : 1));
-        c.api.quack();
-        c.api.say('gummianka', 'Kvack!');
+        c.api.fart(0.8 + 0.4 * Math.min(2, c.n));
+        c.api.say('gummianka', 'PRRRT!');
       },
     },
   },
   {
     id: 'jattehjul',
-    name: 'Jättehjul',
+    name: 'Grannens traktordäck',
     emoji: '🛞',
     rarity: 'common',
-    text: 'Hjulen blir dubbelt så stora och bilen klarar gräs bättre.',
+    text: 'Hjulen blir dubbelt så stora. Grannen undrar vart de tog vägen.',
     unlock: 0,
     tune(t, n) {
       t.wheels *= Math.min(3, 1 + n);
@@ -94,10 +94,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'magnetko',
-    name: 'Magnet-ko',
-    emoji: '🐮',
+    name: 'Kebabmagneten',
+    emoji: '🥙',
     rarity: 'common',
-    text: 'Mynt flyger till dig från andra sidan banan.',
+    text: 'Mynt flyger till dig från andra sidan banan. Det luktar vitlök.',
     unlock: 0,
     tune(t, n) {
       t.magnet = Math.max(t.magnet, stackLin(16, 8, n));
@@ -106,16 +106,16 @@ export const TRINKETS: TrinketDef[] = [
       pickup(c, kind) {
         if (kind !== 'coin') return;
         c.st.n = (c.st.n ?? 0) + 1;
-        if (c.st.n % 8 === 0) c.api.say('magnetko', 'Muuu! Mynt!');
+        if (c.st.n % 8 === 0) c.api.say('magnetko', 'Mums, mynt!');
       },
     },
   },
   {
     id: 'studsmatta',
-    name: 'Studsmatta-däck',
+    name: 'Grannens trampolin',
     emoji: '🤸',
     rarity: 'common',
-    text: 'Smäller du i ett staket studsar du framåt!',
+    text: 'Smäller du i ett staket studsar du framåt. Grannen är inte glad.',
     unlock: 0,
     hooks: {
       hit(c, kind, speed) {
@@ -123,49 +123,49 @@ export const TRINKETS: TrinketDef[] = [
         c.api.kick(stackLin(6, 3, c.n));
         c.api.bounce(2.5);
         c.api.boing();
-        c.api.say('studsmatta', 'Boing! Framåt!');
+        c.api.say('studsmatta', 'Grannen skriker!');
       },
     },
   },
   {
     id: 'bananskal',
-    name: 'Bananskal-släp',
-    emoji: '🍌',
+    name: 'Slemspåret',
+    emoji: '🐌',
     rarity: 'common',
-    text: 'Du tappar bananskal bakom dig. De andra snurrar!',
+    text: 'Du lämnar en äcklig slemfläck bakom dig. De andra halkar. Usch!',
     unlock: 0,
     hooks: {
       tick(c, dt, s) {
         if (!s.racing || s.speed < 8) return;
         if (every(c, 't', dt, 6 / stackLin(1, 0.7, c.n))) {
           c.api.banana();
-          c.api.say('bananskal', 'Bananskal!');
+          c.api.say('bananskal', 'Slem!');
         }
       },
     },
   },
   {
     id: 'tvattbjorn',
-    name: 'Tvättbjörns-turbo',
+    name: 'Soptunneturbon',
     emoji: '🦝',
     rarity: 'common',
-    text: 'Sladdar du fylls turbon tre gånger snabbare.',
+    text: 'Sladdar du fylls turbon tre gånger snabbare. Drivs av skräp.',
     unlock: 1,
     tune(t, n) {
       t.driftRate *= 1 + 2 * n;
     },
     hooks: {
       drift(c, _seconds, tier) {
-        if (tier > 0) c.api.say('tvattbjorn', 'Tvätt-turbo!');
+        if (tier > 0) c.api.say('tvattbjorn', 'Sopturbo!');
       },
     },
   },
   {
     id: 'hoppfjadrar',
-    name: 'Hoppfjädrar',
-    emoji: '🦘',
+    name: 'Katapultsätet',
+    emoji: '💺',
     rarity: 'common',
-    text: 'Tryck handbromsen när du kör rakt fram: HOPP!',
+    text: 'Tryck handbromsen när du kör rakt fram: HOPP! Sätet skjuter iväg dig.',
     unlock: 0,
     tune(t, n) {
       t.jump = Math.max(t.jump, jumpPower(n));
@@ -178,16 +178,16 @@ export const TRINKETS: TrinketDef[] = [
         c.api.bounce(jumpPower(c.n));
         c.api.stat('jumps');
         c.api.boing();
-        c.api.say('hoppfjadrar', 'Hopp!');
+        c.api.say('hoppfjadrar', 'Katapult!');
       },
     },
   },
   {
     id: 'piratguld',
-    name: 'Piratguld',
-    emoji: '🪙',
+    name: 'Farfars guldtänder',
+    emoji: '🦷',
     rarity: 'common',
-    text: 'Varje mynt på banan är värt mer.',
+    text: 'Varje mynt på banan är värt mer. Farfar behövde dem inte längre.',
     unlock: 0,
     tune(t, n) {
       t.coinValue *= 1 + 0.75 * n;
@@ -195,24 +195,24 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'sparbossan',
-    name: 'Sparbössan',
-    emoji: '🐷',
+    name: 'Svartjobbet',
+    emoji: '💼',
     rarity: 'common',
-    text: 'Du får kronor för varje varv du kör.',
+    text: 'Du får kronor för varje varv. Skatteverket får inte veta.',
     unlock: 0,
     hooks: {
       lap(c) {
         c.api.kronor(stackLin(10, 6, c.n));
-        c.api.say('sparbossan', 'Pling! Sparat!');
+        c.api.say('sparbossan', 'Svart pling!');
       },
     },
   },
   {
     id: 'kanelbullar',
-    name: 'Kanelbullemotor',
-    emoji: '🥮',
+    name: 'Snusmotorn',
+    emoji: '🫙',
     rarity: 'common',
-    text: 'Motorn går på kanelbullar: mer kraft.',
+    text: 'Motorn går på snus: mer kraft. Läkaren avråder.',
     unlock: 0,
     tune(t, n) {
       t.power *= 1 + 0.08 * n;
@@ -220,10 +220,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'gummistovlar',
-    name: 'Gummistövlar',
-    emoji: '🥾',
+    name: 'Mammas tofflor',
+    emoji: '🥿',
     rarity: 'common',
-    text: 'Lera och gräs? Ingen fara!',
+    text: 'Lera och gräs? Pyttsan. Mammas gamla tofflor klarar allt.',
     unlock: 0,
     tune(t, n) {
       t.mudproof = true;
@@ -237,10 +237,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'mandamm',
-    name: 'Måndamm i tanken',
+    name: 'Månskensbrännvinet',
     emoji: '🌚',
     rarity: 'rare',
-    text: 'Månens tyngdkraft: du svävar länge!',
+    text: 'Månens tyngdkraft: du svävar länge! Lite yr i huvudet också.',
     unlock: 2,
     tune(t, n) {
       t.gravity *= Math.max(0.28, Math.pow(0.7, n));
@@ -248,86 +248,91 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'surstromming',
-    name: 'Surströmming',
+    name: 'Surströmmingsavgaser',
     emoji: '🐟',
     rarity: 'common',
-    text: 'Bilarna bakom dig blir yra av lukten och saktar in.',
+    text: 'Bilarna bakom dig kräks av lukten och saktar in.',
     unlock: 1,
     hooks: {
       tick(c, dt, s) {
         if (!s.racing) return;
         c.api.slowBehind(stackLin(14, 3, c.n), stackLin(0.45, 0.25, c.n), dt);
-        if (every(c, 'say', dt, 9)) c.api.say('surstromming', 'Pyyh! Vilken lukt!');
+        if (every(c, 'gas', dt, 2.4)) c.api.gas(0.4, false);
+        if (every(c, 'say', dt, 9)) c.api.say('surstromming', 'Pyyh! Surströmming!');
       },
     },
   },
   {
     id: 'kaffekoppen',
-    name: 'Kaffekoppen',
+    name: 'Kaffeslurparen',
     emoji: '☕',
     rarity: 'common',
-    text: 'Efter varje varv drar du på med extra fart.',
+    text: 'Efter varje varv slurpar du kaffe, rapar och drar på med extra fart.',
     unlock: 0,
     hooks: {
       lap(c) {
         c.api.boost(stackLin(1.4, 0.7, c.n), 1.35);
-        c.api.say('kaffekoppen', 'Koffein-boost!');
+        c.api.burp();
+        c.api.say('kaffekoppen', 'Slurp! RÖÖP!');
       },
     },
   },
   {
     id: 'sladdgradde',
-    name: 'Sladdgrädde',
-    emoji: '🍦',
+    name: 'Frityroljan',
+    emoji: '🍟',
     rarity: 'common',
-    text: 'Sladdar du, så glider du snabbare.',
+    text: 'Sladdar du, så glider du snabbare. Doftar pommes.',
     unlock: 2,
     hooks: {
       tick(c, dt, s) {
         if (!s.drifting || s.air) return;
         c.api.kick(4 * c.n * dt);
-        if (every(c, 'say', dt, 6)) c.api.say('sladdgradde', 'Slick-slack!');
+        if (every(c, 'say', dt, 6)) c.api.say('sladdgradde', 'Frittyyr!');
       },
     },
   },
   {
     id: 'raketryggsack',
-    name: 'Raketryggsäck',
-    emoji: '🚀',
+    name: 'Burritobomben',
+    emoji: '🌯',
     rarity: 'common',
-    text: 'Du får en lång raketstart när det blir grönt.',
+    text: 'Lång raketstart när det blir grönt. Burritot går inte att ta tillbaka.',
     unlock: 1,
     tune(t, n) {
       t.launch += 2.2 * n;
     },
     hooks: {
       boost(c, kind) {
-        if (kind === 'start') c.api.say('raketryggsack', 'Raketstart!');
+        if (kind === 'start') c.api.say('raketryggsack', 'Burrito-start!');
       },
     },
   },
   {
     id: 'kolsyrad',
-    name: 'Kolsyrad nitro',
-    emoji: '🍾',
+    name: 'Pruttboost',
+    emoji: '💨',
     rarity: 'common',
-    text: 'En extra nitro i varje lopp. Fsss!',
+    text: 'En extra nitro i varje lopp. Lämnar ett grönt moln som får bakomvarande att svaja.',
     unlock: 1,
     tune(t, n) {
       t.charges += n;
     },
     hooks: {
       boost(c, kind) {
-        if (kind === 'nitro') c.api.say('kolsyrad', 'Fsssss!');
+        if (kind !== 'nitro') return;
+        c.api.fart(1.3);
+        c.api.gas(c.n);
+        c.api.say('kolsyrad', 'PRUTTBOOST!');
       },
     },
   },
   {
     id: 'glitter',
-    name: 'Glitterdräkt',
+    name: 'Elvis-overallen',
     emoji: '✨',
     rarity: 'common',
-    text: 'Glitter bakom bilen, och kronor för varje omkörning.',
+    text: 'Glitter bakom bilen, och kronor för varje omkörning. Kungen hade varit stolt.',
     unlock: 2,
     tune(t) {
       t.glitter = true;
@@ -348,10 +353,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'alghorn',
-    name: 'Älghorn',
+    name: 'Stulna älghorn',
     emoji: '🦌',
     rarity: 'rare',
-    text: 'Bilar du krockar med flyger iväg.',
+    text: 'Bilar du krockar med flyger iväg. Älgen vill ha tillbaka dem.',
     unlock: 3,
     tune(t, n) {
       t.shove += n;
@@ -367,10 +372,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'raketkorv',
-    name: 'Raketkorv',
-    emoji: '🌭',
+    name: 'Chilikorven',
+    emoji: '🌶️',
     rarity: 'rare',
-    text: 'Nitron räcker dubbelt så länge, men du åker i sicksack.',
+    text: 'Nitron räcker dubbelt så länge, men magen krånglar: du åker i sicksack.',
     unlock: 2,
     tune(t, n) {
       t.nitroSeconds *= 1 + n;
@@ -379,16 +384,16 @@ export const TRINKETS: TrinketDef[] = [
     },
     hooks: {
       boost(c, kind) {
-        if (kind === 'nitro') c.api.say('raketkorv', 'Korv-nitro! Hoppla!');
+        if (kind === 'nitro') c.api.say('raketkorv', 'Chilikorv! Magen!');
       },
     },
   },
   {
     id: 'spokbil',
-    name: 'Spökbil',
+    name: 'Spöklakanet',
     emoji: '👻',
     rarity: 'rare',
-    text: 'Efter varje boost kör du rakt igenom andra bilar.',
+    text: 'Efter varje boost kör du rakt igenom andra bilar. Under lakanet luktar det mögel.',
     unlock: 3,
     hooks: {
       boost(c, kind) {
@@ -400,25 +405,25 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'kanon',
-    name: 'Kanon-avgasrör',
-    emoji: '🎉',
+    name: 'Korvkanonen',
+    emoji: '🌭',
     rarity: 'rare',
-    text: 'Boosten skjuter konfetti som puffar bort bilarna framför.',
+    text: 'Boosten skjuter varmkorv som puttar bort bilarna framför. Med senap.',
     unlock: 3,
     hooks: {
       boost(c, kind) {
         if (kind === 'start') return;
         c.api.cannon(c.n);
-        c.api.say('kanon', 'PANG! Konfetti!');
+        c.api.say('kanon', 'KORVSALVA!');
       },
     },
   },
   {
     id: 'pannkakor',
-    name: 'Pannkaksvägen',
-    emoji: '🥞',
+    name: 'Svettiga sockor',
+    emoji: '🧦',
     rarity: 'rare',
-    text: 'Då och då blir ledarens bil platt som en pannkaka.',
+    text: 'Då och då får ledaren en socka i luftintaget: bilen blir platt av lukten.',
     unlock: 4,
     hooks: {
       tick(c, dt, s) {
@@ -434,10 +439,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'discokula',
-    name: 'Discokula',
+    name: 'Källarfest-discot',
     emoji: '🪩',
     rarity: 'rare',
-    text: 'Disco på banan! Och 10 % mer kronor i mål.',
+    text: 'Disco på banan! Och 10 % mer kronor i mål. Pinsamt, men lönsamt.',
     unlock: 5,
     tune(t) {
       t.disco = true;
@@ -452,10 +457,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'tidsvrida',
-    name: 'Tidsvrida',
+    name: 'Loppis-tidsmaskinen',
     emoji: '⏳',
     rarity: 'legendary',
-    text: 'Första varvets tid räknas bara hälften.',
+    text: 'Första varvets tid räknas bara hälften. Garantin gick ut 1987.',
     unlock: 8,
     hooks: {
       finish(c, r) {
@@ -469,10 +474,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'dino',
-    name: 'Dinosauriebilen',
+    name: 'Dino-Dieseln',
     emoji: '🦖',
     rarity: 'legendary',
-    text: 'Bilen blir jättestor och skuffar undan alla.',
+    text: 'Bilen blir jättestor och puttar undan alla. RAWR. Och diesel.',
     unlock: 6,
     tune(t, n) {
       t.size *= Math.min(2.2, 1 + 0.45 * n);
@@ -487,10 +492,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'trollkarl',
-    name: 'Trollkarlshatten',
-    emoji: '🎩',
+    name: 'Bajsraketen',
+    emoji: '💩',
     rarity: 'legendary',
-    text: 'Efter varje varv händer något magiskt. Man vet aldrig vad!',
+    text: 'Efter varje varv: PRRRT och ett grönt moln, plus något slumpat. Alla luktar.',
     unlock: 6,
     hooks: {
       lap(c) {
@@ -501,54 +506,55 @@ export const TRINKETS: TrinketDef[] = [
           else if (k === 2) c.api.kronor(25);
           else c.api.squashLeader(2.5);
         }
-        c.api.party();
-        c.api.say('trollkarl', ['Abrakadabra: fart!', 'Hokus pokus: spöke!', 'Simsalabim: kronor!', 'Pang: pannkaka!'][k]);
+        c.api.fart(2);
+        c.api.gas(1 + c.n);
+        c.api.say('trollkarl', ['BAJSRAKET! Fart!', 'Osynlig! (lukten syns)', 'Hittade kronor i toan', 'Skitbomb: ledaren platt'][k]);
       },
     },
   },
   {
     id: 'rabattkupong',
-    name: 'Rabattkupong',
+    name: 'Fuskkupongen',
     emoji: '🎟️',
     rarity: 'common',
-    text: 'Allt i Mackens kiosk blir 15 % billigare.',
+    text: 'Allt i Mackens kiosk blir 15 % billigare. Fråga inte hur du fick den.',
     unlock: 0,
     perk: { shopDiscount: 0.15 },
   },
   {
     id: 'pepparkaka',
-    name: 'Pepparkakshjärta',
-    emoji: '🍪',
+    name: 'Begagnat hjärta',
+    emoji: '❤️',
     rarity: 'rare',
-    text: 'Ett extra hjärta att ha, och du blir hel igen.',
+    text: 'Ett extra hjärta att ha, och du blir hel igen. Lite begagnat.',
     unlock: 4,
     perk: { maxHearts: 1 },
   },
   {
     id: 'kristallkula',
-    name: 'Kristallkulan',
+    name: 'Spåkärringens kula',
     emoji: '🔮',
     rarity: 'rare',
-    text: 'Du ser ett extra alternativ när du får välja.',
+    text: 'Du ser ett extra alternativ när du får välja. Hon tar 99 kr i minuten.',
     unlock: 4,
     perk: { choices: 1 },
   },
   {
     id: 'guldagget',
-    name: 'Guldägget',
-    emoji: '🥚',
+    name: 'Lottovinsten',
+    emoji: '🎰',
     rarity: 'legendary',
-    text: 'Alla lopp ger 50 % mer kronor.',
+    text: 'Alla lopp ger 50 % mer kronor. Du berättar inte för någon.',
     unlock: 9,
     perk: { kronor: 0.5 },
   },
   // ---- phase 3: things for the new vehicles and courses ----
   {
     id: 'sidvagn',
-    name: 'Sidvagn',
+    name: 'Svärmors sidvagn',
     emoji: '🛺',
     rarity: 'rare',
-    text: 'Motorcykeln får sidvagn och slutar ramla. Andra fordon får betalande passagerare.',
+    text: 'Mc:n slutar ramla. Andra får en passagerare som gnäller men betalar.',
     unlock: 5,
     tune(t, n, body) {
       if (body !== 'moto') return;
@@ -557,10 +563,10 @@ export const TRINKETS: TrinketDef[] = [
     },
     hooks: {
       lap(c) {
-        if (c.body === 'moto') c.api.say('sidvagn', 'Hunden i sidvagnen gläfser!');
+        if (c.body === 'moto') c.api.say('sidvagn', 'Svärmor gnäller…');
         else {
           c.api.kronor(stackLin(8, 4, c.n));
-          c.api.say('sidvagn', 'Passageraren betalar!');
+          c.api.say('sidvagn', 'Passageraren gnäller och betalar!');
         }
         if (c.body === 'moto') c.api.kronor(stackLin(5, 3, c.n));
       },
@@ -568,7 +574,7 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'turboflakt',
-    name: 'Turbofläkt',
+    name: 'Torktumlaren',
     emoji: '🌀',
     rarity: 'rare',
     text: 'Traktorn får en jättefläkt: högre fart. Alla blåser undan bilarna framför.',
@@ -590,27 +596,27 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'ringklocka',
-    name: 'Ringklocka i guld',
+    name: 'Terrorklockan',
     emoji: '🔔',
     rarity: 'rare',
-    text: 'Moppens klocka ger kronor och puttar undan bilarna framför. Funkar på alla tutor.',
+    text: 'Tutan ger kronor och puttar undan bilarna framför. Irriterande.',
     unlock: 4,
     hooks: {
       honk(c, near) {
         const k = c.body === 'moped' ? 2 : 1;
         c.api.kronor(Math.round(stackLin(3, 2, c.n) * k));
         if (near > 0) c.api.shove(14, (c.body === 'moped' ? 5 : 3) * (0.8 + 0.3 * c.n));
-        c.api.say('ringklocka', 'Ring-ring! Gulligt!');
+        c.api.say('ringklocka', 'RING RING!');
         c.api.sparkle(10);
       },
     },
   },
   {
     id: 'karusell',
-    name: 'Fordonskarusellen',
+    name: 'Skrothandlarens lotteri',
     emoji: '🎠',
     rarity: 'legendary',
-    text: 'Du byter fordon varje varv. Vad blir det nu? Ingen vet!',
+    text: 'Du byter fordon varje varv. Vad blir det nu? Ingen vet. Ingen har försäkring.',
     unlock: 10,
     hooks: {
       lap(c) {
@@ -625,10 +631,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'kastrull',
-    name: 'Kastrullhjälm',
-    emoji: '🍳',
+    name: 'Dödskalle-dekalen',
+    emoji: '💀',
     rarity: 'common',
-    text: 'Du tål mer: alla skador blir mindre. Klonk!',
+    text: 'Alla skador blir mindre. Alla tror att du är farlig.',
     unlock: 0,
     tune(t, n) {
       t.tough *= Math.pow(0.75, n);
@@ -636,16 +642,16 @@ export const TRINKETS: TrinketDef[] = [
     hooks: {
       hit(c, kind, speed) {
         if (kind === 'land' || speed < 4) return;
-        c.api.say('kastrull', 'Klonk!');
+        c.api.say('kastrull', 'Rock on!');
       },
     },
   },
   {
     id: 'manstovlar',
-    name: 'Månstövlar',
-    emoji: '👢',
+    name: 'Månkalsongerna',
+    emoji: '🩲',
     rarity: 'common',
-    text: 'Lite mindre tyngdkraft: längre hopp och mjukare landningar.',
+    text: 'Lite mindre tyngdkraft: längre hopp och mjukare landningar. Kalsongerna lyfter.',
     unlock: 1,
     tune(t, n) {
       t.gravity *= Math.max(0.45, Math.pow(0.82, n));
@@ -653,10 +659,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'godispasen',
-    name: 'Godispåsen',
+    name: 'Lördagsgodiset',
     emoji: '🍬',
     rarity: 'common',
-    text: 'Då och då hittar du lösgodis som du kan sälja: kronor.',
+    text: 'Då och då hittar du lösgodis att sälja. Dåligt för tänderna, bra för plånboken.',
     unlock: 0,
     hooks: {
       tick(c, dt, s) {
@@ -671,10 +677,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'myntturbo',
-    name: 'Myntturbon',
-    emoji: '🪙',
+    name: 'Pantmotorn',
+    emoji: '♻️',
     rarity: 'rare',
-    text: 'Var sjätte mynt du tar ger en kort fartboost.',
+    text: 'Var sjätte mynt du tar ger en kort fartboost. Burkar är bensin.',
     unlock: 3,
     hooks: {
       pickup(c, kind) {
@@ -682,17 +688,17 @@ export const TRINKETS: TrinketDef[] = [
         c.st.n = (c.st.n ?? 0) + 1;
         if (c.st.n % Math.max(2, 7 - c.n) === 0) {
           c.api.boost(stackLin(1.1, 0.5, c.n), 1.3);
-          c.api.say('myntturbo', 'Mynt-turbo!');
+          c.api.say('myntturbo', 'Pant-turbo!');
         }
       },
     },
   },
   {
     id: 'guldpokal',
-    name: 'Guldpokalen',
+    name: 'Pappas pokal',
     emoji: '🏆',
     rarity: 'common',
-    text: 'Kommer du etta eller tvåa i mål får du en extra bonus.',
+    text: 'Kommer du etta eller tvåa i mål får du en bonus. Pappa är stolt, typ.',
     unlock: 2,
     hooks: {
       finish(c, r) {
@@ -705,10 +711,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'dubbdack',
-    name: 'Dubbdäck',
-    emoji: '❄️',
+    name: 'Bastu på taket',
+    emoji: '🧖',
     rarity: 'common',
-    text: 'Dubbar i däcken: mer grepp, mest på halt och löst underlag.',
+    text: 'Mer grepp, mest på halt och löst underlag. Isen smälter av värmen.',
     unlock: 1,
     tune(t, n) {
       t.grip *= 1 + 0.05 * n;
@@ -717,10 +723,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'krockkudde',
-    name: 'Krockkudden',
-    emoji: '🎈',
+    name: 'Uppblåsbara flamingon',
+    emoji: '🦩',
     rarity: 'rare',
-    text: 'Efter en rejäl smäll blir du genomskinlig en stund och slipper fler.',
+    text: 'Efter en rejäl smäll blir du genomskinlig en stund och slipper fler. Pfff!',
     unlock: 3,
     hooks: {
       tick(c, dt) {
@@ -730,16 +736,16 @@ export const TRINKETS: TrinketDef[] = [
         if (kind === 'land' || speed < 3 || (c.st.cd ?? 0) > 0) return;
         c.st.cd = 2;
         c.api.ghost(stackLin(1.6, 0.8, c.n));
-        c.api.say('krockkudde', 'Pfff! Krockkudde!');
+        c.api.say('krockkudde', 'Pfff! Flamingo!');
       },
     },
   },
   {
     id: 'angvissla',
-    name: 'Ångvisslan',
+    name: 'Dundertutan',
     emoji: '🚂',
     rarity: 'rare',
-    text: 'Tuta (H) så flyger bilarna framför iväg! Loket tutar själv när någon är nära.',
+    text: 'Tuta (H) så flyger bilarna framför iväg! Den tutar själv när någon är nära.',
     unlock: 6,
     hooks: {
       honk(c, near) {
@@ -751,10 +757,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'lavalampan',
-    name: 'Lavalampan',
+    name: 'Lavalampan från källaren',
     emoji: '🌋',
     rarity: 'common',
-    text: 'Varje turbosladd ger lite kronor: det bubblar!',
+    text: 'Varje turbosladd ger lite kronor. Det bubblar. Doftar damm.',
     unlock: 2,
     hooks: {
       drift(c, _seconds, tier) {
@@ -767,10 +773,10 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'rymdhjalmen',
-    name: 'Rymdhjälmen',
+    name: 'Akvariehjälmen',
     emoji: '👨‍🚀',
     rarity: 'rare',
-    text: 'Du svävar lite och mynt dras till dig. Ett litet steg för en kossa.',
+    text: 'Du svävar lite och mynt dras till dig. Litet steg, stor plånbok.',
     unlock: 7,
     tune(t, n) {
       t.gravity *= Math.max(0.5, Math.pow(0.88, n));
@@ -779,28 +785,28 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'planbok',
-    name: 'Plånboken',
+    name: 'Raggarplånboken',
     emoji: '👛',
     rarity: 'rare',
-    text: 'Alla lopp ger 25 % mer kronor.',
+    text: 'Alla lopp ger 25 % mer kronor. Kedjan sitter fast i byxorna.',
     unlock: 7,
     perk: { kronor: 0.25 },
   },
   {
     id: 'kuponghafte',
-    name: 'Kuponghäftet',
+    name: 'Pensionärsrabatten',
     emoji: '🎫',
     rarity: 'rare',
-    text: 'Allt i Mackens kiosk blir 25 % billigare.',
+    text: 'Allt i Mackens kiosk blir 25 % billigare. Du ser så gammal ut.',
     unlock: 4,
     perk: { shopDiscount: 0.25 },
   },
   {
     id: 'hjartekudde',
-    name: 'Hjärtekudden',
-    emoji: '🧸',
+    name: 'Hjärtstartaren',
+    emoji: '⚡',
     rarity: 'rare',
-    text: 'En mjuk nalle som ger dig ett extra hjärta.',
+    text: 'Ett extra hjärta. Ibland startar den om dig.',
     unlock: 6,
     perk: { maxHearts: 1 },
   },
@@ -851,4 +857,4 @@ export function buildMods(owned: readonly Owned[], body: CarBody = 'hatch'): Rac
 /** What a trinket costs in the shop (before discounts). */
 export const TRINKET_PRICE: Record<Rarity, number> = { common: 70, rare: 130, legendary: 230 };
 
-export const RARITY_NAMES: Record<Rarity, string> = { common: 'Vanlig', rare: 'Ovanlig', legendary: 'Legendarisk' };
+export const RARITY_NAMES: Record<Rarity, string> = { common: 'Skräp', rare: 'Grym', legendary: 'Legendarisk' };

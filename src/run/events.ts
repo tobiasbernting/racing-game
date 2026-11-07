@@ -44,15 +44,15 @@ export const EVENTS: EventDef[] = [
   {
     id: 'ko',
     emoji: '🐄',
-    title: 'En ko står på vägen',
-    text: 'Mitt på vägen står en ko och tuggar. Hon tänker inte flytta på sig.',
+    title: 'Kon som äger vägen',
+    text: 'En ko står mitt på vägen och tuggar. Hon stirrar på dig som om du är skyldig henne pengar.',
     choices: [
-      { label: 'Tuta! (−10 kr)', outcomes: [{ text: 'TUUUT! Kon blir så rädd att hon tappar 10 kr ur fickan. Eller var det dina?', fx: [{ k: 'kr', n: -10 }] }] },
+      { label: 'Tuta! (−10 kr)', outcomes: [{ text: 'TUUUT! Kon blir så förolämpad att hon tar 10 kr i skadestånd. Hon har advokat.', fx: [{ k: 'kr', n: -10 }] }] },
       {
         label: 'Kör runt kon',
         outcomes: [
-          { text: 'Du svischar runt kon och hittar något blankt i diket!', fx: [{ k: 'trinket' }] },
-          { text: 'Duns! Du kör rakt in i en höstack. Aj, ett hjärta mindre.', fx: [{ k: 'heart', n: -1 }] },
+          { text: 'Du svischar runt kon och hittar något blankt i diket. Kon låtsas inte se.', fx: [{ k: 'trinket' }] },
+          { text: 'DUNS! Du kör rakt in i en höstack. Kon skrattar. Ett hjärta mindre.', fx: [{ k: 'heart', n: -1 }] },
         ],
       },
     ],
@@ -60,25 +60,25 @@ export const EVENTS: EventDef[] = [
   {
     id: 'korv',
     emoji: '🌭',
-    title: 'Korvkiosken',
-    text: 'En korvkiosk ligger vid vägen. Det luktar underbart. Magen kurrar.',
+    title: 'Korvkiosken på natten',
+    text: 'En korvkiosk lyser vid vägen. Korven är grå. Försäljaren blinkar bara åt dig. Magen kurrar ändå.',
     choices: [
-      { label: 'Köp en korv (30 kr)', needKr: 30, outcomes: [{ text: 'Mums! Bästa korven någonsin. Du får ett hjärta tillbaka.', fx: [{ k: 'kr', n: -30 }, { k: 'heart', n: 1 }] }] },
-      { label: 'Åk förbi', outcomes: [{ text: 'Du biter ihop och kör förbi. Men på marken ligger 15 kr!', fx: [{ k: 'kr', n: 15 }] }] },
+      { label: 'Köp en korv (30 kr)', needKr: 30, outcomes: [{ text: 'Bästa korven någonsin. Eller värsta. Din mage bestämmer sig för bäst. Ett hjärta tillbaka.', fx: [{ k: 'kr', n: -30 }, { k: 'heart', n: 1 }] }] },
+      { label: 'Åk förbi', outcomes: [{ text: 'Du biter ihop och kör förbi. På marken ligger 15 kr. Och en tand. Du tar kronorna.', fx: [{ k: 'kr', n: 15 }] }] },
     ],
   },
   {
     id: 'troll',
     emoji: '🧌',
-    title: 'Trollet under bron',
-    text: '“Här får ingen köra förbi utan att betala vägtull!” säger ett troll under bron.',
+    title: 'Trollet med vägtull',
+    text: '”Vägtull!” morrar ett troll under bron. ”Jag har skulder. Och en skräckfilm att se.”',
     choices: [
-      { label: 'Betala tull (40 kr)', needKr: 40, outcomes: [{ text: 'Trollet blir nöjt och ger dig en present.', fx: [{ k: 'kr', n: -40 }, { k: 'trinket' }] }] },
+      { label: 'Betala tull (40 kr)', needKr: 40, outcomes: [{ text: 'Trollet räknar slantarna två gånger och ger dig en present. Den luktar sumpmark.', fx: [{ k: 'kr', n: -40 }, { k: 'trinket' }] }] },
       {
         label: 'Sjung för trollet',
         outcomes: [
-          { w: 55, text: 'Trollet gråter av glädje och ger dig något ovanligt!', fx: [{ k: 'trinket', rarity: 'rare' }] },
-          { w: 45, text: 'Trollet håller för öronen och kräver 20 kr i skadestånd.', fx: [{ k: 'kr', n: -20 }] },
+          { w: 55, text: 'Trollet gråter hysteriskt och ger dig något ovanligt. Typ en gammal kärlekshistoria.', fx: [{ k: 'trinket', rarity: 'rare' }] },
+          { w: 45, text: 'Trollet håller för öronen och kräver 20 kr i smärtersättning.', fx: [{ k: 'kr', n: -20 }] },
         ],
       },
     ],
@@ -86,31 +86,31 @@ export const EVENTS: EventDef[] = [
   {
     id: 'ufo',
     emoji: '🛸',
-    title: 'Ett flygande tefat',
-    text: 'Ett tefat landar på vägen. En grön figur sticker ut huvudet och säger “Blip?”',
+    title: 'Ett UFO parkerar snett',
+    text: 'Ett tefat landar mitt på vägen. En grön figur kikar ut: ”Blip? Är det här Linköping?”',
     choices: [
       {
         label: 'Vinka glatt',
         outcomes: [
-          { text: 'Rymdvarelsen ger dig 100 kr i rymdpengar!', fx: [{ k: 'kr', n: 100 }] },
-          { text: 'Zzzap! Rymdvarelsen trimmar din bil med en laserstråle.', fx: [{ k: 'part' }] },
+          { text: 'Rymdvarelsen betalar 100 kr i rymdpengar. Banken tar dem nog inte, men du tar dem.', fx: [{ k: 'kr', n: 100 }] },
+          { text: 'Zzzap! En laserstråle tunar bilen. Utan att fråga. Den var ändå dålig.', fx: [{ k: 'part' }] },
         ],
       },
-      { label: 'Gömma dig i en tunna', outcomes: [{ text: 'Tefatet flyger iväg. Det glömde en slant på marken.', fx: [{ k: 'kr', n: 15 }] }] },
+      { label: 'Gömma dig i en tunna', outcomes: [{ text: 'Tefatet tvekar, fnyser och flyger iväg. Det glömde en slant på marken.', fx: [{ k: 'kr', n: 15 }] }] },
     ],
   },
   {
     id: 'pepparkaka',
     emoji: '🍪',
     title: 'Pepparkaksbilen',
-    text: 'En bil gjord av pepparkakor står parkerad. Den doftar ljuvligt.',
+    text: 'En bil gjord av pepparkakor står parkerad. Den doftar jul. Det är november. Det här är fel.',
     choices: [
-      { label: 'Ta en liten bit', outcomes: [{ text: 'Mums! Du blir pigg och får ett hjärta tillbaka (eller 40 kr om du redan var full av energi).', fx: [{ k: 'heart', n: 1 }] }] },
+      { label: 'Ta en liten bit', outcomes: [{ text: 'Mums! Sockerchock, hjärtat startar om. Ett hjärta tillbaka (eller 40 kr om du redan var full av energi).', fx: [{ k: 'heart', n: 1 }] }] },
       {
         label: 'Ta HELA bilen!',
         outcomes: [
-          { text: 'Du hittar en rosett i pepparkakan. Det är en riktig skatt!', fx: [{ k: 'trinket', rarity: 'rare' }] },
-          { text: 'Aj, tandvärk! Bilen blir lite skadad av allt sockret.', fx: [{ k: 'damage', n: 25 }] },
+          { text: 'Inuti ligger en rosett av äkta guld. Någon har bakat in en skatt. Galning.', fx: [{ k: 'trinket', rarity: 'rare' }] },
+          { text: 'Aj, tandvärk! Sockret fräter på lacken och bilen blir skadad.', fx: [{ k: 'damage', n: 25 }] },
         ],
       },
     ],
@@ -118,31 +118,31 @@ export const EVENTS: EventDef[] = [
   {
     id: 'karta',
     emoji: '🗺️',
-    title: 'Skattkartan',
-    text: 'En flaska ligger i diket med en skattkarta i. Ett X markerar en plats alldeles intill vägen.',
+    title: 'Skattkartan i flaskan',
+    text: 'En flaska i diket innehåller en skattkarta. Ett X markerar en plats alldeles intill vägen. Det luktar mystik. Och fiskpinnar.',
     choices: [
       {
         label: 'Gräv efter skatten',
         outcomes: [
-          { w: 60, text: 'Kistan är full! Du får 120 kr.', fx: [{ k: 'kr', n: 120 }] },
-          { w: 40, text: 'Bara ett par gamla gummistövlar. Men de är bekväma!', fx: [{ k: 'trinket', id: 'gummistovlar' }] },
+          { w: 60, text: 'Kistan är full! 120 kr! Du grävde som en hund och luktar som en.', fx: [{ k: 'kr', n: 120 }] },
+          { w: 40, text: 'Bara ett par gamla tofflor. Mammas gamla tofflor. Varför grävde hon ner dem?', fx: [{ k: 'trinket', id: 'gummistovlar' }] },
         ],
       },
-      { label: 'Använd som servett', outcomes: [{ text: 'Kartan var visst värd lite pengar för en samlare: 25 kr.', fx: [{ k: 'kr', n: 25 }] }] },
+      { label: 'Använd som servett', outcomes: [{ text: 'Kartan var visst värd en slant för samlare. 25 kr. Servetten får du inte tillbaka.', fx: [{ k: 'kr', n: 25 }] }] },
     ],
   },
   {
     id: 'foto',
     emoji: '📸',
-    title: 'Fotografen',
-    text: 'En fotograf hoppar fram: “Stanna! Jag ska göra en tidning om världens galnaste förare!”',
+    title: 'Pappsen med kameran',
+    text: 'En fotograf hoppar ut: ”STANNA! Jag gör en tidning om Sveriges mest vanvettiga förare!” Han har dålig andedräkt.',
     choices: [
-      { label: 'Posera!', outcomes: [{ text: 'Du blir omslagsbild och får 35 kr i arvode.', fx: [{ k: 'kr', n: 35 }] }] },
+      { label: 'Posera!', outcomes: [{ text: 'Du blir omslagsbild, med näsan i vädret. 35 kr i arvode. Pinsamt men lönsamt.', fx: [{ k: 'kr', n: 35 }] }] },
       {
         label: 'Kör förbi i full fart',
         outcomes: [
-          { w: 40, text: 'Fotografen blir så imponerad att han skruvar på din bil gratis.', fx: [{ k: 'part' }] },
-          { w: 60, text: 'Bilden blev helt suddig. Tur att ingen såg dig.', fx: [] },
+          { w: 40, text: 'Fotografen blir så imponerad att han tunar din bil gratis. Han vill bara vara kompis.', fx: [{ k: 'part' }] },
+          { w: 60, text: 'Bilden blev helt suddig. Skönt. Din frisyr var inte redo.', fx: [] },
         ],
       },
     ],
@@ -150,21 +150,21 @@ export const EVENTS: EventDef[] = [
   {
     id: 'regnbage',
     emoji: '🌈',
-    title: 'Regnbågen',
-    text: 'En regnbåge landar mitt i en vattenpöl. Något glimmar i botten.',
+    title: 'Regnbågen kräks glitter',
+    text: 'En regnbåge landar i en vattenpöl och spyr glitter. Något guldigt glimmar i botten.',
     choices: [
       {
         label: 'Hoppa i pölen',
         outcomes: [
-          { w: 35, text: 'Splash! Du blir helt ny och får ett hjärta tillbaka.', fx: [{ k: 'heart', n: 1 }] },
-          { w: 65, text: 'Splash! Du hittar 60 kr på botten.', fx: [{ k: 'kr', n: 60 }] },
+          { w: 35, text: 'SPLASH! Du kommer upp som ny och ett hjärta tillbaka. Och glittrig i hela ansiktet.', fx: [{ k: 'heart', n: 1 }] },
+          { w: 65, text: 'SPLASH! 60 kr på botten. Någon tappade sin plånbok. Pinsamt för dem.', fx: [{ k: 'kr', n: 60 }] },
         ],
       },
       {
         label: 'Jaga guldpotten',
         outcomes: [
-          { w: 25, text: 'Guldpotten fanns på riktigt! Och en kuriosa ovanpå.', fx: [{ k: 'kr', n: 80 }, { k: 'trinket' }] },
-          { w: 75, text: 'Det var bara glitter. Du tappade 15 kr på jakten.', fx: [{ k: 'kr', n: -15 }] },
+          { w: 25, text: 'Guldpotten fanns på riktigt! En leprechaun bara gråter i buskarna. Och du får en pryl också.', fx: [{ k: 'kr', n: 80 }, { k: 'trinket' }] },
+          { w: 75, text: 'Det var bara glitter. Och en tom Pringles-burk. Du tappar 15 kr på jakten.', fx: [{ k: 'kr', n: -15 }] },
         ],
       },
     ],
@@ -173,20 +173,20 @@ export const EVENTS: EventDef[] = [
     id: 'spoke',
     emoji: '👻',
     title: 'Spöket i garaget',
-    text: 'I ett övergivet garage sitter ett spöke och gråter. “Ingen vill leka med mig…”',
+    text: 'I ett övergivet garage sitter ett spöke och gråter. ”Ingen vill hänga med mig. Jag är död, men inte på det sättet…”',
     choices: [
-      { label: 'Fixa bilen tillsammans', outcomes: [{ text: 'Spöket är ett riktigt fumlig-geni! Bilen blir hel och bättre.', fx: [{ k: 'repair' }, { k: 'part' }] }] },
-      { label: 'Säg “BUU!” tillbaka', outcomes: [{ text: 'Spöket skrattar så mycket att hans lakan trillar av. Under ligger en spökbil!', fx: [{ k: 'trinket', id: 'spokbil' }] }] },
+      { label: 'Fixa bilen tillsammans', outcomes: [{ text: 'Spöket har skruvat sedan 1962. Bilen blir hel och bättre. Han skickar kramar.', fx: [{ k: 'repair' }, { k: 'part' }] }] },
+      { label: 'Säg “BUU!” tillbaka', outcomes: [{ text: 'Spöket skrattar så mycket att lakanet trillar av. Under ligger ett Spöklakan! Använt, men helt okej.', fx: [{ k: 'trinket', id: 'spokbil' }] }] },
     ],
   },
   {
     id: 'snogubbe',
     emoji: '⛄',
     title: 'Snögubben med skylt',
-    text: 'En snögubbe står mitt i sommaren med en skylt: “Gratis kramar eller kronor?”',
+    text: 'En snögubbe står mitt i sommaren med en skylt: ”Kramar eller kronor? Jag smälter snart. Bestäm dig.”',
     choices: [
-      { label: 'Ge en kram', outcomes: [{ text: 'Brrr, kallt! Men snögubben ger dig 40 kr och en kall nitro.', fx: [{ k: 'kr', n: 40 }, { k: 'trinket', rarity: 'common' }] }] },
-      { label: 'Ta kronorna', outcomes: [{ text: 'Snögubben smälter lite av besvikelse. Du får 50 kr.', fx: [{ k: 'kr', n: 50 }] }] },
+      { label: 'Ge en kram', outcomes: [{ text: 'Brrr, iskallt! Men snögubben ger dig 40 kr och en pryl ur sin morot. Fråga inte var.', fx: [{ k: 'kr', n: 40 }, { k: 'trinket', rarity: 'common' }] }] },
+      { label: 'Ta kronorna', outcomes: [{ text: 'Snögubben smälter lite av besvikelse. Du får 50 kr. Du är en monsterperson.', fx: [{ k: 'kr', n: 50 }] }] },
     ],
   },
 ];
@@ -197,49 +197,49 @@ EVENTS.push(
     id: 'kamel',
     emoji: '🐪',
     title: 'Kamelen med solglasögon',
-    text: 'En kamel med solglasögon står mitt på vägen. “Pratar du kamelspråk?” frågar den, stilla.',
+    text: 'En kamel med solglasögon blockerar vägen. ”Pratar du kamelspråk?” frågar den. Du gör det inte. Du har ändå ett val.',
     acts: [1],
     choices: [
       {
         label: 'Svara på kamelspråk',
         outcomes: [
-          { w: 55, text: 'Kamelen skrattar så att solglasögonen trillar av och ger dig något blankt i tack.', fx: [{ k: 'trinket' }] },
-          { w: 45, text: 'Du sa visst något oartigt. Kamelen spottar. Du tappar 15 kr på rymmen.', fx: [{ k: 'kr', n: -15 }] },
+          { w: 55, text: 'Kamelen skrattar så att solglasögonen trillar av och ger dig något blankt i tack. Ingen vet varför.', fx: [{ k: 'trinket' }] },
+          { w: 45, text: 'Du sa visst något oartigt om hans mamma. Kamelen spottar. Du tappar 15 kr på flykt.', fx: [{ k: 'kr', n: -15 }] },
         ],
       },
-      { label: 'Erbjud kamelen din lunch (−10 kr)', needKr: 10, outcomes: [{ text: 'Kamelen blir rörd och ger dig 45 kr i dricks. Den hade hela tiden en plånbok i puckeln.', fx: [{ k: 'kr', n: 35 }] }] },
+      { label: 'Erbjud kamelen din lunch (−10 kr)', needKr: 10, outcomes: [{ text: 'Kamelen blir rörd och ger dig 45 kr i dricks. Han hade en plånbok i pucklarna hela tiden.', fx: [{ k: 'kr', n: 35 }] }] },
     ],
   },
   {
     id: 'vulkanrap',
     emoji: '🌋',
     title: 'Vulkanen rapar',
-    text: 'Marken skakar. Vulkanen rapar upp en glödande sten med ett paket fastbundet. “Förlåt!” ropar den.',
+    text: 'Marken skakar. Vulkanen rapar upp en glödande sten med ett paket fastbundet. ”Ursäkta! Frukostburriton.”',
     acts: [1],
     choices: [
       {
         label: 'Fånga stenen',
         outcomes: [
-          { w: 60, text: 'Pytt-i-panna! Stenen är bara varm, och paketet innehåller en riktig pryl.', fx: [{ k: 'trinket' }] },
-          { w: 40, text: 'Aj, varm! Bilen blir lite sotig och skadad.', fx: [{ k: 'damage', n: 20 }] },
+          { w: 60, text: 'Stenen är bara varm, som en nygammal pizza. I paketet ligger en riktig pryl.', fx: [{ k: 'trinket' }] },
+          { w: 40, text: 'AJ, VARM! Bilen blir sotig och skadad. Vulkanen skäms.', fx: [{ k: 'damage', n: 20 }] },
         ],
       },
-      { label: 'Backa undan', outcomes: [{ text: 'Stenen studsar förbi och lämnar ett mynt som har smält fast i vägen: 25 kr.', fx: [{ k: 'kr', n: 25 }] }] },
+      { label: 'Backa undan', outcomes: [{ text: 'Stenen studsar förbi och lämnar ett mynt som har smält fast i vägen: 25 kr. Du bände loss det med nyckeln.', fx: [{ k: 'kr', n: 25 }] }] },
     ],
   },
   {
     id: 'maneman',
     emoji: '🌙',
-    title: 'Gubben i månen',
-    text: 'Gubben i månen sträcker ut huvudet: “Har du någon ost? Jag är så hungrig, och månen är bara en ostbit hela vägen.”',
+    title: 'Gubben i månen kräver ost',
+    text: 'Gubben i månen sträcker ut huvudet: ”Har du ost? Jag är så hungrig. Månen är bara en ostbit, men den är EJ ätbar. Typ.”',
     acts: [2],
     choices: [
-      { label: 'Skicka en hälsning', outcomes: [{ text: 'Gubben blir så glad att han ger dig ett hjärta tillbaka (eller 40 kr om du redan var hel).', fx: [{ k: 'heart', n: 1 }] }] },
+      { label: 'Skicka en hälsning', outcomes: [{ text: 'Gubben blir så rörd att han tårögt ger dig ett hjärta (eller 40 kr om du redan var hel).', fx: [{ k: 'heart', n: 1 }] }] },
       {
         label: 'Be om ost som tack',
         outcomes: [
-          { w: 40, text: 'Han kastar ner en ostbit, med något blankt gömt inuti!', fx: [{ k: 'trinket', rarity: 'rare' }] },
-          { w: 60, text: 'Han skrattar och kastar ner en ostbit värd 55 kr på ostmarknaden.', fx: [{ k: 'kr', n: 55 }] },
+          { w: 40, text: 'Han kastar ner en ostbit med något blankt gömt inuti! Den doftar ändå som en fot.', fx: [{ k: 'trinket', rarity: 'rare' }] },
+          { w: 60, text: 'Han skrattar och kastar ner en ostbit värd 55 kr på ostmarknaden. Dyrt, ändå stinkigt.', fx: [{ k: 'kr', n: 55 }] },
         ],
       },
     ],
@@ -248,15 +248,15 @@ EVENTS.push(
     id: 'chokladflod',
     emoji: '🍫',
     title: 'Chokladfloden',
-    text: 'Vid vägen porlar en flod av varm choklad. En skylt säger: “Doppa gärna. Eller smaka. Men inte båda.”',
+    text: 'Vid vägen porlar en flod av varm choklad. Skylten säger: ”Doppa gärna. Eller smaka. Men inte båda. Jag menar det.”',
     acts: [2],
     choices: [
-      { label: 'Smaka en klunk', outcomes: [{ text: 'Mmmmm! Du blir pigg och får ett hjärta tillbaka (eller 40 kr om du redan var full av energi).', fx: [{ k: 'heart', n: 1 }] }] },
+      { label: 'Smaka en klunk', outcomes: [{ text: 'Mmmmm! Sockerrus. Hjärtat piggnar till och du får ett hjärta tillbaka (eller 40 kr om du redan var full av energi).', fx: [{ k: 'heart', n: 1 }] }] },
       {
         label: 'Doppa hela bilen',
         outcomes: [
-          { w: 50, text: 'Bilen blir så glad av chokladen att motorn spinner. Du får en uppgradering!', fx: [{ k: 'part' }] },
-          { w: 50, text: 'Kladdigt! Choklad i hjulhusen. Bilen blir lite skadad.', fx: [{ k: 'damage', n: 25 }] },
+          { w: 50, text: 'Bilen blir så glad av chokladen att motorn spinner som en katt. Du får en uppgradering!', fx: [{ k: 'part' }] },
+          { w: 50, text: 'Kladdigt! Choklad i hjulhusen och i själen. Bilen blir skadad.', fx: [{ k: 'damage', n: 25 }] },
         ],
       },
     ],
@@ -265,14 +265,14 @@ EVENTS.push(
     id: 'soffan',
     emoji: '🛋️',
     title: 'Soffan på vägen',
-    text: 'En stor, mjuk soffa står mitt i vägen, med en kudde och en kopp kaffe. Ingen tycks vara hemma.',
+    text: 'En stor, mjuk soffa står mitt i vägen med en kudde och en kopp kaffe. Ingen är hemma. Någon har glömt fjärrkontrollen.',
     choices: [
-      { label: 'Slå dig ner en stund', outcomes: [{ text: 'Ahh. Kaffet är precis lagom. Du blir helt ny och får ett hjärta tillbaka (eller 40 kr).', fx: [{ k: 'heart', n: 1 }] }] },
+      { label: 'Slå dig ner en stund', outcomes: [{ text: 'Ahh. Kaffet är perfekt. Du sover tre minuter. Ett hjärta tillbaka (eller 40 kr om du redan var hel).', fx: [{ k: 'heart', n: 1 }] }] },
       {
         label: 'Putta bort soffan',
         outcomes: [
-          { w: 55, text: 'Under soffan ligger gamla mynt och ett par spelkort som är värda en slant: 40 kr.', fx: [{ k: 'kr', n: 40 }] },
-          { w: 45, text: 'Soffan var tyngre än den såg ut. Du får skjuta den i en timme och blir skadad.', fx: [{ k: 'damage', n: 15 }] },
+          { w: 55, text: 'Under soffan: gamla mynt, en halv pizza och spelkort värda 40 kr. Du tar pengarna.', fx: [{ k: 'kr', n: 40 }] },
+          { w: 45, text: 'Soffan var tyngre än den såg ut. Du skjuter i en timme och bilen blir skadad.', fx: [{ k: 'damage', n: 15 }] },
         ],
       },
     ],
@@ -281,11 +281,11 @@ EVENTS.push(
     id: 'frukost',
     emoji: '🥣',
     title: 'Gigantiska flingor',
-    text: 'En flinga stor som ett däck ligger på vägen. En lapp säger: “Ät mig! (Eller åk förbi.)”',
+    text: 'En flinga stor som ett traktordäck ligger mitt på vägen. En lapp: ”Ät mig! (Eller åk förbi. Jag dömer inte.)”',
     acts: [2],
     choices: [
-      { label: 'Ta en tugga', outcomes: [{ text: 'Knaprigt! Och i mitten gömde sig en liten present.', fx: [{ k: 'trinket' }] }] },
-      { label: 'Åk förbi', outcomes: [{ text: 'Du åker förbi i full fart. Flingan studsar i vind och lämnar 20 kr efter sig.', fx: [{ k: 'kr', n: 20 }] }] },
+      { label: 'Ta en tugga', outcomes: [{ text: 'KNASP! I mitten gömde sig en liten present. Och en mjölkpöl.', fx: [{ k: 'trinket' }] }] },
+      { label: 'Åk förbi', outcomes: [{ text: 'Du åker förbi i full fart. Flingan studsar i vinden och lämnar 20 kr efter sig.', fx: [{ k: 'kr', n: 20 }] }] },
     ],
   },
 );
@@ -317,9 +317,9 @@ export function resolveChoice(run: RunState, ev: EventDef, choiceIdx: number, no
           if (healHeart(run, fx.n)) lines.push('+1 ❤️');
           else {
             addKronor(run, 40);
-            lines.push('+40 kr (hjärtana var redan fulla)');
+            lines.push('+40 kr (du var redan i toppform)');
           }
-        } else lines.push(loseHeart(run, true) ? '−1 ❤️' : 'Du hade tur och slapp förlora ett hjärta!');
+        } else lines.push(loseHeart(run, true) ? '−1 ❤️' : 'Tur! Du slapp förlora ett hjärta.');
         break;
       case 'trinket': {
         const id = fx.id ?? drawTrinkets(run, rg, 12, 'event').find((t) => !fx.rarity || trinketById(t)?.rarity === fx.rarity) ?? drawTrinkets(run, rg, 1, 'event')[0];
@@ -342,7 +342,7 @@ export function resolveChoice(run: RunState, ev: EventDef, choiceIdx: number, no
           lines.push(`${CAR_PART_NAMES[part]} +1 ⬆️`);
         } else {
           addKronor(run, 50);
-          lines.push('+50 kr (bilen är redan toppen)');
+          lines.push('+50 kr (bilen kan inte bli bättre)');
         }
         break;
       }

@@ -11,6 +11,8 @@ export interface BossDef {
   name: string;
   emoji: string;
   course: RallyCourse;
+  /** The boss's nickname, a few words. */
+  nick: string;
   /** What the boss says at the start. */
   intro: string;
   /** The trick, in one line. */
@@ -21,47 +23,51 @@ export interface BossDef {
 export const BOSS_DEFS: Record<BossId, BossDef> = {
   bengt: {
     id: 'bengt',
-    name: 'Bonden Bengt',
+    name: 'Sura Bengt',
+    nick: 'Hatar rallyungar på sin grusväg',
     emoji: '🚜',
     course: BOSS_COURSE.bengt,
-    intro: '“Ingen kör förbi mig på min gård! Nu ska ni få se hur man kör traktor!”',
-    trick: 'Bengt kör traktor och puttar undan dig, och höbalar ligger på vägen. Kör runt dem!',
-    twist: { boss: { name: 'Bonden Bengt', face: 'human', body: 'tractor', color: '#2fa84f', power: 1.04, skill: 0.98 }, hay: 6 },
+    intro: '“DET HÄR ÄR MIN GRUSVÄG! Ni rallyungar förstör gruset och skrämmer korna. Jag har traktor, hela dagen och inga vänner!”',
+    trick: 'Bengt kör traktor och puttar undan dig. Höbalar ligger på vägen. Kör runt dem!',
+    twist: { boss: { name: 'Sura Bengt', face: 'human', body: 'tractor', color: '#2fa84f', power: 1.04, skill: 0.98 }, hay: 6 },
   },
   ingrid: {
     id: 'ingrid',
-    name: 'Älgen Ingrid',
+    name: 'Ingrid Ingenväjning',
+    nick: 'Älgen som aldrig ger företräde',
     emoji: '🦌',
     course: BOSS_COURSE.ingrid,
-    intro: '“Hoppla! Jag älskar att hoppa över vägen. Kan du hänga med?”',
-    trick: 'Ingrid kör fyrhjuling och hoppar tvärs över vägen, och de andra gör likadant och får fart i nitron.',
-    twist: { boss: { name: 'Älgen Ingrid', face: 'horse', body: 'atv', color: '#8c5a3c', power: 1.03, skill: 0.97 }, rivalHop: 7, rivalNitro: 12 },
+    intro: '“Jag väjer aldrig. Inte för bilar, inte för tåg, inte för dig. Flytta på dig, annars blir du älgkorv.”',
+    trick: 'Ingrid kör fyrhjuling och hoppar tvärs över vägen utan förvarning. De andra gör likadant och drar på nitron.',
+    twist: { boss: { name: 'Ingrid Ingenväjning', face: 'horse', body: 'atv', color: '#8c5a3c', power: 1.03, skill: 0.97 }, rivalHop: 7, rivalNitro: 12 },
   },
   isdrottningen: {
     id: 'isdrottningen',
-    name: 'Isdrottningen',
+    name: 'Frost-Frida',
+    nick: 'Isdrottningen med fryst hjärta',
     emoji: '👸',
     course: BOSS_COURSE.isdrottningen,
-    intro: '“Brrr! Min bana är min. Här blir det halt för alla!”',
-    trick: 'Vägen är is: det är halt för alla, och Isdrottningen dundrar iväg med nitro.',
-    twist: { boss: { name: 'Isdrottningen', face: 'cat', body: 'coupe', color: '#bfe9ff', power: 1.04, skill: 1.02 }, grip: 0.72, rivalNitro: 9 },
+    intro: '“Mitt hjärta är kallare än din glass. Banan är is och du är i vägen. Brrr, älskling.”',
+    trick: 'Vägen är blank is: halt för alla. Frida dundrar iväg med nitro.',
+    twist: { boss: { name: 'Frost-Frida', face: 'cat', body: 'coupe', color: '#bfe9ff', power: 1.04, skill: 1.02 }, grip: 0.72, rivalNitro: 9 },
   },
   kanin: {
     id: 'kanin',
     name: 'Kapten Kanin',
+    nick: 'Månens krigsherre, äter morötter och förlorare',
     emoji: '🐰',
     course: BOSS_COURSE.kanin,
-    intro: '“Hopp hopp! På månen väger man ingenting. Fånga mig om ni kan, jag kör soffa!”',
-    trick: 'Månen har låg tyngdkraft: Kapten Kanin och de andra studsar i jättehopp och drar på nitron.',
+    intro: '“Jag är Kapten Kanin, krigsherre över månen. Jag äter morötter och förlorare. Knäpp med öronen: ni är mina!”',
+    trick: 'Månen har låg tyngdkraft. Kanin kör soffa och studsar i jättehopp. De andra gör likadant och drar på nitron.',
     twist: { boss: { name: 'Kapten Kanin', face: 'rabbit', body: 'sofa', color: '#6a4fd8', power: 1.05, skill: 1.0 }, rivalHop: 4.5, rivalNitro: 10 },
   },
 };
 
 export const CHALLENGE_NAMES: Record<ChallengeKind, string> = {
-  win: 'Vinn på 2 varv',
-  toptwo: 'Topp 2 i regnet',
-  night: 'Nattrace',
-  time: 'Slå tiden',
+  win: 'Vinn eller skäms',
+  toptwo: 'Topp 2 i spöregn',
+  night: 'Mörkerrallyt',
+  time: 'Slå klockan',
 };
 
 export type Goal =
@@ -103,7 +109,7 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
   let boss: BossDef | undefined;
 
   if (node.type === 'elite') {
-    title = `Elitlopp på ${RALLY_COURSE_NAMES[course].toLowerCase()}`;
+    title = `Dödslopp på ${RALLY_COURSE_NAMES[course].toLowerCase()}`;
     rules.ai = Math.min(5, rules.ai + 1);
     rules.difficulty = stepDiff(rules.difficulty, 1);
     rules.damage = true;
@@ -126,15 +132,15 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
     switch (node.challenge) {
       case 'win':
         rules.laps = 2;
-        goal = { kind: 'place', place: 1, text: 'Vinn loppet!' };
+        goal = { kind: 'place', place: 1, text: 'Vinn! Silver är bara första förloraren.' };
         break;
       case 'toptwo':
         rules.weather = 'rain';
-        goal = { kind: 'place', place: 2, text: 'Kom topp 2 – det regnar!' };
+        goal = { kind: 'place', place: 2, text: 'Topp 2, och det spöregnar!' };
         break;
       case 'night':
         rules.time = 'night';
-        goal = { kind: 'place', place: 3, text: 'Kom topp 3 i mörkret!' };
+        goal = { kind: 'place', place: 3, text: 'Topp 3 i becksvart natt!' };
         break;
       case 'time': {
         const ms = targetTimeMs(course, rules.laps);
