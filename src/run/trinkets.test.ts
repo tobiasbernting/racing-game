@@ -98,6 +98,8 @@ function recorder(): { api: RaceApi; calls: string[] } {
     cannon: log('cannon'),
     squashLeader: log('squash'),
     swapVehicle: log('swap'),
+    swapAhead: () => (calls.push('swapAhead'), true),
+    dropAhead: (k: string) => (calls.push(`dropAhead:${k}`), true),
     slowBehind: log('slow'),
     shove: log('shove'),
     kronor: log('kronor'),
@@ -108,7 +110,7 @@ function recorder(): { api: RaceApi; calls: string[] } {
 }
 
 describe('the effect bus', () => {
-  it('the whoopee cushion bounces and farts on a bump, harder with two', () => {
+  it('the bouncy ball bounces with a boing on a bump, harder with two', () => {
     const run = (n: number): string[] => {
       const { api, calls } = recorder();
       const m = buildMods([{ id: 'gummianka', n }]);
@@ -117,7 +119,8 @@ describe('the effect bus', () => {
       return calls;
     };
     const one = run(1);
-    expect(one.some((c) => c.startsWith('fart'))).toBe(true);
+    expect(one.some((c) => c.startsWith('boing'))).toBe(true);
+    expect(one.some((c) => c.startsWith('fart'))).toBe(false);
     const b1 = Number(one.find((c) => c.startsWith('bounce'))!.split(':')[1]);
     const b2 = Number(run(2).find((c) => c.startsWith('bounce'))!.split(':')[1]);
     expect(b2).toBeGreaterThan(b1);
@@ -182,7 +185,7 @@ describe('the effect bus', () => {
 
 describe('paths', () => {
   it('every trinket belongs to one of the six paths, and each path has some', () => {
-    expect(TRINKETS.length).toBe(48);
+    expect(TRINKETS.length).toBeGreaterThanOrEqual(48);
     for (const t of TRINKETS) expect(TRINKET_PATHS, t.id).toContain(t.path);
     for (const p of TRINKET_PATHS) expect(TRINKETS.filter((t) => t.path === p).length, p).toBeGreaterThanOrEqual(4);
   });
@@ -214,5 +217,33 @@ describe('caps on runaway stacks', () => {
   it('kronor perks stop at double pay', () => {
     expect(perksOf([{ id: 'guldagget', n: 2 }, { id: 'planbok', n: 3 }]).kronor).toBeLessThanOrEqual(1);
     expect(perksOf([{ id: 'guldagget', n: 1 }]).kronor).toBeCloseTo(0.5);
+  });
+});
+
+describe('the humour is chaos, not toilets', () => {
+  it('at most three trinkets are about prutt and bajs, and only those fart or leave the green cloud', () => {
+    const toilet = TRINKETS.filter((t) => /prutt|bajs|kräk|spy|toa\b/i.test(`${t.name} ${t.text}`));
+    expect(toilet.length).toBeLessThanOrEqual(3);
+    expect(trinketById('kolsyrad')!.rarity).not.toBe('common');
+    expect(trinketById('trollkarl')!.rarity).toBe('legendary');
+    // the others never ask for the fart or the green cloud
+    for (const t of TRINKETS.filter((x) => x.id !== 'kolsyrad' && x.id !== 'trollkarl')) {
+      const { api, calls } = recorder();
+      const m = buildMods([{ id: t.id, n: 2 }]);
+      m.bus.bind(api);
+      m.bus.hit('car', 8);
+      m.bus.hit('wall', 8);
+      m.bus.hit('land', 9);
+      m.bus.boost('nitro');
+      m.bus.lap(1);
+      m.bus.drift(2, 2);
+      m.bus.tick(5, { speed: 30, steer: 0, handbrake: false, handbrakePressed: false, straight: true, air: false, drifting: true, boosting: false, lap: 1, place: 2, racing: true, time: 20 });
+      expect(calls.filter((c) => c.startsWith('fart') || c.startsWith('gas') || c.startsWith('burp')), t.id).toEqual([]);
+    }
+  });
+
+  it('has a handful of trinkets with random outcomes in the Kaos flavour', () => {
+    expect(TRINKETS.filter((t) => t.path === 'kaos').length).toBeGreaterThanOrEqual(7);
+    for (const id of ['bytesplats', 'konmagnet', 'slumpvaxel', 'tombola']) expect(trinketById(id)?.path).toBe('kaos');
   });
 });

@@ -162,6 +162,10 @@ export interface RaceApi {
   slowBehind(radius: number, k: number, dt: number): void;
   /** Shove computer cars close to the player (m/s outward). */
   shove(radius: number, strength: number): void;
+  /** Swap places with the closest car ahead (false when nobody is close enough). */
+  swapAhead(): boolean;
+  /** Drop a hay bale or an oil slick on the road in front of the closest rival ahead (false when there is none). */
+  dropAhead(kind: 'hay' | 'oil'): boolean;
   /** Swap the player's vehicle for another one at random (a poof and a new body). */
   swapVehicle(): void;
   /** Add kr straight away (shown as a pop-up). */

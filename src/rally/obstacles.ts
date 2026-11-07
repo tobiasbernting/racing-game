@@ -74,7 +74,7 @@ export class Obstacles {
       const s = 90 + ((L - 190) * (k + 0.2 + r() * 0.6)) / perLap;
       const hw = track.at(track.hw, s);
       const p = track.point(s, (r() - 0.5) * (hw - 3) * 1.5);
-      this.add('hay', p.x, p.y, p.z, null, track.heading(s) + (r() - 0.5) * 1.2);
+      this.add('hay', p.x, p.y, p.z, null, track.heading(s) + (r() - 0.5) * 1.2, true);
     }
   }
 
@@ -86,7 +86,7 @@ export class Obstacles {
     mesh.rotation.y = yaw;
     mesh.castShadow = false;
     this.group.add(mesh);
-    this.list.push({ kind, x, y, z, owner, age: 0, mesh, life: forever ? 0 : kind === 'oil' ? OIL_LIFE : kind === 'banana' ? BANANA_LIFE : 0 });
+    this.list.push({ kind, x, y, z, owner, age: 0, mesh, life: forever ? 0 : kind === 'oil' ? OIL_LIFE : kind === 'banana' ? BANANA_LIFE : kind === 'hay' ? 22 : 0 });
     if (kind === 'banana') {
       const bananas = this.list.filter((o) => o.kind === 'banana');
       if (bananas.length > MAX_BANANAS) this.remove(bananas[0]!);

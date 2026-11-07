@@ -3,8 +3,8 @@
 The 3D rally game from `lilla-garden` (`packages/arcade/src/games/rally`) becomes its own game here: a
 roguelite in the spirit of Tape to Tape. The run structure, trinkets that change the rules, and silly
 chaos are the point. It is for an adult and his 10-year-old son playing together, so it stays in Swedish, stays
-forgiving, and gets *more* fun, not harder to get into. Tone: absurd, cheeky, gross-out funny (fart boosts, kebab
-magnets, sock gas), like Tape to Tape; never babyish. The rally stays in Lilla Gården too, untouched.
+forgiving, and gets *more* fun, not harder to get into. Tone: absurd, cheeky, random and bonkers (kebab magnets, flying cows, position swaps), like Tape to Tape; every run different
+depending on the trinkets you get. A fart or two is fine, toilet humour is not the point; no swearing; never babyish. The rally stays in Lilla Gården too, untouched.
 
 ## Tech
 

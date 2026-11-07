@@ -376,7 +376,7 @@ const rally = (ctx: GameContext): GameInstance => {
     disposers.push(() => shadowTex.dispose());
     buildCars();
     particles = new Particles(high ? 1600 : 600);
-    gasFx = new Particles(high ? 360 : 180, [3.5, 15]);
+    gasFx = new Particles(high ? 360 : 180, [2.5, 9]);
     skids = new Skids(high ? 3000 : 1200);
     confetti = new Confetti(high ? 420 : 200);
     scene.add(particles.points, gasFx.points, skids.mesh, confetti.mesh);
@@ -1278,7 +1278,7 @@ const rally = (ctx: GameContext): GameInstance => {
           size0: 0.8,
           size1: 2.2 + strength * 0.25,
           color: colGas,
-          alpha: push ? 0.34 : 0.2,
+          alpha: push ? 0.42 : 0.24,
           drag: 1.8,
           gravity: -0.1,
         });
@@ -1300,10 +1300,14 @@ const rally = (ctx: GameContext): GameInstance => {
         e.car.vz *= 0.93;
       }
     },
-    boing: () => audio.boing(),
+    boing() {
+      audio.boing();
+      stats.quacks++;
+    },
     party() {
       const c = player().car;
       audio.party();
+      stats.quacks++;
       confetti.burst(c.x, c.y + 2, c.z, high ? 60 : 30, 7);
     },
     bounce(vy) {
@@ -1362,8 +1366,8 @@ const rally = (ctx: GameContext): GameInstance => {
       stats.squashed++;
       poof(lead.car.x, lead.car.y, lead.car.z);
       audio.boing();
-      for (let k = 0; k < 8; k++) particles.emit({ x: lead.car.x, y: lead.car.y + 1, z: lead.car.z, vx: (Math.random() - 0.5) * 3, vy: 1 + Math.random() * 2, vz: (Math.random() - 0.5) * 3, life: 1.8, size0: 1.2, size1: 4, color: colGas, alpha: 0.55, drag: 1.5, gravity: -0.2 });
-      hud.toast(`🧦 ${lead.name} svimmade av sockluften!`);
+      sparkleAt(lead.car.x, lead.car.y, lead.car.z, 10, 1.2);
+      hud.toast(`🥞 En jättepannkaka landade på ${lead.name}!`);
     },
     slowBehind(radius, k, dt) {
       const me = player();
@@ -1380,7 +1384,7 @@ const rally = (ctx: GameContext): GameInstance => {
         const f = Math.exp(-k * dt * 0.6);
         e.car.vx *= f;
         e.car.vz *= f;
-        if (Math.random() < 0.15) particles.emit({ x: e.car.x, y: e.car.y + 1.2, z: e.car.z, vy: 1.2, life: 0.9, size0: 0.8, size1: 2.4, color: colGas, alpha: 0.5, drag: 1.5, gravity: -0.3 });
+        if (Math.random() < 0.15) particles.emit({ x: e.car.x, y: e.car.y + 1.2, z: e.car.z, vy: 1.2, life: 0.9, size0: 0.8, size1: 2.4, color: colSpark, alpha: 0.5, drag: 1.5, gravity: -0.3 });
       }
     },
     shove(radius, strength) {
@@ -1397,6 +1401,50 @@ const rally = (ctx: GameContext): GameInstance => {
         e.car.vy += strength * 0.25;
         e.car.yawRate += (Math.random() - 0.5) * 3;
       }
+    },
+    swapAhead() {
+      const me = player();
+      let best: Entrant | null = null;
+      for (const e of entrants) {
+        if (e === me || e.finished || e.wreckT > 0) continue;
+        const gap = e.u - me.u;
+        if (gap > 2 && gap < 45 && (!best || gap < best.u - me.u)) best = e;
+      }
+      if (!best) return false;
+      const a = me.car;
+      const b = best.car;
+      const [sa, da, sb, db] = [a.proj.s, a.proj.d, b.proj.s, b.proj.d];
+      const av = [a.vx, a.vz, a.yawRate];
+      const bv = [b.vx, b.vz, b.yawRate];
+      poof(a.x, a.y, a.z);
+      poof(b.x, b.y, b.z);
+      a.place(sb, db, ground);
+      b.place(sa, da, ground);
+      [a.vx, a.vz, a.yawRate] = bv as [number, number, number];
+      [b.vx, b.vz, b.yawRate] = av as [number, number, number];
+      const du = best.u - me.u;
+      me.u += du;
+      best.u -= du;
+      me.lastS = a.proj.s;
+      best.lastS = b.proj.s;
+      a.ghost = 1.4;
+      b.ghost = 1.4;
+      audio.poof();
+      hud.toast(`🔀 Du bytte plats med ${best.name}`);
+      return true;
+    },
+    dropAhead(kind) {
+      const me = player();
+      let best: Entrant | null = null;
+      for (const e of entrants) {
+        if (e === me || e.finished) continue;
+        const gap = e.u - me.u;
+        if (gap > 5 && gap < 90 && (!best || gap < best.u - me.u)) best = e;
+      }
+      if (!best) return false;
+      const p = track.point(best.car.proj.s + 14, best.car.proj.d);
+      obstacles.add(kind, p.x, p.y, p.z, me.car, track.heading(best.car.proj.s + 14));
+      return true;
     },
     swapVehicle() {
       const e = player();

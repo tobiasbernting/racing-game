@@ -1,6 +1,6 @@
 # Galna Rallyt
 
-Ett 3D-rallyspel i webbläsaren (three.js): kom först i mål mot en gäng galna förare på tolv banor. Spelet är gjort för en vuxen och en tioåring som spelar tillsammans: absurt, fräckt och gärna lite äckligt (prutt, kebab och korvkanoner). Det är
+Ett 3D-rallyspel i webbläsaren (three.js): kom först i mål mot en gäng galna förare på tolv banor. Spelet är gjort för en vuxen och en tioåring som spelar tillsammans: absurt, oförutsägbart och bonkers: ingen runda blir den andra lik, det beror på vilka prylar du råkar få (korvkanoner, flygande kor, plats­byten mitt i farten, en och annan prutt). Det är
 en egen fristående version av rallyt från Lilla Gården och ska bli en roguelite (se [PLAN.md](PLAN.md)).
 Fas 1 var porten (ett lopp på dator, surfplatta och mobil), fas 2 gjorde det till en roguelite: en runda är tre
 akter med varsin förgrenad karta och en boss, och på vägen samlar man galna prylar. Fas 3 (den här) lägger till
@@ -20,7 +20,7 @@ Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
 - **Hjärtan och kronor**: kommer man sist (nedersta tredjedelen) eller bryter förlorar man ett hjärta; vid 0 är rundan slut.
   Loppen ger kronor (pris + mynt på banan + prylbonus, skalat per akt) som går till kiosken (prylar, laga bilen, läka
   hjärta, nya varor) och verkstaden (en gratis uppgradering av en del, eller måla om).
-- **Prylar** (`src/run/trinkets.ts`, 48 st): vanlig/ovanlig/legendarisk, samma pryl två gånger gör den starkare. Varje pryl är
+- **Prylar** (`src/run/trinkets.ts`, 52 st): vanlig/ovanlig/legendarisk, samma pryl två gånger gör den starkare. Varje pryl är
   data: `tune` ändrar siffror när loppet startar, `hooks` reagerar på tick/boost/sladd/stöt/varv/pickup/mål, `perk` ändrar
   rundan (rabatt, hjärtan, fler val). Loppet får dem som `RallyOptions.mods` (`src/rally/mods.ts`); bossarnas trick går via
   `RallyOptions.twist`. Lägg till en pryl genom att lägga till en rad i listan.
@@ -102,7 +102,8 @@ Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
 - **Byte efter varje vinst**: vinner du (i Blodbad: mest poäng) väljer du 1 av 3 (prylar, ibland en uppgradering), lutat mot sorten
   (efter Blodbad fler rammar-prylar, efter Rally fler fart-prylar). Tvåan får ett tröstpris: 1 av 2 skräp-prylar. Dödslopp och bossar ger
   fortfarande alltid ett val, med bättre odds.
-- **Prylarnas vägar** (`path` på alla 48): `ram`, `race`, `fuffens`, `stunt`, `girig`, `kaos`. Fas 9 bygger på dem.
+- **Humor**: kaos, inte toalett. Högst tre prylar handlar om prutt och bajs (Pruttboost är sällsynt, Bajsraketen legendarisk); bara de pruttar och lämnar det gröna molnet. Resten har egna effekter (konfetti, gnistor, glitter, studsar). Nya slumpprylar: Platsbytar-Pelle, Kon från ovan, Slumpväxeln och Tombolan. Inga svordomar: `src/language.test.ts` skannar alla texter.
+- **Prylarnas vägar** (`path` på alla 52): `ram`, `race`, `fuffens`, `stunt`, `girig`, `kaos`. Fas 9 bygger på dem.
 - **Balanssimuleringen** (`src/run/balance.test.ts`, `src/run/racesim.ts`, `src/shared/pace.ts`) räknar med varvtider i stället för tärningar:
   spelarens varv från bil, delar, prylar och skicklighet, varje rivals varv från dess skalade kit, och loppet körs sida vid sida
   med catch-up, hinder, kontakt och (i Blodbad) takedowns. Varvtidsmodellen är anpassad mot den riktiga fysiken (`src/rally/pace.test.ts`).

@@ -68,8 +68,8 @@ export function titleView(o: TitleOpts): HTMLElement {
     'div',
     'rg-title-left',
     el('h1', 'arc-title', 'Galna Rallyt'),
-    el('p', 'arc-sub', 'Kör som en galning. Samla skräp. Krossa bossarna.'),
-    el('div', 'rg-deco', ...['🏎️', '💨', '🌭', '🧦', '💩'].map((e) => el('span', null, e))),
+    el('p', 'arc-sub', 'Ingen runda blir den andra lik. Samla galna prylar. Krossa bossarna.'),
+    el('div', 'rg-deco', ...['🏎️', '🎲', '🌭', '🪩', '🐄'].map((e) => el('span', null, e))),
     el('div', 'rg-trophy', `🏆 ${o.meta.trophies}`, el('small', null, o.meta.runs ? ` · ${plural(o.meta.runs, 'runda', 'rundor')} krossade` : ' · inga rundor än. Visa vad du går för.')),
   );
   const right = el('div', 'rg-title-right');
@@ -550,7 +550,7 @@ export function funnyStats(run: RunState): { text: string; n: number; silly: boo
   add(s.bounces, `🤸 Studsade ${plural(s.bounces, 'gång', 'gånger')}`);
   add(Math.round(s.driftSeconds), `🌀 Sladdade i ${Math.round(s.driftSeconds)} sekunder`);
   add(s.bananas, `🐌 Slemmade ner banan ${plural(s.bananas, 'gång', 'gånger')}${s.bananaHits ? ` (${s.bananaHits} offer!)` : ''}`);
-  add(s.quacks, `💨 Pruttade och rapade ${plural(s.quacks, 'gång', 'gånger')}`);
+  add(s.quacks, `📣 Ställde till oväsen ${plural(s.quacks, 'gång', 'gånger')}`);
   add(s.squashed, `🧦 Sockade ner ${plural(s.squashed, 'bil', 'bilar')}`);
   add(s.jumps, `🦘 Hoppade ${plural(s.jumps, 'gång', 'gånger')}`);
   add(s.coins, `🪙 Samlade ${plural(s.coins, 'mynt', 'mynt')}`, false);

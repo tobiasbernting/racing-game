@@ -70,11 +70,11 @@ const every = (c: HookCtx, key: string, dt: number, interval: number): boolean =
 export const TRINKETS: TrinketDef[] = [
   {
     id: 'gummianka',
-    name: 'Pruttkudden',
-    emoji: '💨',
+    name: 'Studsbollen',
+    emoji: '🏀',
     rarity: 'common',
     path: 'stunt',
-    text: 'Varje stöt går PRRRT och du studsar högre. Ingen har sagt att det var bilen.',
+    text: 'Varje stöt gör KABOING och du studsar högre. Ingen har sagt att det var bilen.',
     unlock: 0,
     hooks: {
       tick(c, dt) {
@@ -85,8 +85,9 @@ export const TRINKETS: TrinketDef[] = [
         if ((c.st.cd ?? 0) > 0) return;
         c.st.cd = 0.5;
         c.api.bounce(Math.min(10, 3.5 + speed * 0.3) * (0.75 + 0.3 * c.n) * (kind === 'land' ? 0.7 : 1));
-        c.api.fart(0.8 + 0.4 * Math.min(2, c.n));
-        c.api.say('gummianka', 'PRRRT!');
+        c.api.boing();
+        c.api.sparkle(4);
+        c.api.say('gummianka', 'KABOING!');
       },
     },
   },
@@ -144,18 +145,18 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'bananskal',
-    name: 'Slemspåret',
-    emoji: '🐌',
+    name: 'Halkfläcken',
+    emoji: '🧴',
     rarity: 'common',
     path: 'fuffens',
-    text: 'Du lämnar en äcklig slemfläck bakom dig. De andra halkar. Usch!',
+    text: 'Du lämnar en halkig sörja bakom dig. De andra snurrar. Hoppsan!',
     unlock: 0,
     hooks: {
       tick(c, dt, s) {
         if (!s.racing || s.speed < 8) return;
         if (every(c, 't', dt, 6 / stackLin(1, 0.7, c.n))) {
           c.api.banana();
-          c.api.say('bananskal', 'Slem!');
+          c.api.say('bananskal', 'Hoppsan!');
         }
       },
     },
@@ -275,18 +276,18 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'surstromming',
-    name: 'Surströmmingsavgaser',
-    emoji: '🐟',
+    name: 'Glitterdimman',
+    emoji: '🌫️',
     rarity: 'common',
     path: 'fuffens',
-    text: 'Bilarna bakom dig kräks av lukten och saktar in.',
+    text: 'En tjock glitterdimma bakom dig: bilarna där bak saktar in och fattar ingenting.',
     unlock: 1,
     hooks: {
       tick(c, dt, s) {
         if (!s.racing) return;
         c.api.slowBehind(stackLin(14, 3, c.n), stackLin(0.45, 0.25, c.n), dt);
-        if (every(c, 'gas', dt, 2.4)) c.api.gas(0.4, false);
-        if (every(c, 'say', dt, 9)) c.api.say('surstromming', 'Pyyh! Surströmming!');
+        if (every(c, 'gas', dt, 1.6)) c.api.sparkle(5);
+        if (every(c, 'say', dt, 9)) c.api.say('surstromming', 'Dimma!');
       },
     },
   },
@@ -296,13 +297,13 @@ export const TRINKETS: TrinketDef[] = [
     emoji: '☕',
     rarity: 'common',
     path: 'race',
-    text: 'Efter varje varv slurpar du kaffe, rapar och drar på med extra fart.',
+    text: 'Efter varje varv slurpar du kaffe och drar på med extra fart. Hjärtat orkar.',
     unlock: 0,
     hooks: {
       lap(c) {
         c.api.boost(stackLin(1.4, 0.7, c.n), 1.35);
-        c.api.burp();
-        c.api.say('kaffekoppen', 'Slurp! RÖÖP!');
+        c.api.sparkle(8);
+        c.api.say('kaffekoppen', 'Slurp! Zoom!');
       },
     },
   },
@@ -345,7 +346,7 @@ export const TRINKETS: TrinketDef[] = [
     id: 'kolsyrad',
     name: 'Pruttboost',
     emoji: '💨',
-    rarity: 'common',
+    rarity: 'rare',
     path: 'fuffens',
     maxStack: 3,
     text: 'En extra nitro i varje lopp. Lämnar ett grönt moln som får bakomvarande att svaja.',
@@ -462,11 +463,11 @@ export const TRINKETS: TrinketDef[] = [
   },
   {
     id: 'pannkakor',
-    name: 'Svettiga sockor',
-    emoji: '🧦',
+    name: 'Pannkakssmällen',
+    emoji: '🥞',
     rarity: 'rare',
     path: 'fuffens',
-    text: 'Då och då får ledaren en socka i luftintaget: bilen blir platt av lukten.',
+    text: 'Då och då landar en jättepannkaka på ledarens bil. Den blir platt. Sirap ingår.',
     unlock: 4,
     hooks: {
       tick(c, dt, s) {
@@ -556,7 +557,99 @@ export const TRINKETS: TrinketDef[] = [
         }
         c.api.fart(2);
         c.api.gas(1 + c.n);
-        c.api.say('trollkarl', ['BAJSRAKET! Fart!', 'Osynlig! (lukten syns)', 'Hittade kronor i toan', 'Stinkbomb: ledaren platt'][k]);
+        c.api.say('trollkarl', ['BAJSRAKET! Fart!', 'Osynlig! (men molnet syns)', 'Hittade kronor i raketen', 'Pannkaka: ledaren platt'][k]);
+      },
+    },
+  },
+  {
+    id: 'bytesplats',
+    name: 'Platsbytar-Pelle',
+    emoji: '🔀',
+    rarity: 'rare',
+    path: 'kaos',
+    text: 'Då och då byter du plats med bilen framför dig. Mitt i farten. Ingen frågar dig först.',
+    unlock: 4,
+    hooks: {
+      tick(c, dt, s) {
+        if (!s.racing) return;
+        c.st.t = (c.st.t ?? 0) + dt;
+        c.st.next ??= 10 + Math.random() * 6;
+        if ((c.st.t ?? 0) < (c.st.next ?? 12)) return;
+        // no one close ahead: try again in a moment
+        if (!c.api.swapAhead()) {
+          c.st.t = (c.st.next ?? 12) - 1.5;
+          return;
+        }
+        c.st.t = 0;
+        c.st.next = (14 + Math.random() * 10) / stackLin(1, 0.5, c.n);
+        c.api.say('bytesplats', 'BYTE!');
+      },
+    },
+  },
+  {
+    id: 'konmagnet',
+    name: 'Kon från ovan',
+    emoji: '🐄',
+    rarity: 'common',
+    path: 'kaos',
+    text: 'Då och då landar en ko (eller en höbal, det är samma sak) på vägen framför en rival.',
+    unlock: 2,
+    hooks: {
+      tick(c, dt, s) {
+        if (!s.racing) return;
+        c.st.t = (c.st.t ?? 0) + dt;
+        c.st.next ??= 8 + Math.random() * 6;
+        if ((c.st.t ?? 0) < (c.st.next ?? 10)) return;
+        c.st.t = 0;
+        c.st.next = (12 + Math.random() * 10) / stackLin(1, 0.5, c.n);
+        if (c.api.dropAhead(Math.random() < 0.5 ? 'hay' : 'oil')) c.api.say('konmagnet', 'MUUU!');
+      },
+    },
+  },
+  {
+    id: 'slumpvaxel',
+    name: 'Slumpväxeln',
+    emoji: '🎰',
+    rarity: 'common',
+    path: 'kaos',
+    text: 'Växellådan smäller till då och då: oftast ett rejält kast framåt, ibland ett litet bakåt.',
+    unlock: 1,
+    hooks: {
+      tick(c, dt, s) {
+        if (!s.racing || s.air) return;
+        c.st.t = (c.st.t ?? 0) + dt;
+        c.st.next ??= 6 + Math.random() * 6;
+        if ((c.st.t ?? 0) < (c.st.next ?? 8)) return;
+        c.st.t = 0;
+        c.st.next = (9 + Math.random() * 7) / stackLin(1, 0.4, c.n);
+        const good = Math.random() < 0.72;
+        c.api.kick(good ? stackLin(9, 2, c.n) : -4);
+        c.api.bounce(good ? 2 : 4);
+        c.api.sparkle(6);
+        c.api.say('slumpvaxel', good ? 'KLONK! Framåt!' : 'KLONK… bakåt.');
+      },
+    },
+  },
+  {
+    id: 'tombola',
+    name: 'Tombolan',
+    emoji: '🎪',
+    rarity: 'rare',
+    path: 'kaos',
+    text: 'Varje varv en lott: kronor, konfetti, spökläge eller ett jättekast. Ingen vet vilken.',
+    unlock: 3,
+    hooks: {
+      lap(c) {
+        const k = Math.floor(Math.random() * 4);
+        for (let i = 0; i < c.n; i++) {
+          if (k === 0) c.api.kronor(35);
+          else if (k === 1) {
+            c.api.party();
+            c.api.boost(1.6, 1.35);
+          } else if (k === 2) c.api.ghost(4);
+          else c.api.bounce(9);
+        }
+        c.api.say('tombola', ['Vinst! Kronor!', 'KONFETTI!', 'Spöklott!', 'Studslott!'][k]);
       },
     },
   },
