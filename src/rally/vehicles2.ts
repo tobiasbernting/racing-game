@@ -106,13 +106,14 @@ export function epa(P: Parts): BodySpec {
   // the amber beacon on the roof
   tg.cyl(0.14, 0.16, 0.08, 8, '#26262b', 0, 2.2, 0.3);
   lamp.cyl(0.12, 0.12, 0.2, 8, '#ffb02e', 0, 2.33, 0.3);
-  // the slow-vehicle triangle: a red frame, an orange middle, on the tail
-  tg.add(new THREE.CylinderGeometry(0.46, 0.46, 0.04, 3), '#d6352b', mat(0, 1.3, -1.57, Math.PI / 2, 0, Math.PI / 2));
-  tg.add(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 3), '#ffb02e', mat(0, 1.29, -1.595, Math.PI / 2, 0, Math.PI / 2));
-  // the "30" disc under it
-  tg.cyl(0.2, 0.2, 0.04, 12, '#d6352b', 0.5, 0.86, -1.57, Math.PI / 2);
-  tg.cyl(0.15, 0.15, 0.05, 12, '#ffffff', 0.5, 0.86, -1.595, Math.PI / 2);
-  tg.box(0.05, 0.14, 0.05, '#15171c', 0.46, 0.86, -1.625).box(0.05, 0.14, 0.05, '#15171c', 0.55, 0.86, -1.625);
+  // the slow-vehicle triangle on a post on the tail: a red frame round an orange middle, pointing up
+  rod(tg, V(0, 0.9, -2.16), V(0, 1.2, -2.16), 0.03, '#26262b');
+  tg.add(new THREE.CylinderGeometry(0.5, 0.5, 0.05, 3), '#d6352b', mat(0, 1.42, -2.19, Math.PI / 2, Math.PI, 0));
+  tg.add(new THREE.CylinderGeometry(0.31, 0.31, 0.06, 3), '#ffb02e', mat(0, 1.42, -2.215, Math.PI / 2, Math.PI, 0));
+  // the "30" disc on the tail below it
+  tg.cyl(0.2, 0.2, 0.04, 12, '#d6352b', -0.52, 0.86, -2.12, Math.PI / 2);
+  tg.cyl(0.15, 0.15, 0.05, 12, '#ffffff', -0.52, 0.86, -2.14, Math.PI / 2);
+  tg.box(0.05, 0.14, 0.05, '#15171c', -0.56, 0.86, -2.17).box(0.05, 0.14, 0.05, '#15171c', -0.47, 0.86, -2.17);
   for (const sx of [-1, 1]) {
     lamp.cyl(0.14, 0.14, 0.07, 10, '#fff2a8', sx * 0.6, 0.78, 2.08, Math.PI / 2);
     brake.box(0.26, 0.14, 0.04, '#ffffff', sx * 0.7, 0.9, -2.09);

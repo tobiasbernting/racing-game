@@ -157,6 +157,16 @@ så motorljudet och mätaren visar växlar i båda lägena. Slumpväxeln kan sl�
 | Motorcykel | 6 | 58 / 94 / 130 / 169 / 212 / 270 | 0,08 s |
 | Moppe | 3 | 32 / 59 / 101 | 0,13 s |
 | Traktor | 6 | 16 / 29 / 41 / 54 / 67 / 86 | 0,28 s |
+| EPA-traktor | 5 | 11 / 20 / 31 / 45 / 72 | 0,30 s |
+| Glassbil | 4 | 43 / 79 / 122 / 173 | 0,25 s |
+| Sopbil | 6 | 18 / 32 / 49 / 65 / 83 / 108 | 0,30 s |
+| Snöskoter | 3 | 65 / 122 / 202 | 0,06 s |
+| Gokart | 4 | 50 / 90 / 130 / 173 | 0,05 s |
+| Golfbil | 3 | 29 / 49 / 86 | 0,10 s |
+| Åkgräsklippare | 4 | 22 / 40 / 61 / 97 | 0,20 s |
+| Husbil | 5 | 29 / 50 / 72 / 94 / 119 | 0,32 s |
+| Limousin | 5 | 58 / 104 / 151 / 202 / 259 | 0,18 s |
+| Raketvagnen | 1 | 162 | 0,10 s |
 
 Farten och varvtiden är i stort sett som förut (kontrollerat mot den gamla lådan: varvtider inom 0,3 %), så `pace.ts` behövde inte ändras. I `gears.test.ts` är en skicklig
 manuell förare lite snabbare än automaten (ca 1-4 % på en start) och en slarvig klart långsammare.
@@ -177,7 +187,7 @@ GameContext), `src/run/` (rena regler för rundan: karta, prylar, ekonomi, händ
 och `src/app.ts` (skalet: paus, pekkontroller, flödet mellan skärmar och lopp). Ett lopp startas med `RallyOptions`
 (`src/rally/options.ts`) och rapporterar `RallyResult` via `onDone`.
 
-Dev-bygget har också `window.__rallyDebug` (`tumble()`, `honk()`, `swap(kropp)`, `takedown(n)`, `hurt(n, hp)`) under ett lopp. För tester finns `window.__app` med `fakeFinish()` (avslutar loppet direkt med ett påhittat resultat), `debugRun()`,
+Dev-bygget har också `window.__rallyDebug` (`tumble()`, `honk()`, `swap(kropp)`, `takedown(n)`, `hurt(n, hp)`, `ability()`, `park()`, `freeze()` / `thaw()`, `ahead(n, avstånd, fart)` / `behind(...)` och `hazard(sort, avstånd, sida)`) under ett lopp. För tester finns `window.__app` med `fakeFinish()` (avslutar loppet direkt med ett påhittat resultat), `debugRun()`,
 `debugEnter(typ, sort?)` och `debugMeta()`. I dev-bygget finns dessutom `?rallydebug&rallyauto&rallyturbo=30&rallygo` som låter
 datorn köra bilen i hög hastighet.
 
@@ -229,7 +239,7 @@ och går in i `playerStats` i `racesim.ts`; rivalernas mod blev lite skarpare me
 
 En utmaning är data (`CHALLENGES`): vilket fordon den öppnar, ett mål, och en `measure(run)` som säger vad en runda kommit fram till. `mode: 'best'` är mest i en runda och kollas efter varje steg
 (`checkChallenges` i `commit`, med en liten "UPPLÅST!"-remsa i hörnet, aldrig mitt i bilden), `mode: 'total'` summeras över rundor och räknas en gång när rundan tar slut (`RunEnd` skyddar mot dubbelräkning).
-Framstegen sparas i `Meta.progress`, de öppna fordonen i `Meta.bodies`. Nya fordon (fas 10) är fler rader i `CHALLENGES` och `KITS`; testerna kräver en utmaning för varje fordon som inte är en starter.
+Framstegen sparas i `Meta.progress`, de öppna fordonen i `Meta.bodies`. Nya fordon (fas 10, se nedan) är fler rader i `CHALLENGES` och `KITS`; testerna kräver en utmaning för varje fordon som inte är en starter.
 **Migrering**: en gammal sparning utan `bodies` får starters plus allt troféerna en gång öppnat (`LEGACY_BODY_UNLOCK`), så ingen förlorar något. Troféer låser fortfarande upp prylar i potten.
 Bilvalet visar lutning, stjärnor, passiv, aktiv (namn, rad, nedkylning) och startpryl, och för låsta fordon villkoret med en framstegsstapel ("Takedowns i en runda: 6/10").
 
@@ -261,3 +271,33 @@ Den gemensamma stilen bor i `src/rally/look.ts` så att fas 10:s tio nya fordon 
   samlarkort i en lek man drar i sidled (porträtt, körsätt, tre stjärnbetyg, en replik). Bara färger, kanter och typsnitt ändras där, aldrig storlekar, så alla layouter för mobil, surfplatta och
   dator är desamma som förut. Handritade pilar finns på titeln och kartan.
 - **Test**: `?rallydebug` (bara i dev) har nya krokar: `warp()`, `cam(x, y, z, tx, ty, tz)`, `smoker(k)`, `hide('attitude' | 'fx' | 'scenery')`, och `window.__forceCourse` väljer bana.
+
+## Tio fordon till (fas 10)
+
+Nu finns det **20 fordon**: fem som alla har från början och femton som låses upp av utmaningar. De tio nya är gjorda i samma stil som de andra (konturer, sponsorlappar, smuts och skador, en förare i hjälm; modellerna ligger i `src/rally/vehicles2.ts`),
+och varje fordon har egen körkänsla (`CAR_BODY_DEFS` i `src/shared/rally.ts`), egen växellåda (`gears.ts`), eget motorljud (`audio.ts`), en lutning, en passiv, en aktiv förmåga med nedkylning (`src/shared/abilities.ts`, gör sitt i `src/rally/index.ts`),
+en startpryl och en utmaning. Tre nya körkänslor finns i `Feel`: `loose` (snö, is och sand greppar som asfalt: snöskotern), `grass` (högre fart och nästan ingen broms på gräs: gräsklipparen) och `slide` (när bakdelen väl släpper fortsätter sladden: limousinen).
+
+| Fordon | Lutning | Passiv | Aktiv (F) | Nedkylning | Växellåda | Startpryl | Låses upp av |
+|---|---|---|---|---|---|---|---|
+| ⚠️ EPA-traktor | Blandat | Spärr 30: topp ca 40 km/h, men inget bromsar (gräs, lera, olja, höbalar) | ⚠️ Gasa på EPA: spärren av, kraftig fartstöt | 8 s | 5, långsam | Pensionärsrabatten | Slå Sura Bengt |
+| 🍦 Glassbil | Blandat | Glassmelodin: bilar inom 15 m saktar ner och en melodi spelas | 🍦 Glasskanon: tre glaskulor landar framför dig och gör vägen hal | 13 s | 4, lat | Lördagsgodiset | Samla 150 mynt i en runda |
+| 🗑️ Sopbil | Ram | Plockar upp: fällor du kör på plockas upp, varje bit ger lite pansar (max 6) | 🗑️ Tömning: en hög skräp bakom dig, större ju mer du plockat | 12 s | 6, tung | Pantmotorn | Samla ihop 12 prylar i en runda |
+| ❄️ Snöskoter | Race | Allt grepp: full grepp på is, snö och sand | ❄️ Pudersvans: snömoln som gör bilarna bakom blinda och långsamma | 11 s | 3, snabb | Bastu på taket | Slå Frost-Frida |
+| 🏁 Gokart | Race | Sugen i rygg: slipströmmen fylls dubbelt så fort, fullt ger en gratis fartstöt | 🏁 Gokartsladd: en perfekt sladd direkt, ger nitro | 10 s | 4, blixtsnabb | Frityroljan | Sladda i 40 sekunder i en runda |
+| ⛳ Golfbil | Blandat | Tyst som en mus: rivalerna går inte på dig och blockerar dig inte | ⛳ Hole in one: en golfboll slår ledaren i sidan | 15 s | 3, eldrift | Pappas pokal | Kom till akt 2 på Söndagsåkare |
+| 🌿 Åkgräsklippare | Blandat | Gräsälskare: snabbare på gräs än på vägen | 🌿 Gräsklippning: ett gräsregn som klipper bort allt farligt framför dig | 9 s | 4, små | Kon från ovan | Använd förmågan 20 gånger i en runda |
+| ⛺ Husbil | Ram | Hemma på hjul: plåten lagas medan du kör, i Blodbad kommer hälsan tillbaka | ⛺ Utfällt tält: ett markistält bakom dig som snurrar följarna | 14 s | 5, klonkig | Begagnat hjärta | Kör klart 5 rundor |
+| 🕶️ Limousin | Race | Rutschkana: lång sladd, och sladdturbon fylls 35 % fortare | 🕶️ VIP-fil: rakt genom bilar i drygt 3 sekunder | 13 s | 5, mjuk | Källarfest-discot | Spendera 900 kronor i en runda |
+| 🛒 Raketvagnen | Race | Skranglig: vagnen vinglar slumpmässigt | 🛒 Raketen: gigantisk fart i knappt 3 sekunder, svår att styra | 15 s | 1 + raket | Chilikorven | Vinn en runda med moppen eller traktorn |
+
+Tre av dem är lätta för en tioåring: golfbilen (nå akt 2 på Söndagsåkare), husbilen (spela fem rundor) och gräsklipparen (tryck på knappen). Raketvagnen är den svåraste.
+Utmaningarna räknar sådant som rundan redan sparar (`RunStats`), så sparfilen är oförändrad: gamla sparningar behåller sina fordon och de nya är låsta tills deras utmaning är klar.
+
+- **Rivaler**: datorförarna kör ibland de nya fordonen efter humör (`archetypeBodies` i `src/shared/field.ts`): rammare i sopbil och husbil, racers i gokart, limousin och snöskoter, de blandade i glassbil, golfbil, gräsklippare och raketvagn.
+  De använder sina förmågor som förut (en fartstöt eller en stöt mot någon nära framför).
+- **Bilvalet** har ett filter (Alla, Ram, Race, Blandat) över ett rutnät med alla tjugo fordon som rullar i höjdled i stället för att svämma över. Alla knappar är minst 44 px på telefon, surfplatta och dator, och sidan scrollar aldrig.
+  Skrytlådan och resultatskärmen listar fordonen på samma sätt som förut.
+- **Balans** (`src/shared/pace.ts`, `src/run/racesim.ts`, `src/rally/bodypace.test.ts`): varje nytt fordon har en uppmätt varvfaktor mot rallybilen (`BODY_LAP`, medelvärde över fyra banor med den riktiga fysiken och datorföraren;
+  EPA-traktorn och raketvagnen mäts med sin fartstöt använd). Simuleringen räknar med den (uppgraderingar av grepp och kraft ovanpå) och `balance.test.ts` kör alla tjugo fordonen genom akt 3: inget nytt fordon vinner oftare än det bästa av de gamla,
+  raketvagnen är aldrig bäst, och inget är sämre än moppen. De långsamma (EPA-traktor, golfbil, gräsklippare, raketvagn) är långsamma med flit, som moppen och traktorn: de är till för att skratta åt, och de är roligast i Söndagsåkare.

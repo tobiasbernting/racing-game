@@ -111,6 +111,13 @@ describe('every vehicle against the lap factors of the balance simulation', { ti
     console.log(out.join('\n'));
   });
 
+  it('a computer driver gets every one of the ten newest round four courses without losing its mind (a rival can drive any of them)', () => {
+    for (const b of CAR_BODIES) {
+      if (BODY_LAP[b] === undefined) continue;
+      for (const c of COURSES) expect(bodyLap(c, b, 0.9), `${b} on ${c}`).toBeLessThan(160);
+    }
+  });
+
   it('no new vehicle is faster than the sportbil and the motorcycle by more than a hair, and the slow ones are slow on purpose', () => {
     const fast = Math.min(...CAR_BODIES.map((b) => BODY_LAP[b] ?? 1).concat([0.95]));
     for (const b of CAR_BODIES) if (BODY_LAP[b] !== undefined) expect(BODY_LAP[b]!, b).toBeGreaterThanOrEqual(fast);

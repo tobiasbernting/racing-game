@@ -540,7 +540,7 @@ const rally = (ctx: GameContext): GameInstance => {
           meE.u = v.u + gap;
         },
         /** Lay a hazard on the road `dist` m in front of the player. */
-        hazard: (kind: 'hay' | 'oil' | 'pothole' | 'banana', dist = 22, lat = 0) => {
+        hazard: (kind: 'hay' | 'oil' | 'pothole' | 'banana' | 'glass' | 'tent', dist = 22, lat = 0) => {
           const c = meE!.car;
           const p = track.point(c.proj.s + dist, c.proj.d + lat);
           obstacles.add(kind, p.x, p.y, p.z, null, track.heading(c.proj.s + dist));
@@ -1468,7 +1468,7 @@ const rally = (ctx: GameContext): GameInstance => {
       case 'dump': {
         const n = Math.max(3, junk + 2);
         for (let k = 0; k < n; k++) {
-          const back = 3.6 + k * 1.5;
+          const back = 4.8 + k * 0.9;
           const side = (k % 2 ? 1 : -1) * (0.6 + Math.random() * 1.6);
           obstacles.add(k % 3 === 2 ? 'banana' : 'hay', c.x - sinH * back + cosH * side, c.y, c.z - cosH * back - sinH * side, c);
         }
@@ -1513,7 +1513,7 @@ const rally = (ctx: GameContext): GameInstance => {
         drift.on = true;
         drift.t = 2.45;
         drift.tier = 3;
-        drift.pts = 520;
+        drift.pts = 200;
         drift.grace = 0;
         if (nitroLeft < nitroSlots()) nitroLeft = Math.min(nitroSlots(), Math.floor(nitroLeft) + 1);
         shake = Math.max(shake, 0.3);
@@ -1568,7 +1568,7 @@ const rally = (ctx: GameContext): GameInstance => {
         break;
       }
       case 'awning': {
-        for (const sx of [-1, 1]) obstacles.add('tent', c.x - sinH * 9 + cosH * sx * 2.5, c.y, c.z - cosH * 9 - sinH * sx * 2.5, c, c.heading);
+        for (const sx of [-1, 1]) obstacles.add('tent', c.x - sinH * 6 + cosH * sx * 2.5, c.y, c.z - cosH * 6 - sinH * sx * 2.5, c, c.heading);
         stats.hazards += 2;
         audio.hay(10);
         ring(c, 14, 4, colHay);
