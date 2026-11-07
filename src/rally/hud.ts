@@ -28,7 +28,7 @@ const CSS = `
 .rl-board li.me { font-weight: 900; color: #ffe27a; }
 .rl-board li.done { opacity: 0.75; }
 .rl-dot { width: calc(10px * var(--s)); height: calc(10px * var(--s)); border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.8); flex: none; }
-.rl-map { position: absolute; right: max(calc(12px * var(--s)), env(safe-area-inset-right)); top: calc(62px * var(--s));
+.rl-map { position: absolute; right: max(calc(12px * var(--s)), env(safe-area-inset-right)); top: max(calc(62px * var(--s)), 54px);
   width: calc(156px * var(--s)); height: calc(156px * var(--s)); }
 .rl-speedo { position: absolute; right: max(calc(16px * var(--s)), env(safe-area-inset-right)); bottom: max(calc(12px * var(--s)), env(safe-area-inset-bottom));
   width: calc(190px * var(--s)); height: calc(128px * var(--s)); }
@@ -102,7 +102,7 @@ const CSS = `
 .rl-result td { padding: calc(3px * var(--s)) calc(6px * var(--s)); white-space: nowrap; }
 .rl-result tr.me td { color: #ffe27a; font-weight: 900; }
 .rl-result td.r { text-align: right; }
-.rl-btns { position: absolute; right: max(calc(12px * var(--s)), env(safe-area-inset-right)); top: calc(226px * var(--s)); display: flex; flex-direction: column; align-items: flex-end; gap: calc(8px * var(--s)); }
+.rl-btns { position: absolute; right: max(calc(12px * var(--s)), env(safe-area-inset-right)); top: calc(max(calc(62px * var(--s)), 54px) + calc(166px * var(--s))); display: flex; flex-direction: column; align-items: flex-end; gap: calc(8px * var(--s)); }
 .rl-btn { pointer-events: auto; border: 2px solid rgba(255,255,255,0.5); background: rgba(16, 20, 34, 0.6); color: #fff; border-radius: 999px;
   font: 900 calc(16px * var(--s)) 'Nunito', system-ui, sans-serif; padding: calc(6px * var(--s)) calc(12px * var(--s)); display: none; cursor: pointer; }
 .rl-btn.show { display: block; }
