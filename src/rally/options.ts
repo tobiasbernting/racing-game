@@ -3,6 +3,8 @@
 // computer cars and the player's colour.
 import type { GarageCar, RaceRules } from '../shared/rally.ts';
 import type { RaceMods, RaceStats, RaceTwist } from './mods.ts';
+import type { FieldPlan } from '../shared/field.ts';
+import type { RaceKind } from '../shared/kinds.ts';
 
 /** What a finished race reports (through RallyOptions.onDone, once, before ctx.end). */
 export interface RallyResult {
@@ -29,6 +31,14 @@ export interface RallyResult {
   timeBonus?: number;
   /** What happened on the way, for the funny stats of a run. */
   stats?: RaceStats;
+  /** Rally, Blandat or Blodbad. In Blodbad `place` is the rank by points, and these tell how it came about. */
+  kind?: RaceKind;
+  points?: number;
+  takedowns?: number;
+  /** Times the player was wrecked. */
+  wrecked?: number;
+  /** Where the player crossed the line on the road (1 = first), whatever the points said. */
+  roadPlace?: number;
 }
 
 export interface RallyOptions {
@@ -43,6 +53,8 @@ export interface RallyOptions {
   mods?: RaceMods;
   /** A twist on the race: a boss, an icy road, hay bales. */
   twist?: RaceTwist;
+  /** The rivals' kit (archetypes, upgrades, modifiers), the catch-up and the hazards. Without it the old plain grid races. */
+  field?: FieldPlan;
   /** Coins on the road to collect (their kr land in `RallyResult.coins`). */
   coins?: boolean;
   /** Called once when the race is over, before `ctx.end`. */

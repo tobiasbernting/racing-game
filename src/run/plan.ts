@@ -5,6 +5,9 @@ import { RALLY_COURSE_NAMES } from '../shared/names.ts';
 import type { RaceTwist } from '../rally/mods.ts';
 import { skyFor, variationFor } from '../shared/variation.ts';
 import { BOSS_COURSE, type BossId, type ChallengeKind, type MapNode } from './map.ts';
+import type { RaceKind } from '../shared/kinds.ts';
+import { buildField, type FieldPlan } from '../shared/field.ts';
+import type { Archetype } from '../shared/rivals.ts';
 
 export interface BossDef {
   id: BossId;
@@ -18,6 +21,8 @@ export interface BossDef {
   /** The trick, in one line. */
   trick: string;
   twist: RaceTwist;
+  /** How the boss drives. */
+  archetype: Archetype;
 }
 
 export const BOSS_DEFS: Record<BossId, BossDef> = {
@@ -27,6 +32,7 @@ export const BOSS_DEFS: Record<BossId, BossDef> = {
     nick: 'Hatar rallyungar på sin grusväg',
     emoji: '🚜',
     course: BOSS_COURSE.bengt,
+    archetype: 'rammer',
     intro: '“DET HÄR ÄR MIN GRUSVÄG! Ni rallyungar förstör gruset och skrämmer korna. Jag har traktor, hela dagen och inga vänner!”',
     trick: 'Bengt kör traktor och puttar undan dig. Höbalar ligger på vägen. Kör runt dem!',
     twist: { boss: { name: 'Sura Bengt', face: 'human', body: 'tractor', color: '#2fa84f', power: 1.04, skill: 0.98 }, hay: 6 },
@@ -37,6 +43,7 @@ export const BOSS_DEFS: Record<BossId, BossDef> = {
     nick: 'Älgen som aldrig ger företräde',
     emoji: '🦌',
     course: BOSS_COURSE.ingrid,
+    archetype: 'mixed',
     intro: '“Jag väjer aldrig. Inte för bilar, inte för tåg, inte för dig. Flytta på dig, annars blir du älgkorv.”',
     trick: 'Ingrid kör fyrhjuling och hoppar tvärs över vägen utan förvarning. De andra gör likadant och drar på nitron.',
     twist: { boss: { name: 'Ingrid Ingenväjning', face: 'horse', body: 'atv', color: '#8c5a3c', power: 1.03, skill: 0.97 }, rivalHop: 7, rivalNitro: 12 },
@@ -47,6 +54,7 @@ export const BOSS_DEFS: Record<BossId, BossDef> = {
     nick: 'Isdrottningen med fryst hjärta',
     emoji: '👸',
     course: BOSS_COURSE.isdrottningen,
+    archetype: 'racer',
     intro: '“Mitt hjärta är kallare än din glass. Banan är is och du är i vägen. Brrr, älskling.”',
     trick: 'Vägen är blank is: halt för alla. Frida dundrar iväg med nitro.',
     twist: { boss: { name: 'Frost-Frida', face: 'cat', body: 'coupe', color: '#bfe9ff', power: 1.04, skill: 1.02 }, grip: 0.72, rivalNitro: 9 },
@@ -57,6 +65,7 @@ export const BOSS_DEFS: Record<BossId, BossDef> = {
     nick: 'Månens krigsherre, äter morötter och förlorare',
     emoji: '🐰',
     course: BOSS_COURSE.kanin,
+    archetype: 'mixed',
     intro: '“Jag är Kapten Kanin, krigsherre över månen. Jag äter morötter och förlorare. Knäpp med öronen: ni är mina!”',
     trick: 'Månen har låg tyngdkraft. Kanin kör soffa och studsar i jättehopp. De andra gör likadant och drar på nitron.',
     twist: { boss: { name: 'Kapten Kanin', face: 'rabbit', body: 'sofa', color: '#6a4fd8', power: 1.05, skill: 1.0 }, rivalHop: 4.5, rivalNitro: 10 },
@@ -84,20 +93,30 @@ export interface RacePlan {
   boss?: BossDef;
   /** Pay multiplier for the node type. */
   prize: number;
+  /** Rally, Blandat or Blodbad. */
+  kind: RaceKind;
+  /** The rivals, their kit and the hazards. */
+  field: FieldPlan;
 }
 
 const DIFFS: RallyDifficulty[] = ['easy', 'normal', 'hard'];
 const stepDiff = (d: RallyDifficulty, by: number): RallyDifficulty => DIFFS[Math.max(0, Math.min(2, DIFFS.indexOf(d) + by))]!;
 
 /** The time to beat in a "slå tiden" challenge (a little slower than gold). */
-export function targetTimeMs(course: RallyCourse, laps: number): number {
-  return Math.round(RALLY_COURSE_DEFS[course].gold * laps * 1000 * 1.12 + 3000);
+export function targetTimeMs(course: RallyCourse, laps: number, act = 0): number {
+  // tighter later: act 1 a little slower than gold, act 3 right on gold
+  const slack = [1.12, 1.06, 1.0][Math.min(2, Math.max(0, act))]!;
+  return Math.round(RALLY_COURSE_DEFS[course].gold * laps * 1000 * slack + [3000, 2000, 1000][Math.min(2, Math.max(0, act))]!);
 }
 
 export function planRace(node: MapNode, calm: boolean): RacePlan {
   const act = node.act;
   const course = node.course ?? 'farm';
-  let rules: RaceRules = { ...defaultRules(), course, laps: 2, ai: [3, 4, 5][act] ?? 5, difficulty: act >= 2 ? 'hard' : 'normal' };
+  const kind: RaceKind = node.kind ?? 'rally';
+  // the last act is run over three laps, like the bosses
+  let rules: RaceRules = { ...defaultRules(), course, laps: act >= 2 ? 3 : 2, ai: [3, 4, 5][act] ?? 5, difficulty: act >= 2 ? 'hard' : 'normal', kind };
+  // Blandat and Blodbad have contact; Rally only for the tough ones (below)
+  if (kind !== 'rally') rules.damage = true;
   // later acts: weather and the time of day come from the node's seed (and never rain on the moon)
   const sky = skyFor(course, variationFor(course, node.seed), act);
   rules.time = sky.time;
@@ -131,7 +150,7 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
     prize = 1.2;
     switch (node.challenge) {
       case 'win':
-        rules.laps = 2;
+        rules.laps = act >= 2 ? 3 : 2;
         goal = { kind: 'place', place: 1, text: 'Vinn! Silver är bara första förloraren.' };
         break;
       case 'toptwo':
@@ -143,7 +162,7 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
         goal = { kind: 'place', place: 3, text: 'Topp 3 i becksvart natt!' };
         break;
       case 'time': {
-        const ms = targetTimeMs(course, rules.laps);
+        const ms = targetTimeMs(course, rules.laps, act);
         const m = Math.floor(ms / 60000);
         const sec = ((ms % 60000) / 1000).toFixed(1).replace('.', ',');
         goal = { kind: 'time', ms, text: `Klara ${rules.laps} varv på under ${m}:${sec.padStart(4, '0')}` };
@@ -155,7 +174,17 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
     rules.ai = Math.max(2, rules.ai - 1);
     rules.difficulty = stepDiff(rules.difficulty, -1);
   }
-  return { node, title, course: rules.course, rules, twist, goal, boss, prize };
+  const field = buildField({
+    seed: node.seed,
+    kind,
+    act,
+    row: node.row,
+    role: node.type === 'elite' ? 'elite' : boss ? 'boss' : 'rival',
+    calm,
+    ai: rules.ai,
+    boss: boss ? { id: boss.id, archetype: boss.archetype, power: boss.twist.boss?.power, skill: boss.twist.boss?.skill } : undefined,
+  });
+  return { node, title, course: rules.course, rules, twist, goal, boss, prize, kind, field };
 }
 
 /** Did the result meet the challenge's goal? */

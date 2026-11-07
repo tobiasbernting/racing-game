@@ -5,7 +5,7 @@
 //   perk   changes the run itself (shop prices, hearts, reward choices, kronor).
 // Owning the same trinket twice stacks it: every effect reads `n`. To add a trinket, add one entry here.
 import type { CarBody } from '../shared/rally.ts';
-import { neutralTune, ModBus, type HookCtx, type ModEntry, type ModHooks, type ModItem, type ModTune, type RaceMods } from '../rally/mods.ts';
+import { capTune, softCap, neutralTune, ModBus, type HookCtx, type ModEntry, type ModHooks, type ModItem, type ModTune, type RaceMods } from '../rally/mods.ts';
 
 export const RARITIES = ['common', 'rare', 'legendary'] as const;
 export type Rarity = (typeof RARITIES)[number];
@@ -22,11 +22,19 @@ export interface Perk {
   kronor?: number;
 }
 
+/** The build a trinket belongs to: Ram and Race are the two main trees, the rest are side paths (Kaos is a flavour of legendary). */
+export const TRINKET_PATHS = ['ram', 'race', 'fuffens', 'stunt', 'girig', 'kaos'] as const;
+export type TrinketPath = (typeof TRINKET_PATHS)[number];
+
 export interface TrinketDef {
   id: string;
   name: string;
   emoji: string;
   rarity: Rarity;
+  /** Which build it belongs to (rewards lean on it after a Rally or a Blodbad race). */
+  path: TrinketPath;
+  /** Highest stack that still adds something, when lower than MAX_STACK (runaway trinkets stop early). */
+  maxStack?: number;
   /** One short Swedish line. */
   text: string;
   /** Trophies needed before it can show up in shops and rewards. */
@@ -39,6 +47,8 @@ export interface TrinketDef {
 
 /** Highest stack count that still adds something. */
 export const MAX_STACK = 5;
+/** The stack that counts for a trinket: its own cap, or the general one. */
+export const stackCap = (def: TrinketDef | undefined): number => Math.min(MAX_STACK, def?.maxStack ?? MAX_STACK);
 
 /** `base` for one, `step` more for each extra. */
 export const stackLin = (base: number, step: number, n: number): number => base + step * (Math.max(1, n) - 1);
@@ -63,6 +73,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Pruttkudden',
     emoji: '💨',
     rarity: 'common',
+    path: 'stunt',
     text: 'Varje stöt går PRRRT och du studsar högre. Ingen har sagt att det var bilen.',
     unlock: 0,
     hooks: {
@@ -84,6 +95,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Grannens traktordäck',
     emoji: '🛞',
     rarity: 'common',
+    path: 'ram',
+    maxStack: 3,
     text: 'Hjulen blir dubbelt så stora. Grannen undrar vart de tog vägen.',
     unlock: 0,
     tune(t, n) {
@@ -97,6 +110,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Kebabmagneten',
     emoji: '🥙',
     rarity: 'common',
+    path: 'girig',
     text: 'Mynt flyger till dig från andra sidan banan. Det luktar vitlök.',
     unlock: 0,
     tune(t, n) {
@@ -115,6 +129,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Grannens trampolin',
     emoji: '🤸',
     rarity: 'common',
+    path: 'stunt',
     text: 'Smäller du i ett staket studsar du framåt. Grannen är inte glad.',
     unlock: 0,
     hooks: {
@@ -132,6 +147,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Slemspåret',
     emoji: '🐌',
     rarity: 'common',
+    path: 'fuffens',
     text: 'Du lämnar en äcklig slemfläck bakom dig. De andra halkar. Usch!',
     unlock: 0,
     hooks: {
@@ -149,6 +165,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Soptunneturbon',
     emoji: '🦝',
     rarity: 'common',
+    path: 'race',
+    maxStack: 3,
     text: 'Sladdar du fylls turbon tre gånger snabbare. Drivs av skräp.',
     unlock: 1,
     tune(t, n) {
@@ -165,6 +183,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Katapultsätet',
     emoji: '💺',
     rarity: 'common',
+    path: 'stunt',
     text: 'Tryck handbromsen när du kör rakt fram: HOPP! Sätet skjuter iväg dig.',
     unlock: 0,
     tune(t, n) {
@@ -187,6 +206,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Farfars guldtänder',
     emoji: '🦷',
     rarity: 'common',
+    path: 'girig',
+    maxStack: 3,
     text: 'Varje mynt på banan är värt mer. Farfar behövde dem inte längre.',
     unlock: 0,
     tune(t, n) {
@@ -198,6 +219,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Svartjobbet',
     emoji: '💼',
     rarity: 'common',
+    path: 'girig',
     text: 'Du får kronor för varje varv. Skatteverket får inte veta.',
     unlock: 0,
     hooks: {
@@ -212,6 +234,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Snusmotorn',
     emoji: '🫙',
     rarity: 'common',
+    path: 'race',
+    maxStack: 4,
     text: 'Motorn går på snus: mer kraft. Läkaren avråder.',
     unlock: 0,
     tune(t, n) {
@@ -223,6 +247,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Mammas tofflor',
     emoji: '🥿',
     rarity: 'common',
+    path: 'race',
     text: 'Lera och gräs? Pyttsan. Mammas gamla tofflor klarar allt.',
     unlock: 0,
     tune(t, n) {
@@ -240,6 +265,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Månskensbrännvinet',
     emoji: '🌚',
     rarity: 'rare',
+    path: 'stunt',
+    maxStack: 3,
     text: 'Månens tyngdkraft: du svävar länge! Lite yr i huvudet också.',
     unlock: 2,
     tune(t, n) {
@@ -251,6 +278,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Surströmmingsavgaser',
     emoji: '🐟',
     rarity: 'common',
+    path: 'fuffens',
     text: 'Bilarna bakom dig kräks av lukten och saktar in.',
     unlock: 1,
     hooks: {
@@ -267,6 +295,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Kaffeslurparen',
     emoji: '☕',
     rarity: 'common',
+    path: 'race',
     text: 'Efter varje varv slurpar du kaffe, rapar och drar på med extra fart.',
     unlock: 0,
     hooks: {
@@ -282,12 +311,14 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Frityroljan',
     emoji: '🍟',
     rarity: 'common',
+    path: 'race',
+    maxStack: 3,
     text: 'Sladdar du, så glider du snabbare. Doftar pommes.',
     unlock: 2,
     hooks: {
       tick(c, dt, s) {
         if (!s.drifting || s.air) return;
-        c.api.kick(4 * c.n * dt);
+        c.api.kick(Math.min(6.5, 2.2 * c.n) * dt);
         if (every(c, 'say', dt, 6)) c.api.say('sladdgradde', 'Frittyyr!');
       },
     },
@@ -297,6 +328,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Burritobomben',
     emoji: '🌯',
     rarity: 'common',
+    path: 'race',
+    maxStack: 3,
     text: 'Lång raketstart när det blir grönt. Burritot går inte att ta tillbaka.',
     unlock: 1,
     tune(t, n) {
@@ -313,6 +346,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Pruttboost',
     emoji: '💨',
     rarity: 'common',
+    path: 'fuffens',
+    maxStack: 3,
     text: 'En extra nitro i varje lopp. Lämnar ett grönt moln som får bakomvarande att svaja.',
     unlock: 1,
     tune(t, n) {
@@ -332,6 +367,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Elvis-overallen',
     emoji: '✨',
     rarity: 'common',
+    path: 'kaos',
     text: 'Glitter bakom bilen, och kronor för varje omkörning. Kungen hade varit stolt.',
     unlock: 2,
     tune(t) {
@@ -356,6 +392,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Stulna älghorn',
     emoji: '🦌',
     rarity: 'rare',
+    path: 'ram',
+    maxStack: 3,
     text: 'Bilar du krockar med flyger iväg. Älgen vill ha tillbaka dem.',
     unlock: 3,
     tune(t, n) {
@@ -375,6 +413,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Chilikorven',
     emoji: '🌶️',
     rarity: 'rare',
+    path: 'race',
+    maxStack: 3,
     text: 'Nitron räcker dubbelt så länge, men magen krånglar: du åker i sicksack.',
     unlock: 2,
     tune(t, n) {
@@ -393,6 +433,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Spöklakanet',
     emoji: '👻',
     rarity: 'rare',
+    path: 'fuffens',
     text: 'Efter varje boost kör du rakt igenom andra bilar. Under lakanet luktar det mögel.',
     unlock: 3,
     hooks: {
@@ -408,6 +449,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Korvkanonen',
     emoji: '🌭',
     rarity: 'rare',
+    path: 'ram',
     text: 'Boosten skjuter varmkorv som puttar bort bilarna framför. Med senap.',
     unlock: 3,
     hooks: {
@@ -423,6 +465,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Svettiga sockor',
     emoji: '🧦',
     rarity: 'rare',
+    path: 'fuffens',
     text: 'Då och då får ledaren en socka i luftintaget: bilen blir platt av lukten.',
     unlock: 4,
     hooks: {
@@ -442,6 +485,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Källarfest-discot',
     emoji: '🪩',
     rarity: 'rare',
+    path: 'kaos',
     text: 'Disco på banan! Och 10 % mer kronor i mål. Pinsamt, men lönsamt.',
     unlock: 5,
     tune(t) {
@@ -460,6 +504,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Loppis-tidsmaskinen',
     emoji: '⏳',
     rarity: 'legendary',
+    path: 'race',
     text: 'Första varvets tid räknas bara hälften. Garantin gick ut 1987.',
     unlock: 8,
     hooks: {
@@ -477,6 +522,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Dino-Dieseln',
     emoji: '🦖',
     rarity: 'legendary',
+    path: 'ram',
+    maxStack: 2,
     text: 'Bilen blir jättestor och puttar undan alla. RAWR. Och diesel.',
     unlock: 6,
     tune(t, n) {
@@ -495,6 +542,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Bajsraketen',
     emoji: '💩',
     rarity: 'legendary',
+    path: 'kaos',
     text: 'Efter varje varv: PRRRT och ett grönt moln, plus något slumpat. Alla luktar.',
     unlock: 6,
     hooks: {
@@ -517,6 +565,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Fuskkupongen',
     emoji: '🎟️',
     rarity: 'common',
+    path: 'girig',
     text: 'Allt i Mackens kiosk blir 15 % billigare. Fråga inte hur du fick den.',
     unlock: 0,
     perk: { shopDiscount: 0.15 },
@@ -526,6 +575,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Begagnat hjärta',
     emoji: '❤️',
     rarity: 'rare',
+    path: 'girig',
     text: 'Ett extra hjärta att ha, och du blir hel igen. Lite begagnat.',
     unlock: 4,
     perk: { maxHearts: 1 },
@@ -535,6 +585,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Spåkärringens kula',
     emoji: '🔮',
     rarity: 'rare',
+    path: 'kaos',
     text: 'Du ser ett extra alternativ när du får välja. Hon tar 99 kr i minuten.',
     unlock: 4,
     perk: { choices: 1 },
@@ -544,6 +595,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Lottovinsten',
     emoji: '🎰',
     rarity: 'legendary',
+    path: 'girig',
+    maxStack: 2,
     text: 'Alla lopp ger 50 % mer kronor. Du berättar inte för någon.',
     unlock: 9,
     perk: { kronor: 0.5 },
@@ -554,6 +607,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Svärmors sidvagn',
     emoji: '🛺',
     rarity: 'rare',
+    path: 'race',
+    maxStack: 3,
     text: 'Mc:n slutar ramla. Andra får en passagerare som gnäller men betalar.',
     unlock: 5,
     tune(t, n, body) {
@@ -577,6 +632,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Torktumlaren',
     emoji: '🌀',
     rarity: 'rare',
+    path: 'ram',
     text: 'Traktorn får en jättefläkt: högre fart. Alla blåser undan bilarna framför.',
     unlock: 5,
     tune(t, n, body) {
@@ -599,6 +655,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Terrorklockan',
     emoji: '🔔',
     rarity: 'rare',
+    path: 'fuffens',
     text: 'Tutan ger kronor och puttar undan bilarna framför. Irriterande.',
     unlock: 4,
     hooks: {
@@ -616,6 +673,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Skrothandlarens lotteri',
     emoji: '🎠',
     rarity: 'legendary',
+    path: 'kaos',
     text: 'Du byter fordon varje varv. Vad blir det nu? Ingen vet. Ingen har försäkring.',
     unlock: 10,
     hooks: {
@@ -634,6 +692,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Dödskalle-dekalen',
     emoji: '💀',
     rarity: 'common',
+    path: 'ram',
+    maxStack: 3,
     text: 'Alla skador blir mindre. Alla tror att du är farlig.',
     unlock: 0,
     tune(t, n) {
@@ -651,6 +711,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Månkalsongerna',
     emoji: '🩲',
     rarity: 'common',
+    path: 'stunt',
     text: 'Lite mindre tyngdkraft: längre hopp och mjukare landningar. Kalsongerna lyfter.',
     unlock: 1,
     tune(t, n) {
@@ -662,6 +723,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Lördagsgodiset',
     emoji: '🍬',
     rarity: 'common',
+    path: 'girig',
     text: 'Då och då hittar du lösgodis att sälja. Dåligt för tänderna, bra för plånboken.',
     unlock: 0,
     hooks: {
@@ -680,6 +742,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Pantmotorn',
     emoji: '♻️',
     rarity: 'rare',
+    path: 'girig',
     text: 'Var sjätte mynt du tar ger en kort fartboost. Burkar är bensin.',
     unlock: 3,
     hooks: {
@@ -698,6 +761,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Pappas pokal',
     emoji: '🏆',
     rarity: 'common',
+    path: 'girig',
     text: 'Kommer du etta eller tvåa i mål får du en bonus. Pappa är stolt, typ.',
     unlock: 2,
     hooks: {
@@ -714,6 +778,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Bastu på taket',
     emoji: '🧖',
     rarity: 'common',
+    path: 'race',
     text: 'Mer grepp, mest på halt och löst underlag. Isen smälter av värmen.',
     unlock: 1,
     tune(t, n) {
@@ -726,6 +791,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Uppblåsbara flamingon',
     emoji: '🦩',
     rarity: 'rare',
+    path: 'ram',
     text: 'Efter en rejäl smäll blir du genomskinlig en stund och slipper fler. Pfff!',
     unlock: 3,
     hooks: {
@@ -745,6 +811,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Dundertutan',
     emoji: '🚂',
     rarity: 'rare',
+    path: 'fuffens',
     text: 'Tuta (H) så flyger bilarna framför iväg! Den tutar själv när någon är nära.',
     unlock: 6,
     hooks: {
@@ -760,6 +827,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Lavalampan från källaren',
     emoji: '🌋',
     rarity: 'common',
+    path: 'kaos',
     text: 'Varje turbosladd ger lite kronor. Det bubblar. Doftar damm.',
     unlock: 2,
     hooks: {
@@ -776,6 +844,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Akvariehjälmen',
     emoji: '👨‍🚀',
     rarity: 'rare',
+    path: 'stunt',
     text: 'Du svävar lite och mynt dras till dig. Litet steg, stor plånbok.',
     unlock: 7,
     tune(t, n) {
@@ -788,6 +857,8 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Raggarplånboken',
     emoji: '👛',
     rarity: 'rare',
+    path: 'girig',
+    maxStack: 3,
     text: 'Alla lopp ger 25 % mer kronor. Kedjan sitter fast i byxorna.',
     unlock: 7,
     perk: { kronor: 0.25 },
@@ -797,6 +868,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Pensionärsrabatten',
     emoji: '🎫',
     rarity: 'rare',
+    path: 'girig',
     text: 'Allt i Mackens kiosk blir 25 % billigare. Du ser så gammal ut.',
     unlock: 4,
     perk: { shopDiscount: 0.25 },
@@ -806,6 +878,7 @@ export const TRINKETS: TrinketDef[] = [
     name: 'Hjärtstartaren',
     emoji: '⚡',
     rarity: 'rare',
+    path: 'girig',
     text: 'Ett extra hjärta. Ibland startar den om dig.',
     unlock: 6,
     perk: { maxHearts: 1 },
@@ -828,13 +901,15 @@ export function perksOf(owned: readonly Owned[]): Required<Perk> {
   for (const o of owned) {
     const p = trinketById(o.id)?.perk;
     if (!p) continue;
-    const n = Math.min(MAX_STACK, o.n);
+    const n = Math.min(stackCap(trinketById(o.id)), o.n);
     out.shopDiscount += (p.shopDiscount ?? 0) * n;
     out.maxHearts += (p.maxHearts ?? 0) * n;
     out.choices += (p.choices ?? 0) * n;
     out.kronor += (p.kronor ?? 0) * n;
   }
   out.shopDiscount = Math.min(0.6, out.shopDiscount);
+  // the kronor perks stop at double pay, with less and less from each one above +60 %
+  out.kronor = softCap(out.kronor, 0.6, 1.0);
   return out;
 }
 
@@ -846,12 +921,12 @@ export function buildMods(owned: readonly Owned[], body: CarBody = 'hatch'): Rac
   for (const o of owned) {
     const def = trinketById(o.id);
     if (!def || o.n < 1) continue;
-    const n = Math.min(MAX_STACK, Math.floor(o.n));
+    const n = Math.min(stackCap(def), Math.floor(o.n));
     def.tune?.(tune, n, body);
     items.push({ id: def.id, name: def.name, emoji: def.emoji, n });
     if (def.hooks) entries.push({ id: def.id, hooks: def.hooks, ctx: { api: null as never, body, n, st: {} } });
   }
-  return { items, tune, bus: new ModBus(entries) };
+  return { items, tune: capTune(tune), bus: new ModBus(entries) };
 }
 
 /** What a trinket costs in the shop (before discounts). */

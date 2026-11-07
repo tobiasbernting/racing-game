@@ -7,6 +7,8 @@ import { ACTS, findNode, actMap } from './map.ts';
 import { cleanMeta, defaultMeta, type Meta } from './meta.ts';
 import { emptyRunStats, validPaint, type RunEnd, type RunState, type Screen } from './state.ts';
 import { MAX_STACK, isTrinket, perksOf, type Owned } from './trinkets.ts';
+import { isRaceKind } from '../shared/kinds.ts';
+import { partOfChoice } from './economy.ts';
 import { eventById } from './events.ts';
 
 export const RUN_KEY = 'galna-rallyt:run:v1';
@@ -41,7 +43,7 @@ function cleanScreen(raw: unknown, act: number, seed: number): Screen | null {
   const m = actMap(seed, act);
   if (!findNode(m, raw.nodeId)) return null;
   const nodeId = raw.nodeId;
-  const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter(isTrinket) : []);
+  const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => isTrinket(x) || (typeof x === 'string' && partOfChoice(x) !== null)) : []);
   switch (raw.kind) {
     case 'prerace':
       return { kind: 'prerace', nodeId };
@@ -64,13 +66,19 @@ function cleanScreen(raw: unknown, act: number, seed: number): Screen | null {
           goal: isObj(s.goal) && typeof s.goal.text === 'string' ? { text: s.goal.text.slice(0, 80), met: s.goal.met === true } : undefined,
           medal: s.medal === 'gold' || s.medal === 'silver' || s.medal === 'bronze' ? s.medal : null,
           reward: s.reward === true,
+          rewardKind: s.rewardKind === 'win' || s.rewardKind === 'second' || s.rewardKind === 'elite' || s.rewardKind === 'boss' ? s.rewardKind : s.reward === true ? 'win' : undefined,
+          kind: isRaceKind(s.kind) ? s.kind : undefined,
+          roadPlace: typeof s.roadPlace === 'number' ? num(s.roadPlace, 1, 9, 1) : undefined,
+          points: typeof s.points === 'number' ? num(s.points, 0, 999, 0) : undefined,
+          takedowns: typeof s.takedowns === 'number' ? num(s.takedowns, 0, 99, 0) : undefined,
+          wrecked: typeof s.wrecked === 'number' ? num(s.wrecked, 0, 99, 0) : undefined,
         },
       };
     }
     case 'reward': {
       const choices = ids(raw.choices);
       if (!choices.length) return null;
-      const source = raw.source === 'race' || raw.source === 'elite' || raw.source === 'boss' || raw.source === 'event' ? raw.source : 'race';
+      const source = raw.source === 'race' || raw.source === 'elite' || raw.source === 'boss' || raw.source === 'event' || raw.source === 'consolation' ? raw.source : 'race';
       return { kind: 'reward', nodeId, choices, source };
     }
     case 'shop': {

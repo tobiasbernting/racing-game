@@ -2,6 +2,7 @@
 // two nodes in the next row, ending in a boss. Built from the run seed and the act number, so it is the same
 // every time it is asked for and never has to be saved.
 import { RALLY_COURSES, type RallyCourse } from '../shared/rally.ts';
+import { KIND_MIX, RACE_KINDS, type RaceKind } from '../shared/kinds.ts';
 import { Rng, hashSeed } from './rng.ts';
 
 export const NODE_TYPES = ['race', 'challenge', 'elite', 'shop', 'workshop', 'event', 'boss'] as const;
@@ -50,6 +51,8 @@ export interface MapNode {
   course?: RallyCourse;
   challenge?: ChallengeKind;
   boss?: BossId;
+  /** Races, challenges, elites and bosses: Rally, Blandat or Blodbad. */
+  kind?: RaceKind;
 }
 
 export interface ActMap {
@@ -70,6 +73,9 @@ const WEIGHTS: Record<number, Partial<Record<NodeType, number>>> = {
 };
 /** Types that may not follow themselves along a path. */
 const NO_REPEAT: ReadonlySet<NodeType> = new Set(['elite', 'shop', 'workshop', 'event']);
+
+/** The kind of race each boss's temper asks for: Bengt on his tractor is Blodbad, Frida is clean racing. */
+export const BOSS_KIND: Record<BossId, RaceKind> = { bengt: 'carnage', ingrid: 'mixed', isdrottningen: 'rally', kanin: 'carnage' };
 
 export const BOSS_COURSE: Record<BossId, RallyCourse> = { bengt: 'farm', ingrid: 'mountain', isdrottningen: 'ice', kanin: 'moon' };
 
@@ -178,7 +184,38 @@ export function generateAct(seed: number, act: number): ActMap {
       }
     }
   }
+  assignKinds(seed, act, rows);
   return { act, rows };
+}
+
+/**
+ * Gives every race, challenge, elite and boss a kind from its own seeded generator (so the rest of the map is
+ * untouched). The mix leans on Rally early and on Blodbad late; elites like Blodbad; a time trial is always clean;
+ * and every act offers at least one of each kind among its ordinary races when it has room for it.
+ */
+function assignKinds(seed: number, act: number, rows: MapNode[][]): void {
+  const rg = Rng.for(seed, 'kinds', act);
+  const mix = KIND_MIX[Math.min(act, KIND_MIX.length - 1)]!;
+  const racey = rows.flat().filter((n) => n.type === 'race' || n.type === 'challenge' || n.type === 'elite');
+  for (const n of racey) {
+    if (n.type === 'challenge' && n.challenge === 'time') {
+      n.kind = 'rally';
+      continue;
+    }
+    const w = n.type === 'elite' ? [mix[0] * 0.5, mix[1] * 0.8, mix[2] * 1.8] : mix;
+    n.kind = rg.weighted(RACE_KINDS, (k) => w[RACE_KINDS.indexOf(k)]!);
+  }
+  const free = (): MapNode[] => racey.filter((n) => n.type === 'race');
+  for (const k of RACE_KINDS) {
+    if (racey.some((n) => n.kind === k)) continue;
+    // take a node from the kind there is most of
+    const counts = RACE_KINDS.map((x) => racey.filter((n) => n.kind === x && n.type === 'race').length);
+    const most = RACE_KINDS[counts.indexOf(Math.max(...counts))]!;
+    const cand = free().filter((n) => n.kind === most);
+    if (cand.length > 1) rg.pick(cand).kind = k;
+  }
+  const boss = rows[ROWS]![0]!;
+  if (boss.boss) boss.kind = BOSS_KIND[boss.boss];
 }
 
 /** Every node of an act, flat. */

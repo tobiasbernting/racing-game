@@ -3,6 +3,8 @@
 // A car (GarageCar) has a body, tuning parts, a style (paint, livery, decals, wheels, spoiler, extras…)
 // and damage 0..100. Prizes come from `racePrize`.
 
+import { isRaceKind, type RaceKind } from './kinds.ts';
+
 // ---------------------------------------------------------------------------
 // Bodies
 // ---------------------------------------------------------------------------
@@ -343,6 +345,8 @@ export interface RaceRules {
   sameCars: boolean;
   /** Boost pads and mud puddles on the road. */
   pickups: boolean;
+  /** Rally, Blandat or Blodbad (see kinds.ts). */
+  kind: RaceKind;
 }
 
 export const MAX_LAPS = 5;
@@ -352,7 +356,7 @@ export const MAX_RACERS = 6;
 export const MAX_CARS_ON_TRACK = 8;
 
 export function defaultRules(): RaceRules {
-  return { course: 'farm', laps: 3, damage: false, ai: 3, difficulty: 'normal', time: 'day', weather: 'clear', nitro: true, sameCars: false, pickups: true };
+  return { course: 'farm', laps: 3, damage: false, ai: 3, difficulty: 'normal', time: 'day', weather: 'clear', nitro: true, sameCars: false, pickups: true, kind: 'rally' };
 }
 
 /** Cleans anything a client sent into valid rules. */
@@ -373,6 +377,7 @@ export function cleanRules(r: unknown): RaceRules {
     nitro: o.nitro !== false,
     sameCars: o.sameCars === true,
     pickups: o.pickups !== false,
+    kind: isRaceKind(o.kind) ? o.kind : 'rally',
   };
 }
 
