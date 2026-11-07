@@ -323,8 +323,8 @@ export function capTune(t: ModTune): ModTune {
 
 /** The most nitro charges a race can have in all (the turbo part and trinkets together), and the seconds of nitro in all. */
 export const MAX_CHARGES = 5;
-export const MAX_NITRO_SECONDS = 16;
+export const MAX_NITRO_SECONDS = 12;
 
 /** The most the car's power and grip can come to in all (body, parts and trinkets together): soft caps. */
 export const capPower = (x: number): number => softCap(x, 1.3, 1.5);
-export const capGrip = (x: number): number => softCap(x, 1.14, 1.26);
+export const capGrip = (x: number): number => softCap(x, 1.12, 1.22);

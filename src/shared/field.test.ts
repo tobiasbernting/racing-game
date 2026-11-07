@@ -42,15 +42,15 @@ describe('the scaling curve', () => {
     expect(partLevel(runProgress(2, 2), 'rival', false)).toBeGreaterThanOrEqual(3);
     expect(rivalSkill(runProgress(2, 5), 'boss', false)).toBeLessThanOrEqual(SKILL_CEILING + 0.02);
     expect(buildField({ seed: 1, kind: 'mixed', act: 2, row: 5, role: 'boss', calm: false, ai: 3, boss: { id: 'kanin', archetype: 'racer', skill: 1.2 } }).rivals.every((r) => r.skill <= SKILL_CEILING)).toBe(true);
-    // bosses and elites are a step ahead
-    expect(partLevel(0.5, 'boss', false)).toBeGreaterThan(partLevel(0.5, 'elite', false));
+    // elites are a step ahead; a boss has the same parts as the others and its edge in modifiers, health and rules
     expect(partLevel(0.5, 'elite', false)).toBeGreaterThan(partLevel(0.5, 'rival', false));
+    expect(partLevel(0.5, 'boss', false)).toBeGreaterThanOrEqual(partLevel(0.5, 'rival', false));
   });
 
   it('calm mode scales much less', () => {
     for (const t of [0.3, 0.6, 1]) {
       expect(partLevel(t, 'rival', true)).toBeLessThan(partLevel(t, 'rival', false) * 0.5 + 0.01);
-      expect(rivalSkill(t, 'rival', true)).toBeLessThan(rivalSkill(t, 'rival', false) - 0.05);
+      expect(rivalSkill(t, 'rival', true)).toBeLessThan(rivalSkill(t, 'rival', false) - 0.02);
     }
     expect(catchUpFor(2, true).max).toBeLessThan(catchUpFor(2, false).max * 0.6);
   });

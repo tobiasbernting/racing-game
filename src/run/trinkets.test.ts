@@ -207,9 +207,9 @@ describe('caps on runaway stacks', () => {
     expect(all.coinValue).toBeLessThanOrEqual(3);
     expect(all.launch).toBeLessThanOrEqual(5);
     expect(all.size).toBeLessThanOrEqual(1.7);
-    expect(capGrip(3)).toBeLessThanOrEqual(1.26);
+    expect(capGrip(3)).toBeLessThanOrEqual(1.22);
     expect(capPower(9)).toBeLessThanOrEqual(1.5);
-    expect(MAX_CHARGES * 3.2).toBeLessThanOrEqual(MAX_NITRO_SECONDS + 0.1);
+    expect(MAX_CHARGES * 2.4).toBeLessThanOrEqual(MAX_NITRO_SECONDS + 0.1);
   });
   it('kronor perks stop at double pay', () => {
     expect(perksOf([{ id: 'guldagget', n: 2 }, { id: 'planbok', n: 3 }]).kronor).toBeLessThanOrEqual(1);

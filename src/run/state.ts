@@ -51,6 +51,8 @@ export interface RaceSummary {
   /** ms */
   time: number;
   heartLost: boolean;
+  /** How many hearts it cost (0, 1 or 2). */
+  hearts?: number;
   prize: number;
   coins: number;
   bonus: number;
@@ -187,13 +189,18 @@ export function healHeart(r: RunState, n = 1): boolean {
 export const KRONOR_SCALE = [1, 1.3, 1.7] as const;
 export const actScale = (act: number): number => KRONOR_SCALE[Math.min(act, KRONOR_SCALE.length - 1)]!;
 
-/** Finishing in the bottom third, or not at all, costs a heart. In lugnt läge only a DNF or dead last does. */
-export function costsHeart(place: number, n: number, finished: boolean, calm = false): boolean {
-  if (!finished) return true;
-  if (n <= 1) return false;
-  if (calm) return place >= n;
-  const bottom = Math.max(1, Math.round(n / 3));
-  return place > n - bottom;
+/**
+ * Hearts a race costs. Normal: the bottom half costs one, not finishing two, and losing a boss race (anything but
+ * first, or most points in Blodbad) two. In lugnt läge only a DNF or dead last costs one, bosses included.
+ */
+export function heartsLost(place: number, n: number, finished: boolean, calm = false, boss = false): number {
+  if (calm) return !finished || (n > 1 && place >= n) ? 1 : 0;
+  if (!finished) return 2;
+  if (n <= 1) return 0;
+  if (boss && place > 1) return 2;
+  return place > n / 2 ? 1 : 0;
 }
+
+export const costsHeart = (place: number, n: number, finished: boolean, calm = false, boss = false): boolean => heartsLost(place, n, finished, calm, boss) > 0;
 
 export const validPaint = (p: string): boolean => (CAR_PAINTS as readonly string[]).includes(p);

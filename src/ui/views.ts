@@ -2,7 +2,11 @@
 // element for the card. No state lives here; the App decides what happens on each press.
 import { CAR_BODIES, CAR_DRIVERS, CAR_PAINTS, PART_MAX_LEVEL, CAR_PARTS, carStars, newCar, type CarBody, type CarDriver, type CarPart } from '../shared/rally.ts';
 import { CAR_BODY_NAMES, CAR_BODY_TEXT, CAR_DRIVER_EMOJI, CAR_DRIVER_NAMES, CAR_PART_EMOJI, CAR_PART_NAMES, CAR_PART_TEXT, RALLY_COURSE_NAMES } from '../shared/names.ts';
-import { rivalCast } from '../shared/rivals.ts';
+import { ARCHETYPE_EMOJI, ARCHETYPE_NAMES, ARCHETYPE_TEXT } from '../shared/rivals.ts';
+import { BOSS_RULES, archetypeCounts, rivalModById } from '../shared/field.ts';
+import { rivalById } from '../shared/rivals.ts';
+import { KIND_EMOJI, KIND_NAMES, KIND_TEXT, PLACE_POINTS, RACE_KINDS, TAKEDOWN_POINTS } from '../shared/kinds.ts';
+import { partOfChoice } from '../run/economy.ts';
 import { RALLY_COURSE_DEFS } from '../shared/rally.ts';
 import { fmtTime } from '../rally/util.ts';
 import { ACTS, NODE_EMOJI, NODE_NAMES, allNodes, type MapNode, type NodeType } from '../run/map.ts';
@@ -160,8 +164,9 @@ export interface MapOpts {
 }
 
 const nodeLabel = (n: MapNode): string => {
-  if (n.type === 'boss') return 'Bossen. Den är sur.';
-  if (n.course && n.type !== 'shop') return `${NODE_NAMES[n.type]} · ${RALLY_COURSE_NAMES[n.course]}`;
+  const kind = n.kind ? ` · ${KIND_NAMES[n.kind]}` : '';
+  if (n.type === 'boss') return `Bossen. Den är sur.${kind}`;
+  if (n.course && n.type !== 'shop') return `${NODE_NAMES[n.type]} · ${RALLY_COURSE_NAMES[n.course]}${kind}`;
   return NODE_NAMES[n.type];
 };
 
@@ -218,7 +223,7 @@ export function mapView(o: MapOpts): HTMLElement {
     const p = pos(n);
     const can = reach.has(n.id);
     const cls = ['rg-node', `t-${n.type}`, can ? 'reach' : '', done.has(n.id) ? 'done' : '', n.id === run.at ? 'here' : '', !can && !done.has(n.id) ? 'far' : ''].filter(Boolean).join(' ');
-    const b = btn(cls, [el('span', 'rg-ne', NODE_EMOJI[n.type]), done.has(n.id) ? el('span', 'rg-tick', '✔') : null], () => o.onEnter(n.id));
+    const b = btn(cls, [el('span', 'rg-ne', NODE_EMOJI[n.type]), n.kind ? el('span', `rg-kb k-${n.kind}`, KIND_EMOJI[n.kind]) : null, done.has(n.id) ? el('span', 'rg-tick', '✔') : null], () => o.onEnter(n.id));
     b.style.left = `${p.x}%`;
     b.style.top = `${p.y}%`;
     b.disabled = !can;
@@ -228,6 +233,7 @@ export function mapView(o: MapOpts): HTMLElement {
   }
   const legend = el('div', 'rg-legend');
   for (const t of ['race', 'challenge', 'elite', 'shop', 'workshop', 'event', 'boss'] as NodeType[]) legend.append(el('span', null, `${NODE_EMOJI[t]} ${NODE_NAMES[t]}`));
+  const kinds = el('div', 'rg-legend rg-kinds', ...RACE_KINDS.map((k) => el('span', `k-${k}`, `${KIND_EMOJI[k]} ${KIND_NAMES[k]}`, el('small', null, k === 'rally' ? ' ren racing' : k === 'mixed' ? ' racing med knuffar' : ' vrak och poäng'))));
   const menu = btn('rg-icon', '☰', o.onMenu);
   menu.setAttribute('aria-label', 'Meny');
   return screen(
@@ -235,6 +241,7 @@ export function mapView(o: MapOpts): HTMLElement {
     statusBar(run, btn('rg-icon wide', '🎒 Skräpet', o.onBag), menu),
     field,
     legend,
+    kinds,
     el('div', 'rg-maphint', run.at === null ? 'Välj en glödande plats. Börja nånstans.' : 'Nästa stopp: en glödande plats.', el('small', 'rg-seed', seedLabel(run.seed))),
   );
 }
@@ -245,29 +252,61 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
   const plan = currentPlan(run)!;
   const node = currentNode(run)!;
   const r = plan.rules;
+  const kind = plan.kind;
   const chips = [
+    chip(`${KIND_EMOJI[kind]} ${KIND_NAMES[kind]}`, `k-${kind}`),
     chip(`${RALLY_COURSE_DEFS[plan.course].emoji} ${RALLY_COURSE_NAMES[plan.course]}`),
     chip(`🔁 ${plural(r.laps, 'varv', 'varv')}`),
     chip(`🏎️ ${plural(r.ai, 'rival', 'rivaler')}`),
     r.weather === 'rain' ? chip('🌧️ Regn') : null,
     r.time === 'night' ? chip('🌙 Natt') : r.time === 'sunset' ? chip('🌇 Solnedgång') : null,
     r.difficulty === 'hard' ? chip('💀 Hårt') : r.difficulty === 'easy' ? chip('🛋️ Söndagsåkning') : null,
-    r.damage ? chip('🔧 Bilen kan gå sönder') : null,
+    plan.field.hazards.oil + plan.field.hazards.hay + plan.field.hazards.pothole > 0 ? chip('🛢️ Hinder på vägen') : null,
+    plan.field.narrow < 1 ? chip('↔️ Smal väg') : null,
   ].filter((x): x is HTMLElement => !!x);
   const rivals = el('ul', 'rg-rivals');
-  const cast = rivalCast(node.seed, r.ai);
   const talkers: { name: string; talk: string }[] = [];
-  for (let i = 0; i < r.ai; i++) {
-    const boss = i === 0 ? plan.twist?.boss : undefined;
-    const rv = cast[i]!;
-    if (!boss) talkers.push({ name: rv.name, talk: rv.talk });
-    rivals.append(el('li', boss ? 'boss' : '', `${CAR_DRIVER_EMOJI[boss?.face ?? rv.face]} ${boss?.name ?? rv.name}`, el('small', null, boss ? (plan.boss?.nick ?? '') : rv.nick)));
+  for (const sp of plan.field.rivals) {
+    const boss = sp.boss ? plan.twist?.boss : undefined;
+    const rv = sp.boss ? undefined : rivalById(sp.id);
+    if (rv) talkers.push({ name: rv.name, talk: rv.talk });
+    const icons = el('span', 'rg-mods');
+    for (const id of sp.mods) {
+      const m = rivalModById(id);
+      if (m) icons.append(Object.assign(el('i', 'rg-mod', m.emoji), { title: `${m.name}: ${m.text}` }));
+    }
+    const face = CAR_DRIVER_EMOJI[boss?.face ?? rv?.face ?? 'human'];
+    const li = el(
+      'li',
+      sp.boss ? 'boss' : '',
+      el('span', 'rg-rname', `${face} ${boss?.name ?? rv?.name ?? '???'}`, el('em', `rg-arch a-${sp.archetype}`, ` ${ARCHETYPE_EMOJI[sp.archetype]} ${ARCHETYPE_NAMES[sp.archetype]}`), icons),
+      el('small', null, sp.boss ? (plan.boss?.nick ?? '') : rv?.nick ?? ''),
+    );
+    li.title = `${ARCHETYPE_NAMES[sp.archetype]}: ${ARCHETYPE_TEXT[sp.archetype]}`;
+    rivals.append(li);
   }
   const talk = talkers.length ? talkers[node.seed % talkers.length]! : null;
-  const info: Node[] = [el('div', 'rg-chips', ...chips)];
-  if (plan.boss) info.push(el('div', 'rg-bossbox', el('div', 'rg-bossname', `${plan.boss.emoji} ${plan.boss.name}`), el('div', 'rg-bossnick', plan.boss.nick), el('p', 'rg-quote', plan.boss.intro), el('p', 'rg-trick', `⚠️ ${plan.boss.trick}`)));
+  const counts = archetypeCounts(plan.field);
+  const info: Node[] = [el('div', 'rg-chips', ...chips), el('div', `rg-kindbox k-${kind}`, el('b', null, `${KIND_EMOJI[kind]} ${KIND_NAMES[kind]}: `), KIND_TEXT[kind], kind === 'carnage' ? el('small', null, ` Poäng för placering: ${PLACE_POINTS.join('/')} och ${TAKEDOWN_POINTS} per vrak. Placeringen på poäng avgör priset och hjärtat.`) : null)];
+  if (plan.boss) {
+    const rules = plan.field.rivals[0]?.rules.filter((x) => x === 'lastlap' || kind === 'carnage') ?? [];
+    info.push(el('div', 'rg-bossbox', el('div', 'rg-bossname', `${plan.boss.emoji} ${plan.boss.name}`), el('div', 'rg-bossnick', plan.boss.nick), el('p', 'rg-quote', plan.boss.intro), el('p', 'rg-trick', `⚠️ ${plan.boss.trick}`), ...rules.map((x) => el('p', 'rg-trick', `${BOSS_RULES[x].emoji} ${BOSS_RULES[x].text}`))));
+  }
   if (plan.goal) info.push(el('div', 'rg-goal', '🎯 ', el('b', null, plan.goal.text), el('small', null, ' Fixar du det får du extra kronor och en pryl.')));
   if (node.type === 'elite') info.push(el('div', 'rg-goal', '💀 Mördarrivaler. Tar du dig i mål får du välja en pryl.'));
+  info.push(
+    el(
+      'div',
+      'rg-heartrule',
+      run.calm
+        ? '❤️ Sist eller bryter: −❤️'
+        : plan.boss
+          ? `❤️ Bossen: förlorar du${kind === 'carnage' ? ' på poäng' : ''} är det −❤️❤️. Vinn och få ❤️ tillbaka.`
+          : `❤️ Hamnar du på nedre halvan${kind === 'carnage' ? ' på poäng' : ''}: −❤️. Bryter du: −❤️❤️.`,
+    ),
+  );
+  info.push(el('div', 'rg-winhint', '🎁 Vinn och du får välja ditt byte. Tvåan får ett litet tröstpris.'));
+  const mix = [counts.rammer ? `${counts.rammer}× ${ARCHETYPE_EMOJI.rammer}` : '', counts.mixed ? `${counts.mixed}× ${ARCHETYPE_EMOJI.mixed}` : '', counts.racer ? `${counts.racer}× ${ARCHETYPE_EMOJI.racer}` : ''].filter(Boolean).join('  ');
   return screen(
     'rg-pre',
     statusBar(run),
@@ -275,7 +314,7 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
       'div',
       'rg-prebody',
       el('div', 'rg-preleft', el('div', 'rg-pretitle', el('span', 'rg-bigem', NODE_EMOJI[node.type]), el('h2', null, plan.title)), ...info),
-      el('div', 'rg-preright', el('div', 'arc-h', 'Motståndare'), rivals, talk ? el('div', 'rg-talk', el('b', null, `${talk.name}:`), ` ”${talk.talk}”`) : null, el('div', 'arc-h', 'Ditt skräp'), run.trinkets.length ? trinketIcons(run.trinkets, 12) : el('small', null, 'Inget än. Fattigt.')),
+      el('div', 'rg-preright', el('div', 'arc-h', `Motståndare  ${mix}`), rivals, talk ? el('div', 'rg-talk', el('b', null, `${talk.name}:`), ` ”${talk.talk}”`) : null, el('div', 'arc-h', 'Ditt skräp'), run.trinkets.length ? trinketIcons(run.trinkets, 12) : el('small', null, 'Inget än. Fattigt.')),
     ),
     foot(ghost('← Fega ur', o.onBack), go('KÖR! 🏁', o.onGo)),
   );
@@ -289,6 +328,14 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
   const medal = s.medal ? { gold: '🥇', silver: '🥈', bronze: '🥉' }[s.medal] : '';
   const lines: Node[] = [];
   if (s.finished) lines.push(el('div', 'rg-time', `⏱️ ${fmtTime(s.time / 1000)} ${medal}`));
+  if (s.kind === 'carnage' && s.points !== undefined) {
+    // Blodbad is decided on points: say how the points came about
+    const pp = s.roadPlace ? PLACE_POINTS[Math.min(PLACE_POINTS.length, s.roadPlace) - 1]! : 0;
+    const td = s.takedowns ?? 0;
+    lines.push(
+      el('div', 'rg-points', el('b', null, `💥 Blodbad: ${s.points} p`), el('small', null, ` = ${pp} för ${s.roadPlace ?? '?'}:a plats på vägen + ${td} vrak × ${TAKEDOWN_POINTS} p${s.wrecked ? ` · du blev vrakad ${s.wrecked} ${s.wrecked === 1 ? 'gång' : 'gånger'}` : ''}. Plats ${s.place} av ${s.n} på poäng.`)),
+    );
+  }
   const kr = el('b', null, `+${s.total} kr`);
   // the kronor count up on the card
   setTimeout(() => countUp(kr, s.total, { prefix: '+', suffix: ' kr', ms: 900, tick: o.onCount }), 350);
@@ -302,19 +349,25 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
   );
   lines.push(
     s.heartLost
-      ? el('div', 'rg-heartline lost', '💔 −1 hjärta', el('small', null, run.status === 'dead' ? ' – det var sista. RIP.' : ` – ${run.hearts} kvar`))
+      ? el('div', 'rg-heartline lost', s.hearts === 2 ? '💔 −2 hjärtan' : '💔 −1 hjärta', el('small', null, run.status === 'dead' ? ' – det var sista. RIP.' : ` – ${run.hearts} kvar`))
       : el('div', 'rg-heartline', '❤️ Hjärtat klarade sig'),
   );
   if (s.goal) lines.push(el('div', `rg-goal ${s.goal.met ? 'ok' : 'miss'}`, s.goal.met ? '✅ Utmaning krossad! ' : '❌ Misslyckades. Skärp dig. ', el('small', null, s.goal.text)));
-  if (s.reward) lines.push(el('div', 'rg-goal ok', '🎁 Du får välja en pryl.'));
-  return screen('rg-post', statusBar(run), el('div', 'rg-postbody', el('h2', 'rg-bigh', head), ...lines), foot(go(run.status === 'dead' ? 'Fortsätt' : s.reward ? 'Välj pryl 🎁' : 'Till kartan', o.onNext)));
+  if (s.reward) lines.push(el('div', 'rg-goal ok', s.rewardKind === 'second' ? '🥈 Tröstpris: välj en av två.' : s.rewardKind === 'win' ? '🏆 Vinst! Välj ditt byte.' : '🎁 Du får välja en pryl.'));
+  return screen('rg-post', statusBar(run), el('div', 'rg-postbody', el('h2', 'rg-bigh', head), ...lines), foot(go(run.status === 'dead' ? 'Fortsätt' : s.reward ? (s.rewardKind === 'second' ? 'Ta tröstpriset 🎁' : 'Välj ditt byte 🎁') : 'Till kartan', o.onNext)));
 }
 
 // ---- reward ----
 
 export function rewardView(run: RunState, scr: Extract<Screen, { kind: 'reward' }>, o: { onPick(i: number): void }): HTMLElement {
-  const title = scr.source === 'boss' ? 'Bossen ligger i diket! Ta en pryl' : scr.source === 'elite' ? 'Du överlevde dödsloppet! Ta en pryl' : 'Välj en pryl. Chansa!';
+  const title =
+    scr.source === 'boss' ? 'Bossen ligger i diket! Ta ett byte' : scr.source === 'elite' ? 'Du överlevde dödsloppet! Ta ett byte' : scr.source === 'consolation' ? 'Tvåa. Ta ett tröstpris' : 'Vinst! Välj ditt byte';
   const cards = scr.choices.map((id, i) => {
+    const part = partOfChoice(id);
+    if (part) {
+      const lvl = run.car.parts[part] ?? 0;
+      return btn('rg-tcard r-rare rg-partcard', [el('span', 'rg-tem', CAR_PART_EMOJI[part]), el('span', 'rg-tname', `${CAR_PART_NAMES[part]} nivå ${lvl + 1}`), el('span', 'rg-ttext', CAR_PART_TEXT[part]), el('span', 'rg-tfoot', el('span', 'rg-rar r-rare', 'Uppgradering'))], () => o.onPick(i));
+    }
     const d = trinketById(id)!;
     return trinketCard(d, { n: run.trinkets.find((t) => t.id === id)?.n, onClick: () => o.onPick(i), tag: run.trinkets.some((t) => t.id === id) ? 'Staplas! Stinkigare!' : undefined });
   });

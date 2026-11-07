@@ -324,6 +324,24 @@ export class RallyAudio {
     noiseShot(this.a, this.out, 0.12, { freq: 900, q: 0.6, vol: 0.18 * v });
   }
 
+  /** A car-to-car hit: a thump, crumpling plastic and a metallic clank; heavier bodies sound heavier. */
+  crunch(strength: number, mass = 1): void {
+    const v = clamp(strength / 9, 0.2, 1);
+    const lo = clamp(1.2 - 0.25 * Math.log2(Math.max(0.3, mass) * 2), 0.6, 1.5);
+    tone(this.a, this.out, 120 * lo, 0.22, { type: 'sine', to: 42, vol: 0.34 * v });
+    noiseShot(this.a, this.out, 0.2, { freq: 1100 * lo, q: 0.5, vol: 0.26 * v });
+    noiseShot(this.a, this.out, 0.1, { freq: 4300, q: 1.4, vol: 0.12 * v, at: 0.015 });
+    tone(this.a, this.out, 260 * lo, 0.14, { type: 'square', to: 95, vol: 0.07 * v, at: 0.01 });
+    if (v > 0.55) tone(this.a, this.out, 520, 0.18, { type: 'triangle', to: 310, vol: 0.06 * v, at: 0.04 });
+  }
+
+  /** A wreck: a small explosion. */
+  boom(): void {
+    tone(this.a, this.out, 90, 0.5, { type: 'sawtooth', to: 28, vol: 0.34 });
+    noiseShot(this.a, this.out, 0.6, { freq: 700, q: 0.4, vol: 0.34 });
+    noiseShot(this.a, this.out, 0.25, { freq: 3000, q: 0.8, vol: 0.14, at: 0.05 });
+  }
+
   thud(strength: number): void {
     const v = clamp(strength / 6, 0.2, 1);
     tone(this.a, this.out, 80, 0.25, { type: 'sine', to: 35, vol: 0.32 * v });

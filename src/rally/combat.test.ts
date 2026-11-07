@@ -10,31 +10,32 @@ describe('how much a hit hurts', () => {
     expect(impactDamage({ ...hit, dv: 12 })).toBeGreaterThan(impactDamage({ ...hit, dv: 6 }));
   });
   it('depends on the ram power of the attacker, the armour of the victim and who drove into whom', () => {
-    expect(impactDamage({ ...hit, ram: 2 })).toBeCloseTo(impactDamage(hit) * 2);
-    expect(impactDamage({ ...hit, dmgTaken: 0.5 })).toBeCloseTo(impactDamage(hit) * 0.5);
+    const soft = { ...hit, dv: 3.5 };
+    expect(impactDamage({ ...soft, ram: 2 })).toBeCloseTo(impactDamage(soft) * 2);
+    expect(impactDamage({ ...soft, dmgTaken: 0.5 })).toBeCloseTo(impactDamage(soft) * 0.5);
     expect(impactDamage({ ...hit, blame: 0 })).toBeLessThan(impactDamage({ ...hit, blame: 1 }) * 0.4);
   });
   it('lets the heavy shove the light: a tractor wrecks a car in a few hits and a car barely scratches a tractor', () => {
     const car = { massVic: 1, dmgTaken: 1, hp: maxHpOf(1) };
     const tractor = { massVic: 3.6, dmgTaken: 1 / 2.2, hp: maxHpOf(3.6) };
-    const tractorHitsCar = hitsToWreck({ ...car, massAtt: 3.6, closing: 15, ram: 1 });
-    const carHitsCar = hitsToWreck({ ...car, massAtt: 1, closing: 15, ram: 1 });
-    const carHitsTractor = hitsToWreck({ ...tractor, massAtt: 1, closing: 15, ram: 1 });
-    console.log('hits to wreck at 15 m/s: tractor on car', tractorHitsCar, 'car on car', carHitsCar, 'car on tractor', carHitsTractor);
+    const tractorHitsCar = hitsToWreck({ ...car, massAtt: 3.6, closing: 10, ram: 1 });
+    const carHitsCar = hitsToWreck({ ...car, massAtt: 1, closing: 10, ram: 1 });
+    const carHitsTractor = hitsToWreck({ ...tractor, massAtt: 1, closing: 10, ram: 1 });
+    console.log('hits to wreck at 10 m/s: tractor on car', tractorHitsCar, 'car on car', carHitsCar, 'car on tractor', carHitsTractor);
     expect(tractorHitsCar).toBeLessThan(carHitsCar);
-    expect(carHitsCar).toBeGreaterThanOrEqual(4);
+    expect(carHitsCar).toBeGreaterThanOrEqual(3);
     expect(carHitsCar).toBeLessThanOrEqual(9);
-    expect(tractorHitsCar).toBeLessThanOrEqual(5);
+    expect(tractorHitsCar).toBeLessThanOrEqual(4);
     expect(carHitsTractor).toBeGreaterThan(carHitsCar * 3);
   });
   it('a ram-heavy player wrecks a car in about half the hits', () => {
-    const base = { massAtt: 1, massVic: 1, closing: 14, dmgTaken: 1, hp: 100 };
+    const base = { massAtt: 1, massVic: 1, closing: 9, dmgTaken: 1, hp: 80 };
     expect(hitsToWreck({ ...base, ram: ramPowerOf(3) })).toBeLessThanOrEqual(Math.ceil(hitsToWreck({ ...base, ram: 1 }) * 0.6));
   });
   it('health grows with the weight of the body, and the ram power stops at 2.5', () => {
     expect(maxHpOf(0.35)).toBeLessThan(maxHpOf(1));
     expect(maxHpOf(3.6)).toBeGreaterThan(maxHpOf(1));
-    expect(maxHpOf(1, 1.5)).toBe(150);
+    expect(maxHpOf(1, 1.5)).toBe(120);
     expect(ramPowerOf(0)).toBe(1);
     expect(ramPowerOf(100)).toBe(2.5);
   });

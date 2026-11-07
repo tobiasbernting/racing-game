@@ -4,7 +4,7 @@
 
 const clamp = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x));
 
-export const BASE_HP = 100;
+export const BASE_HP = 80;
 /** Seconds a wrecked car is out, and the share of its health it comes back with. */
 export const WRECK_SECONDS = 3;
 export const RESPAWN_HP = 0.7;
@@ -12,10 +12,10 @@ export const RESPAWN_HP = 0.7;
 export const BIG_HIT = 5;
 export const TAKEDOWN_WINDOW = 2;
 /** A speed change below this (m/s) hurts nobody: scraping and nudging. */
-export const HIT_MIN_DV = 2.2;
-const DAMAGE_K = 2.4;
+export const HIT_MIN_DV = 1.0;
+const DAMAGE_K = 5;
 /** The most one hit can take. */
-export const HIT_MAX = 45;
+export const HIT_MAX = 40;
 
 /** Health a car starts with: heavier bodies take more, then the rival's own multiplier. */
 export const maxHpOf = (mass: number, hpMul = 1): number => Math.round(BASE_HP * clamp(0.7 + 0.3 * Math.sqrt(Math.max(0.1, mass)), 0.8, 1.5) * hpMul);

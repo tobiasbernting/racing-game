@@ -105,15 +105,17 @@ export const rivalModById = (id: string): RivalModDef | undefined => RIVAL_MODS.
 
 /** Extra rules some bosses play by in the later acts. */
 export const BOSS_RULES = {
-  lastlap: { name: 'Sista varvet', emoji: '🔥', text: 'Sista varvet kör bossen 8 % fortare.' },
+  lastlap: { name: 'Sista varvet', emoji: '🔥', text: 'Sista varvet kör bossen 6 % fortare.' },
   regen: { name: 'Läker sig själv', emoji: '🩹', text: 'I Blodbad läker bossen när ingen har smällt in på 3 sekunder.' },
 } as const;
 export type BossRule = keyof typeof BOSS_RULES;
+/** The extra speed of a boss on its last lap. */
+export const LASTLAP_BOOST = 0.06;
 
 /** How many modifiers a rival of this role has at this point of the run (ordinary rivals 1-2 from act 2, elites 3, bosses more). */
 export function modCount(act: number, row: number, role: RivalRole, calm: boolean, u: number): number {
   let n: number;
-  if (role === 'boss') n = [2, 4, 5][Math.min(2, act)]!;
+  if (role === 'boss') n = [1, 3, 5][Math.min(2, act)]!;
   else if (role === 'elite') n = act === 0 ? 1 : 3;
   else if (act === 0) n = 0;
   else if (act === 1) n = 1 + (row >= 3 && u < 0.4 ? 1 : 0);
@@ -129,18 +131,18 @@ export function modCount(act: number, row: number, role: RivalRole, calm: boolea
 /** Part level (0..3, fractional) rivals have by now: roughly what a good player has bought, all of it from act 3 row 2. */
 export function partLevel(t: number, role: RivalRole, calm: boolean): number {
   // 3 is a full set; the last stretch of the run goes a notch past it (a tuned car, no more than the player's caps allow)
-  let lv = 3.4 * clamp((t - 0.03) / 0.82, 0, 1);
+  let lv = 4.2 * Math.pow(clamp((t - 0.03) / 0.8, 0, 1), 1.8);
   if (role === 'elite') lv += 0.35;
-  if (role === 'boss') lv += 0.7;
+  if (role === 'boss') lv += 0;
   if (calm) lv *= 0.35;
-  return clamp(lv, 0, 3.6);
+  return clamp(lv, 0, 4.4);
 }
 
 /** Rivals' courage, as a share of the corner speed they dare (the driving ceiling is about 1.06). */
 export function rivalSkill(t: number, role: RivalRole, calm: boolean): number {
-  const bump = role === 'boss' ? 0.02 : role === 'elite' ? 0.012 : 0;
+  const bump = role === 'boss' ? -0.015 : role === 'elite' ? 0.006 : 0;
   if (calm) return 0.8 + 0.07 * t + bump * 0.5;
-  return 0.9 + 0.15 * Math.pow(t, 1.3) + bump;
+  return 0.85 + 0.21 * Math.pow(t, 2.0) + bump;
 }
 export const SKILL_CEILING = 1.06;
 
@@ -275,7 +277,8 @@ export function buildField(i: FieldInput): FieldPlan {
     const archetype: Archetype = boss ? boss.archetype : rv.type;
     const role: RivalRole = boss ? 'boss' : i.role === 'elite' ? 'elite' : 'rival';
     const def = ARCHETYPE_DEFS[archetype];
-    const lv = partLevel(t, role, i.calm);
+    // the boss's company is a step behind it
+    const lv = partLevel(role === 'boss' || !i.boss ? t : Math.max(0, t - 0.12), role, i.calm);
     // archetypes put their money in different parts
     const engine = lv * (archetype === 'racer' ? 1 : archetype === 'rammer' ? 0.9 : 0.95);
     const tyres = lv * (archetype === 'racer' ? 1 : archetype === 'rammer' ? 0.7 : 0.9);
@@ -303,7 +306,7 @@ export function buildField(i: FieldInput): FieldPlan {
     }
     if (fx.nitroEvery > 0) fx.nitroEvery = fx.nitroEvery / (0.6 + 0.6 * def.nitro);
     const rules: BossRule[] = boss ? (i.act >= 2 ? ['lastlap', 'regen'] : i.act >= 1 ? ['lastlap'] : []) : [];
-    const skill = clamp(rivalSkill(t, role, i.calm) + def.skill + (SLOT_SKILL[slot] ?? -0.04) * 0.7, 0.6, SKILL_CEILING);
+    const skill = clamp(rivalSkill(t, role, i.calm) + def.skill + (boss ? 0 : (SLOT_SKILL[slot] ?? -0.04) * 0.7), 0.6, SKILL_CEILING);
     const bossSkill = boss?.skill ?? 0;
     rivals.push({
       slot,
@@ -312,7 +315,7 @@ export function buildField(i: FieldInput): FieldPlan {
       role,
       archetype,
       level: Math.round(lv * 100) / 100,
-      skill: boss ? clamp(Math.max(skill, i.calm ? 0 : bossSkill), 0.6, SKILL_CEILING) : skill,
+      skill: boss && i.act >= 1 ? clamp(Math.max(skill, i.calm ? 0 : bossSkill - 0.02), 0.6, SKILL_CEILING) : skill,
       power: (1 + PART_EFFECTS.enginePower * engine) * (SLOT_POWER[slot] ?? 0.96) * fx.power * (boss?.power ?? 1),
       grip: (1 + PART_EFFECTS.tyresGrip * tyres) * fx.grip,
       brakes: (1 + PART_EFFECTS.brakesForce * brakes) * fx.brakes,

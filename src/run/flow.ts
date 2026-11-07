@@ -7,7 +7,7 @@ import { canUpgrade, makeStock, partOfChoice, rewardChoices } from './economy.ts
 import { eventById, pickEventId, resolveChoice } from './events.ts';
 import { goalMet, planRace, type RacePlan } from './plan.ts';
 import { Rng } from './rng.ts';
-import { actScale, addKronor, addTrinket, copyRun, costsHeart, healHeart, loseHeart, nodeOf, reachable, type RaceSummary, type RunState } from './state.ts';
+import { actScale, addKronor, addTrinket, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, type RaceSummary, type RunState } from './state.ts';
 import { perksOf } from './trinkets.ts';
 
 /** Trophies and the end screen come from here when status is not 'running'. */
@@ -64,12 +64,15 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
   const r = copyRun(run);
   const node = nodeOf(r, run.screen.nodeId)!;
   const plan = planRace(node, r.calm);
-  const heartLost = costsHeart(res.place, res.n, res.finished, r.calm);
+  const lost = heartsLost(res.place, res.n, res.finished, r.calm, node.type === 'boss');
+  const heartLost = lost > 0;
   const met = plan.goal ? goalMet(plan.goal, res) : null;
   const raw = res.kronor + res.coins + (res.bonus ?? 0);
   const total = scaleKronor(r, raw, plan.prize * (met ? 1.5 : 1));
   addKronor(r, total);
-  if (heartLost) loseHeart(r);
+  for (let k = 0; k < lost; k++) loseHeart(r);
+  // winning a boss race gives a heart back (in lugnt läge finishNode pays two whatever the placing)
+  if (!r.calm && node.type === 'boss' && res.finished && res.place === 1 && r.status === 'running') healHeart(r, 1);
   r.car.damage = Math.max(0, Math.round(res.damage * 0.85));
   const st = r.stats;
   st.races++;
@@ -108,6 +111,7 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     finished: res.finished,
     time: res.time,
     heartLost,
+    hearts: lost,
     prize: res.kronor,
     coins: res.coins,
     bonus: res.bonus ?? 0,
@@ -181,7 +185,7 @@ export function finishNode(run: RunState): RunState {
   if (node?.type === 'boss') {
     r.stats.bossesBeaten++;
     // a boss pays one heart back (two in lugnt läge)
-    healHeart(r, r.calm ? 2 : 1);
+    if (r.calm) healHeart(r, 2);
     r.act++;
     r.at = null;
     r.path = [];

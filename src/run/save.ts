@@ -59,6 +59,7 @@ function cleanScreen(raw: unknown, act: number, seed: number): Screen | null {
           finished: s.finished === true,
           time: num(s.time, 0, 99999999, 0),
           heartLost: s.heartLost === true,
+          hearts: typeof s.hearts === 'number' ? num(s.hearts, 0, 2, 1) : s.heartLost === true ? 1 : 0,
           prize: num(s.prize, 0, 99999, 0),
           coins: num(s.coins, 0, 99999, 0),
           bonus: num(s.bonus, 0, 99999, 0),

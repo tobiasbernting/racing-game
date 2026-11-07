@@ -206,7 +206,7 @@ describe('a save from before phase 6', () => {
   it('round trips the new card fields and a reward that offers a part upgrade or a consolation', () => {
     const run = newRun({ seed: 12, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 3 });
     const id = reachable(run)[0]!.id;
-    run.screen = { kind: 'postrace', nodeId: id, summary: { place: 1, n: 4, finished: true, time: 90000, heartLost: false, prize: 100, coins: 5, bonus: 0, total: 110, medal: null, reward: true, rewardKind: 'win', kind: 'carnage', points: 14, takedowns: 3, wrecked: 1, roadPlace: 3 } };
+    run.screen = { kind: 'postrace', nodeId: id, summary: { place: 1, n: 4, finished: true, time: 90000, heartLost: false, hearts: 0, prize: 100, coins: 5, bonus: 0, total: 110, medal: null, reward: true, rewardKind: 'win', kind: 'carnage', points: 14, takedowns: 3, wrecked: 1, roadPlace: 3 } };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
     run.screen = { kind: 'reward', nodeId: id, choices: ['gummianka', 'part:armour', 'bananskal'], source: 'race' };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);

@@ -10,6 +10,7 @@ import { CAR_BODY_NAMES, RALLY_COURSE_NAMES } from './shared/names.ts';
 import { loadPrefs, savePrefs, type Prefs } from './prefs.ts';
 import { fmtTime } from './rally/util.ts';
 import { buildMods } from './run/trinkets.ts';
+import type { RaceKind } from './shared/kinds.ts';
 import { chooseEvent, continueAfterRace, currentNode, currentPlan, enterNode, finishNode, pickReward, submitRace, backToMap } from './run/flow.ts';
 import { buyHeart, buyRepair, buyTrinket, reroll, workshopPaint, workshopRepair, workshopUpgrade } from './run/economy.ts';
 import { BODY_UNLOCK, trophiesFor, unlockedBodies, unlockedTrinkets, type Meta } from './run/meta.ts';
@@ -731,6 +732,7 @@ export class App {
       seed: node.seed,
       mods: buildMods(run.trinkets, run.car.body),
       twist: plan.twist,
+      field: plan.field,
       coins: true,
       onDone: (res) => {
         this.result = res;
@@ -768,12 +770,14 @@ export class App {
   }
 
   /** Puts the run at a node of this type (anywhere on this act's map) and enters it. */
-  debugEnter(type: NodeType): boolean {
+  debugEnter(type: NodeType, kind?: RaceKind): boolean {
     if (!this.runState) return false;
     const r = structuredClone(this.runState);
     const nodes = allNodes(mapOf(r));
-    const node = nodes.find((n) => n.type === type);
+    const node = nodes.find((n) => n.type === type && (!kind || n.kind === kind)) ?? nodes.find((n) => n.type === type);
     if (!node) return false;
+    // a test can ask for a kind the map did not roll for this node
+    if (kind && node.type !== 'boss') node.kind = kind;
     r.screen = null;
     r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
     this.commit(enterNode(r, node.id));

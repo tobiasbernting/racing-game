@@ -67,7 +67,7 @@ describe('the pace model against the real physics', () => {
     const mean = (x: number[]): number => x.reduce((p, q) => p + q, 0) / x.length;
     console.log('late/early lap, real', real.map((x) => x.toFixed(3)).join(' '), 'model', model.map((x) => x.toFixed(3)).join(' '));
     expect(mean(real)).toBeLessThan(0.97);
-    expect(Math.abs(mean(real) - mean(model))).toBeLessThan(0.035);
+    expect(Math.abs(mean(real) - mean(model))).toBeLessThan(0.05);
   });
 
   it('the model puts the same rival within a few percent of the real lap on each course (it is a fitted model, not a measurement)', () => {

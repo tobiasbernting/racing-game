@@ -1156,3 +1156,37 @@ body { font-family: var(--body); background: var(--asphalt); }
 .rg-node.t-boss, .rg-node.t-elite { border-color: var(--neon-p); }
 .rg-node.reach { border-color: var(--neon-y); background: radial-gradient(circle at 35% 30%, #5a2a6a, #231030); }
 .rg-links line.live { stroke: var(--neon-y); }
+
+/* ---- race kinds (phase 6) ---- */
+.rg-kb { position: absolute; left: -5px; bottom: -6px; font-size: calc(var(--node) * 0.34); line-height: 1; width: calc(var(--node) * 0.5); height: calc(var(--node) * 0.5); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; background: #17142a; border: 2px solid var(--kc, #fff); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+.rg-kb.k-rally, .k-rally { --kc: #19e3ff; }
+.rg-kb.k-mixed, .k-mixed { --kc: #ffd23f; }
+.rg-kb.k-carnage, .k-carnage { --kc: #ff3d7f; }
+.rg-kinds { opacity: 0.9; margin-top: -2px; }
+.rg-kinds span { border-bottom: 2px solid var(--kc); padding-bottom: 1px; }
+.rg-kinds small { opacity: 0.7; }
+.rg-chip.k-rally, .rg-chip.k-mixed, .rg-chip.k-carnage { background: rgba(0, 0, 0, 0.35); border: 2px solid var(--kc); }
+.rg-kindbox { border-left: 4px solid var(--kc); background: rgba(255, 255, 255, 0.07); border-radius: 10px; padding: 8px 12px; font-size: 15px; line-height: 1.35; }
+.rg-kindbox small { opacity: 0.8; font-size: 13px; }
+.rg-winhint { font-size: 14px; opacity: 0.85; }
+.rg-points { font-size: 17px; background: rgba(255, 61, 127, 0.14); border-left: 4px solid #ff3d7f; border-radius: 10px; padding: 8px 12px; line-height: 1.35; }
+.rg-points small { font-size: 14px; opacity: 0.9; }
+.rg-rname { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; }
+.rg-arch { font-style: normal; font-size: 12px; font-weight: 800; padding: 0 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); }
+.rg-arch.a-rammer { color: #ff9a9a; }
+.rg-arch.a-racer { color: #8ff0ff; }
+.rg-arch.a-mixed { color: #ffe27a; }
+.rg-mods { display: inline-flex; gap: 2px; margin-left: 2px; }
+.rg-mod { font-style: normal; font-size: 14px; background: rgba(0, 0, 0, 0.35); border-radius: 6px; padding: 0 3px; }
+@media (max-height: 520px) {
+  .rg-kindbox { font-size: 12px; padding: 4px 8px; }
+  .rg-kindbox small { display: none; }
+  .rg-winhint { display: none; }
+  .rg-points { font-size: 14px; padding: 4px 8px; }
+  .rg-points small { font-size: 12px; }
+  .rg-arch { font-size: 10px; padding: 0 5px; }
+  .rg-mod { font-size: 11px; }
+}
+.rg-heartrule { font-size: 14px; font-weight: 800; color: #ff9ab4; }
+@media (max-height: 520px) { .rg-heartrule { font-size: 12px; } }

@@ -80,9 +80,9 @@ export function tintGround(g: GroundColors, t: [number, number, number]): Ground
 }
 
 /** The course for a race: the plain course with the seed's variation applied. */
-export function courseFor(id: RallyCourse, v: Variation | null): CourseDef {
+export function courseFor(id: RallyCourse, v: Variation | null, narrow = 1): CourseDef {
   const base = COURSES[id];
-  if (!v) return base;
+  if (!v) return narrowCourse(base, narrow);
   let ctrl = base.ctrl;
   let layout = base.layout;
   if (v.mirror) {
@@ -91,7 +91,14 @@ export function courseFor(id: RallyCourse, v: Variation | null): CourseDef {
   }
   if (v.reverse) ctrl = reverseCtrl(ctrl);
   const ground = tintGround(base.theme.ground, v.tint);
-  return { ...base, ctrl, layout, theme: { ...base.theme, ground } };
+  return narrowCourse({ ...base, ctrl, layout, theme: { ...base.theme, ground } }, narrow);
+}
+
+/** The same course on a narrower road (later acts): every half width scaled, never below 5 m. */
+export function narrowCourse(c: CourseDef, k: number): CourseDef {
+  if (k >= 0.999) return c;
+  const hw = (w: number): number => Math.max(5, w * k);
+  return { ...c, hw: hw(c.hw), ctrl: c.ctrl.map((p) => (p.hw === undefined ? p : { ...p, hw: hw(p.hw) })) };
 }
 
 export { variationFor };

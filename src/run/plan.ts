@@ -139,7 +139,8 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
     twist = boss.twist;
     rules.course = boss.course;
     rules.laps = 3;
-    rules.ai = Math.min(5, rules.ai + 1);
+    // a boss race is a smaller field, so the boss is the fight and the heart rule for losing it is fair
+    rules.ai = Math.max(3, rules.ai - 1);
     rules.difficulty = stepDiff(rules.difficulty, 1);
     rules.damage = true;
     if (node.boss === 'isdrottningen') rules.time = 'night';

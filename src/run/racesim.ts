@@ -5,7 +5,7 @@
 // what src/rally/combat.ts does in a race, with the same ram and mass numbers.
 import { MAX_CHARGES, MAX_NITRO_SECONDS, capGrip, capPower } from '../rally/mods.ts';
 import { ramPowerOf } from '../rally/combat.ts';
-import { catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
+import { LASTLAP_BOOST, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
 import { pointsTable } from '../shared/kinds.ts';
 import { HOOK_SAVE, HUMAN_FACTOR, NITRO_SAVE, baseLap, carGain, driftSaving, rivalLap, type HumanSkill } from '../shared/pace.ts';
 import { CAR_BODY_DEFS, NITRO_SECONDS, PART_EFFECTS } from '../shared/rally.ts';
@@ -54,7 +54,7 @@ export function playerStats(run: RunState, m: PlayerModel): PlayerStats {
     lap: (course) => baseLap(course) * carGain(grip, power) * human * top,
     nitroSaved: charges * len * NITRO_SAVE * (0.6 + 0.4 * Math.min(1, (1.08 - human) * 8)),
     // mini-turbos and the speed hooks together never save more than 2.2 s a lap
-    driftSaved: Math.min(2.2, driftSaving(human, t.driftRate) + run.trinkets.reduce((a, o) => a + (HOOK_SAVE[o.id] ?? 0) * Math.min(o.n, 3), 0) * (0.5 + 0.5 * Math.min(1, (1.08 - human) * 8))),
+    driftSaved: Math.min(1.6, driftSaving(human, t.driftRate) + run.trinkets.reduce((a, o) => a + (HOOK_SAVE[o.id] ?? 0) * Math.min(o.n, 3), 0) * (0.5 + 0.5 * Math.min(1, (1.08 - human) * 8))),
     ram: ramPowerOf(t.shove),
     mass: body.feel.mass,
     tough: Math.max(0.2, (1 - PART_EFFECTS.armourShield * (p.armour ?? 0)) * t.tough) / body.tough,
@@ -139,8 +139,8 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
   const hazardCost = (hit: number, slip: number): number => laps * hit * (hz.hay * HAZARD_COST.hay * slip + hz.oil * HAZARD_COST.oil * slip + hz.pothole * HAZARD_COST.pothole);
   // being gone for by the rivals who like contact (already scaled by the race kind): shoves, spins and lost speed
   const hunted = field.rivals.reduce((a, sp) => a + sp.aggro * sp.ram, 0);
-  const contactCost = (laps * 0.75 * hunted) / (0.7 + 0.3 * Math.sqrt(stats.mass));
-  const myPenalty = contactCost + hazardCost(HAZARD_HIT[m.skill], 1) +  (carnage ? myWrecks * 3.6 + myTake * 0.9 * (0.4 + m.aggression) : 0) + (poisson(rg, laps * INCIDENT[m.skill]) * 6);
+  const contactCost = (laps * 0.4 * hunted) / (0.7 + 0.3 * Math.sqrt(stats.mass));
+  const myPenalty = contactCost + hazardCost(HAZARD_HIT[m.skill], 1) +  (carnage ? myWrecks * 3.0 + myTake * 0.6 * (0.4 + m.aggression) : 0) + (poisson(rg, laps * INCIDENT[m.skill]) * 6);
   // per-car pace for each lap (noise), with the player's savings spread over the race
   const pace: number[][] = cars.map((c) => Array.from({ length: laps }, () => LAP_M / (c.lap * (1 + c.sigma * gauss(rg)))));
   const me = cars[0]!;
@@ -150,7 +150,9 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
   for (const c of cars.slice(1)) {
     let pen = 0;
     for (let l = 0; l < laps; l++) if (rg.float() < c.incident) pen += 6;
-    c.pen = pen + hazardCost(0.22, c.spec?.slip ?? 1);
+    // the rivals shove each other too, a little less than they shove the player
+    const mutual = c.spec ? laps * 0.2 * Math.max(0, hunted - c.spec.aggro * c.spec.ram) : 0;
+    c.pen = pen + hazardCost(0.22, c.spec?.slip ?? 1) + mutual;
   }
   const total = laps * LAP_M;
   let t = 0;
@@ -169,7 +171,7 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
       if (c !== me && !me.done) {
         const gap = c.u - me.u;
         v *= (1 + catchUpBoost(-gap, field.catchUp)) * (1 - easeOff(gap, field.catchUp));
-        if (c.spec?.rules.includes('lastlap') && lapNo >= laps - 1) v *= 1.08;
+        if (c.spec?.rules.includes('lastlap') && lapNo >= laps - 1) v *= 1 + LASTLAP_BOOST;
       }
       c.u += v * run1;
       if (c.u >= total) {

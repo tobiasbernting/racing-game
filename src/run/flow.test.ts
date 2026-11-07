@@ -6,7 +6,7 @@ import { backToMap, chooseEvent, continueAfterRace, enterNode, finishNode, pickR
 import { ACTS, type MapNode } from './map.ts';
 import { goalMet, planRace, targetTimeMs } from './plan.ts';
 import { Rng } from './rng.ts';
-import { CALM_HEARTS, START_HEARTS, costsHeart, mapOf, newRun, ownedN, reachable, type RunState } from './state.ts';
+import { CALM_HEARTS, START_HEARTS, costsHeart, heartsLost, mapOf, newRun, ownedN, reachable, type RunState } from './state.ts';
 
 const fresh = (o: Partial<{ seed: number; calm: boolean; trophies: number }> = {}): RunState => newRun({ seed: o.seed ?? 42, calm: o.calm ?? false, body: 'hatch', driver: 'cow', paint: '#e8412c', trophies: o.trophies ?? 0 });
 
@@ -26,21 +26,32 @@ describe('hearts', () => {
 
   it('a DNF or the bottom third of the field costs a heart', () => {
     expect(costsHeart(1, 4, true)).toBe(false);
-    expect(costsHeart(3, 4, true)).toBe(false);
+    expect(costsHeart(2, 4, true)).toBe(false);
+    expect(costsHeart(3, 4, true)).toBe(true);
     expect(costsHeart(4, 4, true)).toBe(true);
-    expect(costsHeart(4, 6, true)).toBe(false);
+    expect(costsHeart(3, 6, true)).toBe(false);
+    expect(costsHeart(4, 6, true)).toBe(true);
     expect(costsHeart(5, 6, true)).toBe(true);
     expect(costsHeart(6, 6, true)).toBe(true);
     expect(costsHeart(2, 4, false)).toBe(true);
+    expect(heartsLost(2, 4, false)).toBe(2);
+    expect(heartsLost(2, 6, true, false, true)).toBe(2);
+    expect(heartsLost(1, 6, true, false, true)).toBe(0);
+    expect(heartsLost(3, 6, true, false, false)).toBe(0);
+    expect(heartsLost(3, 6, true, true, true)).toBe(0);
+    expect(heartsLost(6, 6, true, true)).toBe(1);
+    expect(heartsLost(2, 4, false, true)).toBe(1);
     expect(costsHeart(1, 1, true)).toBe(false);
   });
 
   it('losing the last heart ends the run', () => {
     let run = fresh();
+    // a DNF costs two hearts in normal mode
     for (let i = 0; i < START_HEARTS; i++) {
       run = goTo(run);
+      const before = run.hearts;
       run = submitRace(run, result({ place: 4, finished: false }));
-      expect(run.hearts).toBe(START_HEARTS - i - 1);
+      expect(run.hearts).toBe(Math.max(0, before - 2));
       if (run.status === 'dead') break;
       run = finishNode(continueAfterRace(run));
     }

@@ -6,18 +6,22 @@ import type { Track } from './track.ts';
 import { rng } from './util.ts';
 
 export interface Obstacle {
-  kind: 'banana' | 'hay';
+  kind: 'banana' | 'hay' | 'oil' | 'pothole';
   x: number;
   y: number;
   z: number;
   owner: Car | null;
   age: number;
   mesh: THREE.Object3D;
+  /** Seconds it lasts (0 = for the whole race). */
+  life: number;
 }
 
 const MAX_BANANAS = 14;
 const BANANA_LIFE = 45;
 const HIT_R = 1.7;
+const MAX_OIL = 10;
+const OIL_LIFE = 28;
 
 export class Obstacles {
   readonly group = new THREE.Group();
@@ -26,6 +30,10 @@ export class Obstacles {
   private readonly bananaMat = new THREE.MeshStandardMaterial({ color: '#7ed321', roughness: 0.25, emissive: '#2f6a00', emissiveIntensity: 0.45 });
   private readonly hayGeo: THREE.BufferGeometry;
   private readonly hayMat = new THREE.MeshLambertMaterial({ color: '#e0b84a' });
+  private readonly oilGeo: THREE.BufferGeometry;
+  private readonly oilMat = new THREE.MeshStandardMaterial({ color: '#0d0b14', roughness: 0.08, metalness: 0.4, emissive: '#2a1060', emissiveIntensity: 0.35 });
+  private readonly holeGeo: THREE.BufferGeometry;
+  private readonly holeMat = new THREE.MeshLambertMaterial({ color: '#17140f' });
   private readonly lastHit = new WeakMap<Car, number>();
   private clock = 0;
 
@@ -35,6 +43,23 @@ export class Obstacles {
     this.bananaGeo.scale(1.3, 0.22, 1);
     this.hayGeo = new THREE.CylinderGeometry(0.85, 0.85, 1.5, 12);
     this.hayGeo.rotateZ(Math.PI / 2);
+    // an oil slick: a wide, flat, shiny disc; a pothole: a dark dent
+    this.oilGeo = new THREE.CylinderGeometry(1.9, 2.1, 0.05, 20);
+    this.oilGeo.scale(1.25, 1, 0.95);
+    this.holeGeo = new THREE.CylinderGeometry(0.95, 0.95, 0.06, 14);
+  }
+
+  /** Oil slicks and potholes on the road for the whole race, a few per lap, from a seed. */
+  placeHazards(track: Track, perLap: { oil: number; pothole: number }, seed: number): void {
+    const r = rng(seed ^ 0x0a11);
+    const L = track.length;
+    for (const [kind, n] of [['oil', perLap.oil], ['pothole', perLap.pothole]] as const)
+      for (let k = 0; k < n; k++) {
+        const s = 110 + ((L - 230) * (k + 0.15 + r() * 0.7)) / Math.max(1, n);
+        const hw = track.at(track.hw, s);
+        const p = track.point(s, (r() - 0.5) * (hw - 2.6) * 1.6);
+        this.add(kind, p.x, p.y, p.z, null, track.heading(s) + (r() - 0.5) * 1.4, true);
+      }
   }
 
   get count(): number {
@@ -53,16 +78,21 @@ export class Obstacles {
     }
   }
 
-  add(kind: 'banana' | 'hay', x: number, y: number, z: number, owner: Car | null, yaw = Math.random() * 6.28): void {
-    const mesh = new THREE.Mesh(kind === 'banana' ? this.bananaGeo : this.hayGeo, kind === 'banana' ? this.bananaMat : this.hayMat);
-    mesh.position.set(x, y + (kind === 'banana' ? 0.2 : 0.85), z);
+  add(kind: Obstacle['kind'], x: number, y: number, z: number, owner: Car | null, yaw = Math.random() * 6.28, forever = false): void {
+    const geo = kind === 'banana' ? this.bananaGeo : kind === 'oil' ? this.oilGeo : kind === 'pothole' ? this.holeGeo : this.hayGeo;
+    const mat = kind === 'banana' ? this.bananaMat : kind === 'oil' ? this.oilMat : kind === 'pothole' ? this.holeMat : this.hayMat;
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, y + (kind === 'banana' ? 0.2 : kind === 'hay' ? 0.85 : 0.07), z);
     mesh.rotation.y = yaw;
     mesh.castShadow = false;
     this.group.add(mesh);
-    this.list.push({ kind, x, y, z, owner, age: 0, mesh });
+    this.list.push({ kind, x, y, z, owner, age: 0, mesh, life: forever ? 0 : kind === 'oil' ? OIL_LIFE : kind === 'banana' ? BANANA_LIFE : 0 });
     if (kind === 'banana') {
       const bananas = this.list.filter((o) => o.kind === 'banana');
       if (bananas.length > MAX_BANANAS) this.remove(bananas[0]!);
+    } else if (kind === 'oil' && !forever) {
+      const oils = this.list.filter((o) => o.kind === 'oil' && o.life > 0);
+      if (oils.length > MAX_OIL) this.remove(oils[0]!);
     }
   }
 
@@ -78,10 +108,11 @@ export class Obstacles {
     if (this.clock - last < 1.2) return null;
     for (const o of this.list) {
       if (o.owner === car) continue;
-      if (o.kind === 'banana' && o.age < 0.4 && o.owner) continue;
+      if ((o.kind === 'banana' || o.kind === 'oil') && o.age < 0.4 && o.owner) continue;
       const dx = car.x - o.x;
       const dz = car.z - o.z;
-      if (dx * dx + dz * dz < HIT_R * HIT_R * car.size) {
+      const r = o.kind === 'oil' ? HIT_R * 1.35 : o.kind === 'pothole' ? HIT_R * 0.6 : HIT_R;
+      if (dx * dx + dz * dz < r * r * car.size) {
         this.lastHit.set(car, this.clock);
         if (o.kind === 'banana') this.remove(o);
         return o;
@@ -94,7 +125,7 @@ export class Obstacles {
     this.clock += dt;
     for (const o of this.list.slice()) {
       o.age += dt;
-      if (o.kind === 'banana' && o.age > BANANA_LIFE) this.remove(o);
+      if (o.life > 0 && o.age > o.life) this.remove(o);
     }
   }
 
@@ -103,6 +134,10 @@ export class Obstacles {
     this.bananaMat.dispose();
     this.hayGeo.dispose();
     this.hayMat.dispose();
+    this.oilGeo.dispose();
+    this.oilMat.dispose();
+    this.holeGeo.dispose();
+    this.holeMat.dispose();
     this.list = [];
   }
 }

@@ -108,9 +108,10 @@ const CSS = `
 .rl-btn { pointer-events: auto; border: 2px solid rgba(255,255,255,0.5); background: rgba(16, 20, 34, 0.6); color: #fff; border-radius: 999px;
   font: 800 calc(16px * var(--s)) var(--body, system-ui), system-ui, sans-serif; padding: calc(6px * var(--s)) calc(12px * var(--s)); display: none; cursor: pointer; }
 .rl-btn.show { display: block; }
-.rl-trinkets { position: absolute; left: 50%; top: calc(88px * var(--s)); transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center;
-  gap: calc(4px * var(--s)); max-width: 46%; }
-.rl-tr { position: relative; font-size: calc(24px * var(--s)); line-height: 1; padding: calc(3px * var(--s)) calc(5px * var(--s)); border-radius: calc(10px * var(--s));
+.rl-trinkets { position: absolute; right: max(calc(76px * var(--s)), calc(env(safe-area-inset-right) + 64px)); top: max(calc(8px * var(--s)), env(safe-area-inset-top)); display: flex; flex-wrap: nowrap; justify-content: flex-end;
+  gap: calc(3px * var(--s)); max-width: 34%; }
+.rl-tr.more { font-size: calc(13px * var(--s)); font-weight: 900; display: flex; align-items: center; }
+.rl-tr { position: relative; font-size: calc(21px * var(--s)); line-height: 1; padding: calc(3px * var(--s)) calc(5px * var(--s)); border-radius: calc(10px * var(--s));
   background: rgba(16, 20, 34, 0.5); }
 .rl-tr b { position: absolute; right: -2px; bottom: -3px; font-size: calc(11px * var(--s)); background: #ffd23f; color: #2a1b00; border-radius: 999px; padding: 0 calc(4px * var(--s)); }
 .rl-tr.pulse { animation: rl-tr 0.8s ease-out; }
@@ -118,6 +119,20 @@ const CSS = `
 .rl-trl { position: absolute; left: 50%; top: calc(100% + 3px * var(--s)); transform: translateX(-50%); white-space: nowrap; font-size: calc(11px * var(--s)); font-weight: 800; padding: 0 calc(6px * var(--s)); border-radius: 999px; background: rgba(16, 20, 34, 0.45); opacity: 0; pointer-events: none; z-index: 2; }
 .rl-trl.show { animation: rl-trl 1.3s ease-out forwards; }
 @keyframes rl-trl { 0% { opacity: 0; } 15% { opacity: 0.85; } 70% { opacity: 0.7; } 100% { opacity: 0; } }
+.rl-line.td { border-left: calc(3px * var(--s)) solid #ff3d7f; background: rgba(60, 10, 30, 0.7); font-size: calc(14px * var(--s)); letter-spacing: 0.5px; text-transform: uppercase; }
+.rl-line.td b { color: #ffd23f; }
+.rl-line.dead { border-left: calc(3px * var(--s)) solid #8a8fa6; font-style: italic; }
+.rl-score { font-size: calc(14px * var(--s)); font-weight: 900; display: none; gap: calc(8px * var(--s)); }
+.rl-score.show { display: flex; }
+.rl-score b { color: #ffd23f; font-variant-numeric: tabular-nums; }
+.rl-hp i.wreck { background: #ff3a24; }
+.rl-hp span.wr { font-weight: 900; color: #ff8a70; font-size: calc(15px * var(--s)); animation: rl-blink 0.6s steps(2) infinite; }
+.rl-bars { position: absolute; inset: 0; overflow: hidden; }
+.rl-bar { position: absolute; left: 0; top: 0; width: calc(46px * var(--s)); height: calc(6px * var(--s)); border-radius: 999px; background: rgba(10, 12, 22, 0.7);
+  border: 1px solid rgba(255,255,255,0.45); transform: translate(-50%, -100%); display: none; overflow: hidden; }
+.rl-bar i { display: block; height: 100%; width: 100%; background: #ff5a3a; }
+.rl-bar.out { opacity: 0.35; }
+.rl-board li small { margin-left: auto; padding-left: calc(8px * var(--s)); opacity: 0.85; font-weight: 800; font-variant-numeric: tabular-nums; }
 .rl-disco { position: absolute; inset: 0; opacity: 0; mix-blend-mode: screen; transition: opacity 0.5s;
   background: conic-gradient(from 0deg at 50% -10%, rgba(255, 0, 150, 0.4), rgba(0, 200, 255, 0.4), rgba(255, 230, 0, 0.4), rgba(120, 0, 255, 0.4), rgba(255, 0, 150, 0.4));
   animation: rl-disco 2.4s linear infinite; }
@@ -148,6 +163,9 @@ export interface Racer {
   done: boolean;
   x: number;
   z: number;
+  /** Blodbad: points if the race ended now, and whether the car is wrecked. */
+  pts?: number;
+  out?: boolean;
 }
 
 function el(tag: string, cls: string, parent: HTMLElement): HTMLElement {
@@ -190,6 +208,12 @@ export class Hud {
   private driftChip: HTMLElement;
   private driftBar: HTMLElement;
   private styleChip: HTMLElement;
+  private hpChip: HTMLElement;
+  private hpBar: HTMLElement;
+  private hpTxt: HTMLElement;
+  private scoreEl: HTMLElement;
+  private barsEl: HTMLElement;
+  private barEls = new Map<string, HTMLElement>();
   private tagsEl: HTMLElement;
   private trinketRow: HTMLElement;
   private trinketEls = new Map<string, HTMLElement>();
@@ -223,6 +247,7 @@ export class Hud {
     this.feed = el('div', 'rl-feed', top);
     this.pos = el('div', 'rl-pos', top);
     this.lap = el('div', 'rl-lap', top);
+    this.scoreEl = el('div', 'rl-score', top);
     this.times = el('div', 'rl-panel rl-times', tl);
     this.board = el('ul', 'rl-panel rl-board', tl);
     this.map = el('canvas', 'rl-map', this.root) as HTMLCanvasElement;
@@ -237,6 +262,7 @@ export class Hud {
     this.trinketRow = el('div', 'rl-trinkets', this.root);
     this.speedEl = el('div', 'rl-speed', this.root);
     this.tagsEl = el('div', 'rl-tags', this.root);
+    this.barsEl = el('div', 'rl-bars', this.root);
     this.br = el('div', 'rl-br', this.root);
     this.styleChip = el('div', 'rl-panel rl-chip rl-style', this.br);
     this.coinChip = el('div', 'rl-panel rl-chip rl-style', this.br);
@@ -244,6 +270,10 @@ export class Hud {
     el('span', '', this.driftChip).textContent = '🌀';
     this.driftBar = el('i', '', el('div', 'rl-meter', this.driftChip));
     this.nitroChip = el('div', 'rl-panel rl-chip rl-nitro', this.br);
+    this.hpChip = el('div', 'rl-panel rl-chip rl-hp', this.br);
+    el('span', '', this.hpChip).textContent = '❤️';
+    this.hpBar = el('i', '', el('div', 'rl-meter', this.hpChip));
+    this.hpTxt = el('span', '', this.hpChip);
     this.dmgChip = el('div', 'rl-panel rl-chip', this.br);
     el('span', '', this.dmgChip).textContent = '🔧';
     this.dmgBar = el('i', '', el('div', 'rl-meter', this.dmgChip));
@@ -300,6 +330,47 @@ export class Hud {
     this.hintEl.classList.toggle('show', !!text);
   }
 
+  /** Blodbad: the player's health (0..1, null hides it) and, while wrecked, the seconds left out. */
+  setHealth(frac: number | null, hp: number, wreckLeft: number): void {
+    const key = frac === null ? '-' : `${Math.round(frac * 100)}/${Math.ceil(wreckLeft * 5)}`;
+    if (this.same('hp', key)) return;
+    this.hpChip.classList.toggle('show', frac !== null);
+    if (frac === null) return;
+    const out = wreckLeft > 0;
+    this.hpBar.style.width = `${Math.round(clamp(frac, 0, 1) * 100)}%`;
+    this.hpBar.style.background = out ? '#ff3a24' : frac > 0.55 ? '#5fdc6a' : frac > 0.25 ? '#ffd23f' : '#ff5a3a';
+    this.hpTxt.className = out ? 'wr' : '';
+    this.hpTxt.textContent = out ? `VRAKAD ${wreckLeft.toFixed(1).replace('.', ',')}` : String(Math.max(0, Math.round(hp)));
+  }
+
+  /** Blodbad: the player's points and takedowns under the position (null hides it). */
+  setScore(points: number | null, takedowns: number): void {
+    if (this.same('score', points === null ? '-' : `${points}/${takedowns}`)) return;
+    this.scoreEl.classList.toggle('show', points !== null);
+    if (points !== null) this.scoreEl.innerHTML = `<span>💥 <b>${takedowns}</b></span><span><b>${points}</b> p</span>`;
+  }
+
+  /** Small health bars over the rivals' heads, at screen positions (CSS px); the ones not listed are hidden. */
+  bars(list: { id: string; x: number; y: number; hp: number; out: boolean; color: string }[]): void {
+    const seen = new Set<string>();
+    for (const b of list) {
+      seen.add(b.id);
+      let e = this.barEls.get(b.id);
+      if (!e) {
+        e = el('div', 'rl-bar', this.barsEl);
+        el('i', '', e);
+        this.barEls.set(b.id, e);
+      }
+      e.style.display = 'block';
+      e.style.transform = `translate(${b.x.toFixed(1)}px, ${b.y.toFixed(1)}px) translate(-50%, -100%)`;
+      e.classList.toggle('out', b.out);
+      const i = e.firstElementChild as HTMLElement;
+      i.style.width = `${Math.round(clamp(b.hp, 0, 1) * 100)}%`;
+      i.style.background = b.hp > 0.55 ? '#5fdc6a' : b.hp > 0.25 ? '#ffd23f' : '#ff5a3a';
+    }
+    for (const [id, e] of this.barEls) if (!seen.has(id)) e.style.display = 'none';
+  }
+
   /** The damage bar (null hides it). */
   setDamage(d: number | null): void {
     if (this.same('dmg', d === null ? '-' : Math.round(d))) return;
@@ -339,7 +410,12 @@ export class Hud {
   setTrinkets(items: { id: string; emoji: string; name: string; n: number }[]): void {
     this.trinketRow.replaceChildren();
     this.trinketEls.clear();
-    for (const it of items) {
+    const shown = items.length > 9 ? items.slice(0, 8) : items;
+    if (shown.length < items.length) {
+      const more = el('div', 'rl-tr more', this.trinketRow);
+      more.textContent = `+${items.length - shown.length}`;
+    }
+    for (const it of shown) {
       const e = el('div', 'rl-tr', this.trinketRow);
       e.textContent = it.emoji;
       e.title = it.name;
@@ -434,11 +510,11 @@ export class Hud {
   }
 
   setBoard(order: Racer[]): void {
-    const key = order.map((r) => r.name + (r.done ? '!' : '')).join('|');
+    const key = order.map((r) => r.name + (r.done ? '!' : '') + (r.pts ?? '') + (r.out ? 'x' : '')).join('|');
     if (key === this.boardKey) return;
     this.boardKey = key;
     this.board.innerHTML = order
-      .map((r, i) => `<li class="${r.me ? 'me' : ''} ${r.done ? 'done' : ''}"><span>${i + 1}.</span><span class="rl-dot" style="background:${r.color}"></span>${escape(r.name)}${r.done ? ' 🏁' : ''}</li>`)
+      .map((r, i) => `<li class="${r.me ? 'me' : ''} ${r.done ? 'done' : ''}"><span>${i + 1}.</span><span class="rl-dot" style="background:${r.color}"></span>${escape(r.name)}${r.done ? ' 🏁' : ''}${r.out ? ' 💥' : ''}${r.pts !== undefined ? `<small>${r.pts} p</small>` : ''}</li>`)
       .join('');
   }
 
