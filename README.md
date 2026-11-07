@@ -63,8 +63,7 @@ Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
   loppet sänker upplösningen själv om bildfrekvensen sjunker (`adapt()` i `src/rally/index.ts`).
 - **Inställningar** (`src/settings.ts`, från titeln och pausmenyn): ljudvolym, musik, skakningar, söndagsåkare (lugnt läge, sparnyckeln heter fortfarande `calm`), visa FPS, helskärm.
 - **Fest**: konfetti vid vinst, "NY PRYL!" med fanfar, kronorna räknas upp på resultatkortet, räknarpip, kameraskak (kan stängas av).
-- **Slutskärm**: fordon och förare, prylarna, rundans roligaste siffra, troféer och vad som låstes upp. Rundans frö (`Frö: …`)
-  visas smått på kartan och i summeringen.
+- **Slutskärm**: se resultatskärmen i fas 6b nedan. Rundans frö (`Frö: …`) visas smått på kartan och på resultatskärmen.
 - **Sparning**: en avslutad runda ligger kvar sparad (med `end`) tills summeringen lämnas, så en omladdning på det sista
   resultatkortet visar slutskärmen igen och räknar troféerna bara en gång.
 - **Balans** (`src/run/balance.test.ts`): simulerade rundor med spelare av olika skicklighet. Söndagsåkare: bara bryta eller sist
@@ -107,6 +106,23 @@ Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
 - **Balanssimuleringen** (`src/run/balance.test.ts`, `src/run/racesim.ts`, `src/shared/pace.ts`) räknar med varvtider i stället för tärningar:
   spelarens varv från bil, delar, prylar och skicklighet, varje rivals varv från dess skalade kit, och loppet körs sida vid sida
   med catch-up, hinder, kontakt och (i Blodbad) takedowns. Varvtidsmodellen är anpassad mot den riktiga fysiken (`src/rally/pace.test.ts`).
+
+## Resultatskärmen (fas 6b)
+
+Efter en seger, efter sista hjärtat och efter en omladdning på sista kortet visas `resultView` (`src/ui/result.ts`, siffrorna räknas ut i
+`src/run/summary.ts` och är testade i `summary.test.ts`):
+
+- **Huvud**: stor dom (seger, eller vilken akt och plats du föll på), fordon, förare, lack, frö, total åktid och Söndagsåkare-bricka.
+- **Rundans mest galna siffra** med en rolig rad, sedan 6-10 sifferkort och "Visa alla" för resten. Loppen sparar nu bland annat toppfart,
+  längsta sladd, tid i luften och hopp, nitrosekunder, oljefläckar, omkörningar, utlagda fällor, bästa varv och hur ofta varje pryl utlöstes
+  (`RaceStats` och `RallyResult`, summeras i `src/run/stats.ts`; toppfart och längsta sladd är maxvärden). Rundan räknar också pallplatser,
+  kronor spenderade och åktid. Gamla sparningar laddas med nollor.
+- **Tidslinje**: varje besökt plats i ordning (`RunState.log`) med typ, sort (Rally/Blandat/Blodbad), bana, placering eller poäng, belöning och
+  förlorade hjärtan, med aktavskiljare. En horisontell remsa på dator och surfplatta, en lista på mobil.
+- **Bygget**: varje pryl med antal och varifrån den kom ("Vann Sura Bengt", "Köpt i kiosken", "Händelse: …", `RunState.got`), delar med nivå,
+  byggets mix per väg som en stapel ("55 % Ram · 30 % Fuffens · 15 % Race") och en plats för fordonets förmåga (`abilityOf`, tom tills fas 8).
+- **Troféer och upplåst**: varför troféerna blev så många, nya bilar och prylar och hur långt det är till nästa upplåsning.
+- **Svårighet**: på pekskärmar får rivalerna inte längre någon extra lättnad i normalt läge, bara i Söndagsåkare.
 
 ## Utveckling
 

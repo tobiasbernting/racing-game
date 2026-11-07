@@ -120,6 +120,7 @@ run strong, which is right; the rivals and courses must keep up. Design directio
 
 6b. **Run result screen**: shown on a win and a loss: fun stats with a headline stat, a timeline of every node and
     placing, every reward and upgrade with where it came from, the build mix, abilities, unlocks earned.
+    Built (see README). Touch devices no longer get easier rivals in normal mode, only in Söndagsåkare.
 7. **Mobile controls** (touch devices only; desktop unchanged; see docs/mobile-controls-research.md): schemes
    Lätt (auto-throttle, default), Pedaler (gas + brake buttons) and Proffs (pedals + manual shifting); manual
    shifting also on keyboard/gamepad; a layout with room for the ability button and nitro, tablet insets,

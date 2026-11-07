@@ -4,6 +4,7 @@ import { META_KEY, RUN_KEY, clearRun, loadMeta, loadRun, parseRun, saveMeta, sav
 import { continueAfterRace, enterNode, submitRace } from './flow.ts';
 import { newRun, reachable, type RunState } from './state.ts';
 import { TRINKETS } from './trinkets.ts';
+import { emptyStats } from '../rally/mods.ts';
 
 class MemoryStorage {
   data = new Map<string, string>();
@@ -34,7 +35,7 @@ const sample = (): RunState => {
   run.car.parts.engine = 2;
   run.car.damage = 30;
   run = enterNode(run, reachable(run)[0]!.id);
-  run = submitRace(run, { place: 2, n: 4, finished: true, time: 91000, laps: 2, kronor: 100, coins: 10, medal: 'bronze', damage: 12, bonus: 5, stats: { bounces: 4, driftSeconds: 3.5, bananas: 1, bananaHits: 1, boosts: 2, coins: 7, squashed: 0, quacks: 4, jumps: 0 } });
+  run = submitRace(run, { place: 2, n: 4, finished: true, time: 91000, laps: 2, kronor: 100, coins: 10, medal: 'bronze', damage: 12, bonus: 5, stats: { ...emptyStats(), bounces: 4, driftSeconds: 3.5, bananas: 1, bananaHits: 1, boosts: 2, coins: 7, quacks: 4, topSpeed: 140, longestDrift: 2.5 }, bestLap: 30000, triggers: { gummianka: 5 } });
   return continueAfterRace(run);
 };
 

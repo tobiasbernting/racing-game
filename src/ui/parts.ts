@@ -4,7 +4,8 @@ import { type RunState } from '../run/state.ts';
 import { RARITY_NAMES, trinketById, type Owned, type TrinketDef } from '../run/trinkets.ts';
 import { btn, el } from './dom.ts';
 
-export const ACT_NAMES = ['Bondlandet', 'Vildmarken', 'Galna stan'] as const;
+export { ACT_NAMES } from '../run/summary.ts';
+import { ACT_NAMES } from '../run/summary.ts';
 
 export function hearts(h: number, max: number): HTMLElement {
   const box = el('span', 'rg-hearts');

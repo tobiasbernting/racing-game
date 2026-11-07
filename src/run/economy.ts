@@ -2,7 +2,7 @@
 // after an elite or a boss. Every random choice comes from the run seed and the node, never from the clock.
 import { CAR_PARTS, PART_MAX_LEVEL, type CarPart } from '../shared/rally.ts';
 import { Rng } from './rng.ts';
-import { addKronor, addTrinket, healHeart, type RunState, type Screen, type ShopItem } from './state.ts';
+import { addKronor, addTrinket, healHeart, noteGot, type RunState, type Screen, type ShopItem } from './state.ts';
 import { RARITIES, TRINKET_PRICE, perksOf, stackCap, trinketById, type Rarity } from './trinkets.ts';
 import { KIND_PATH, type RaceKind } from '../shared/kinds.ts';
 import { unlockedTrinkets } from './meta.ts';
@@ -93,7 +93,7 @@ export function buyTrinket(run: RunState, index: number): BuyResult {
   if (run.kronor < price) return 'poor';
   addKronor(run, -price);
   item.sold = true;
-  addTrinket(run, item.id);
+  addTrinket(run, item.id, { from: 'Köpt i kiosken', node: sh.nodeId });
   return 'ok';
 }
 
@@ -139,6 +139,7 @@ export function workshopUpgrade(run: RunState, part: CarPart): boolean {
   const w = run.screen;
   if (w?.kind !== 'workshop' || w.used || !canUpgrade(run, part)) return false;
   run.car.parts[part] = (run.car.parts[part] ?? 0) + 1;
+  noteGot(run, 'part', part, 'Skruvhörnan', w.nodeId);
   w.used = true;
   w.note = `${part}`;
   return true;

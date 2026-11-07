@@ -3,7 +3,7 @@
 import type { RaceStats } from '../rally/mods.ts';
 import { CAR_PAINTS, newCar, type CarDriver, type CarBody, type GarageCar } from '../shared/rally.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
-import { ACTS, actMap, findNode, type ActMap, type MapNode } from './map.ts';
+import { ACTS, actMap, findNode, type ActMap, type MapNode, type NodeType } from './map.ts';
 import { MAX_STACK, perksOf, stackCap, trinketById, type Owned } from './trinkets.ts';
 import type { RaceKind } from '../shared/kinds.ts';
 
@@ -21,6 +21,13 @@ export interface RunStats extends RaceStats {
   /** Wrecked cars you took down, and times you were wrecked yourself. */
   takedowns: number;
   wrecks: number;
+  /** Top-three finishes, ms spent racing (finished races), kronor spent, and the fastest lap of the run (ms, 0 = none yet). */
+  podiums: number;
+  totalTime: number;
+  kronorSpent: number;
+  bestLap: number;
+  /** How often each trinket pulsed its icon in a race, by trinket id. */
+  triggers: Record<string, number>;
 }
 
 export const emptyRunStats = (): RunStats => ({
@@ -41,7 +48,51 @@ export const emptyRunStats = (): RunStats => ({
   bestPlace: 0,
   takedowns: 0,
   wrecks: 0,
+  airSeconds: 0,
+  airJumps: 0,
+  topSpeed: 0,
+  longestDrift: 0,
+  nitroSeconds: 0,
+  oilHits: 0,
+  overtakes: 0,
+  hazards: 0,
+  podiums: 0,
+  totalTime: 0,
+  kronorSpent: 0,
+  bestLap: 0,
+  triggers: {},
 });
+
+/** One node of the road walked, in order, for the timeline of the result screen. */
+export interface NodeLog {
+  nodeId: string;
+  act: number;
+  row: number;
+  type: NodeType;
+  kind?: RaceKind;
+  /** The course or the boss name, the shop, the event. */
+  title: string;
+  course?: string;
+  place?: number;
+  n?: number;
+  finished?: boolean;
+  /** Blodbad: points. */
+  points?: number;
+  /** ms */
+  time?: number;
+  /** Hearts it cost. */
+  lost: number;
+  goalMet?: boolean;
+  takedowns?: number;
+}
+
+/** A trinket or a part upgrade that came into the build, and where from. */
+export interface Acquired {
+  what: 'trinket' | 'part';
+  id: string;
+  from: string;
+  node: string;
+}
 
 /** What a race came to, shown on the card after it. */
 export interface RaceSummary {
@@ -117,6 +168,11 @@ export interface RunState {
   stats: RunStats;
   status: RunStatus;
   nodesDone: number;
+  /** Every node finished, in order, and every trinket and part that came into the build (older saves have none). */
+  log: NodeLog[];
+  got: Acquired[];
+  /** Hearts lost in the node being played (for the log of shops and events). */
+  nodeLost: number;
   /** Present once a finished run has been counted. */
   end?: RunEnd;
 }
@@ -134,7 +190,7 @@ export function newRun(o: NewRunOpts): RunState {
   const car = newCar(1, o.body, CAR_BODY_NAMES[o.body], o.paint);
   car.style.driver = o.driver;
   const hearts = o.calm ? CALM_HEARTS : START_HEARTS;
-  return { v: 1, seed: o.seed, calm: o.calm, pool: o.trophies, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0 };
+  return { v: 1, seed: o.seed, calm: o.calm, pool: o.trophies, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0, log: [], got: [], nodeLost: 0 };
 }
 
 export const copyRun = (r: RunState): RunState => structuredClone(r);
@@ -155,7 +211,8 @@ export const trinketCount = (r: RunState): number => r.trinkets.reduce((a, t) =>
 export const ownedN = (r: RunState, id: string): number => r.trinkets.find((t) => t.id === id)?.n ?? 0;
 
 /** Adds one trinket (same id: stacks, up to MAX_STACK). Perks that act at once (hearts) apply here. */
-export function addTrinket(r: RunState, id: string): void {
+export function addTrinket(r: RunState, id: string, src?: { from: string; node: string }): void {
+  if (src) noteGot(r, 'trinket', id, src.from, src.node);
   const have = r.trinkets.find((t) => t.id === id);
   if (have) have.n = Math.min(MAX_STACK, stackCap(trinketById(id)), have.n + 1);
   else r.trinkets.push({ id, n: 1 });
@@ -164,9 +221,15 @@ export function addTrinket(r: RunState, id: string): void {
   if (r.maxHearts > before) r.hearts += r.maxHearts - before;
 }
 
+/** Remembers where a trinket or part came from (the build section of the result screen). */
+export function noteGot(r: RunState, what: Acquired['what'], id: string, from: string, node: string): void {
+  if (r.got.length < 300) r.got.push({ what, id, from, node });
+}
+
 export function addKronor(r: RunState, n: number): void {
   r.kronor = Math.max(0, r.kronor + Math.round(n));
   if (n > 0) r.stats.kronorEarned += Math.round(n);
+  else if (n < 0) r.stats.kronorSpent += Math.round(-n);
 }
 
 /** Loses a heart; the last one ends the run unless `spare` says it must stay. */
@@ -175,6 +238,7 @@ export function loseHeart(r: RunState, spare = false): boolean {
   if (r.hearts <= 0) return false;
   r.hearts -= 1;
   r.stats.heartsLost++;
+  r.nodeLost++;
   if (r.hearts <= 0) r.status = 'dead';
   return true;
 }
