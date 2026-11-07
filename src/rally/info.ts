@@ -4,7 +4,7 @@ import { rallyOptions } from './options.ts';
 /** The touch controls: ◀ ▶ on the left; ▼ brake, 🌀 handbrake and a third button (🔥 nitro when the car has some in this race, else 🎥 the camera). */
 export function rallyTouch(options: unknown): TouchLayout {
   const o = rallyOptions(options);
-  const nitro = !!o && o.rules.nitro && (o.rules.sameCars || (o.car.parts.turbo ?? 0) > 0);
+  const nitro = !!o && o.rules.nitro && (o.rules.sameCars || (o.car.parts.turbo ?? 0) > 0 || (o.mods?.tune.charges ?? 0) > 0);
   return {
     pad: 'leftright',
     buttons: [

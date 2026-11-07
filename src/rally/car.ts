@@ -105,6 +105,8 @@ export class Car {
   boost = 1;
   /** Brake force multiplier (the brakes part). */
   brakeMul = 1;
+  /** Gravity multiplier (1 = normal, below floats). */
+  gravity = 1;
   /** Collision size (the bigger bodies). */
   size = 1;
   /** Free roam: no run-off fences, only the real walls; the grass rolls a little easier. */
@@ -361,7 +363,7 @@ export class Car {
     this.groundVy = damp(this.groundVy, clamp((gNew - this.ground) / dt, -15, 15), 30, dt);
     const gVel = this.groundVy;
     this.ground = gNew;
-    this.vy -= G * dt;
+    this.vy -= G * this.gravity * dt;
     this.y += this.vy * dt;
     if (this.y <= gNew) {
       if (this.air && this.airT > 0.15) this.landed = Math.max(this.landed, Math.max(0, gVel - this.vy));

@@ -106,6 +106,22 @@ const CSS = `
 .rl-btn { pointer-events: auto; border: 2px solid rgba(255,255,255,0.5); background: rgba(16, 20, 34, 0.6); color: #fff; border-radius: 999px;
   font: 900 calc(16px * var(--s)) 'Nunito', system-ui, sans-serif; padding: calc(6px * var(--s)) calc(12px * var(--s)); display: none; cursor: pointer; }
 .rl-btn.show { display: block; }
+.rl-trinkets { position: absolute; left: 50%; top: calc(88px * var(--s)); transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center;
+  gap: calc(4px * var(--s)); max-width: 46%; }
+.rl-tr { position: relative; font-size: calc(24px * var(--s)); line-height: 1; padding: calc(3px * var(--s)) calc(5px * var(--s)); border-radius: calc(10px * var(--s));
+  background: rgba(16, 20, 34, 0.5); }
+.rl-tr b { position: absolute; right: -2px; bottom: -3px; font-size: calc(11px * var(--s)); background: #ffd23f; color: #2a1b00; border-radius: 999px; padding: 0 calc(4px * var(--s)); }
+.rl-tr.pulse { animation: rl-tr 0.7s ease-out; }
+@keyframes rl-tr { 0% { transform: scale(1); } 20% { transform: scale(1.9) rotate(-8deg); background: #ffd23f; } 100% { transform: scale(1); } }
+.rl-tsay { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); padding: calc(6px * var(--s)) calc(16px * var(--s)); border-radius: 999px;
+  background: rgba(255, 210, 63, 0.92); color: #2a1b00; font-size: calc(21px * var(--s)); font-weight: 900; white-space: nowrap; opacity: 0; transition: opacity 0.2s; }
+.rl-tsay.show { opacity: 1; animation: rl-pop2 0.4s cubic-bezier(0.2, 1.6, 0.4, 1); }
+@keyframes rl-pop2 { from { transform: translateX(-50%) scale(0.5); } to { transform: translateX(-50%) scale(1); } }
+.rl-disco { position: absolute; inset: 0; opacity: 0; mix-blend-mode: screen; transition: opacity 0.5s;
+  background: conic-gradient(from 0deg at 50% -10%, rgba(255, 0, 150, 0.4), rgba(0, 200, 255, 0.4), rgba(255, 230, 0, 0.4), rgba(120, 0, 255, 0.4), rgba(255, 0, 150, 0.4));
+  animation: rl-disco 2.4s linear infinite; }
+.rl-disco.on { opacity: 0.55; }
+@keyframes rl-disco { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
 .rl-hint { position: absolute; left: 50%; bottom: max(calc(14px * var(--s)), env(safe-area-inset-bottom)); transform: translateX(-50%); font-size: calc(14px * var(--s));
   font-weight: 800; opacity: 0.8; text-shadow: 0 1px 0 rgba(0,0,0,0.5); display: none; }
 .rl-hint.show { display: block; }
@@ -175,6 +191,12 @@ export class Hud {
   private driftBar: HTMLElement;
   private styleChip: HTMLElement;
   private tagsEl: HTMLElement;
+  private trinketRow: HTMLElement;
+  private trinketEls = new Map<string, HTMLElement>();
+  private tsay: HTMLElement;
+  private tsayTimer: ReturnType<typeof setTimeout> | null = null;
+  private discoEl: HTMLElement;
+  private coinChip: HTMLElement;
   private tagEls = new Map<string, HTMLElement>();
   /** The tags shown this frame (reused). */
   private tagSeen = new Set<string>();
@@ -213,10 +235,14 @@ export class Hud {
     this.msgEl = el('div', 'rl-msg', this.root);
     this.sub = el('div', 'rl-sub', this.root);
     this.toastEl = el('div', 'rl-toast', this.root);
+    this.discoEl = el('div', 'rl-disco', this.root);
+    this.trinketRow = el('div', 'rl-trinkets', this.root);
+    this.tsay = el('div', 'rl-tsay', this.root);
     this.speedEl = el('div', 'rl-speed', this.root);
     this.tagsEl = el('div', 'rl-tags', this.root);
     this.br = el('div', 'rl-br', this.root);
     this.styleChip = el('div', 'rl-panel rl-chip rl-style', this.br);
+    this.coinChip = el('div', 'rl-panel rl-chip rl-style', this.br);
     this.driftChip = el('div', 'rl-panel rl-chip rl-drift', this.br);
     el('span', '', this.driftChip).textContent = '🌀';
     this.driftBar = el('i', '', el('div', 'rl-meter', this.driftChip));
@@ -312,6 +338,50 @@ export class Hud {
   }
 
   /** A floating "+120" that rises and fades. */
+  /** The trinket icons along the top (once, at the start). */
+  setTrinkets(items: { id: string; emoji: string; name: string; n: number }[]): void {
+    this.trinketRow.replaceChildren();
+    this.trinketEls.clear();
+    for (const it of items) {
+      const e = el('div', 'rl-tr', this.trinketRow);
+      e.textContent = it.emoji;
+      e.title = it.name;
+      if (it.n > 1) el('b', '', e).textContent = `×${it.n}`;
+      this.trinketEls.set(it.id, e);
+    }
+  }
+
+  /** A trinket just did something: its icon pulses, and `text` (if any) pops up. */
+  trinketSay(id: string, text: string | null): void {
+    const e = this.trinketEls.get(id);
+    if (e) {
+      e.classList.remove('pulse');
+      void e.offsetWidth;
+      e.classList.add('pulse');
+    }
+    if (text === null) return;
+    if (this.tsayTimer) clearTimeout(this.tsayTimer);
+    this.tsay.textContent = `${e?.firstChild?.textContent ?? ''} ${text}`.trim();
+    this.tsay.classList.remove('show');
+    void this.tsay.offsetWidth;
+    this.tsay.classList.add('show');
+    this.tsayTimer = setTimeout(() => this.tsay.classList.remove('show'), 1500);
+  }
+
+  disco(on: boolean): void {
+    this.discoEl.classList.toggle('on', on);
+  }
+
+  /** Coins picked up in this race, in kr (hidden at 0). */
+  setCoins(kr: number, show: boolean): void {
+    if (!show) return;
+    const t = `🪙 <b>${kr}</b> kr`;
+    if (this.last.coin === t) return;
+    this.last.coin = t;
+    this.coinChip.innerHTML = t;
+    this.coinChip.classList.add('show');
+  }
+
   popup(text: string, cls = ''): void {
     const e = el('div', `rl-pop ${cls}`, this.root);
     e.textContent = text;
@@ -583,6 +653,7 @@ export class Hud {
   destroy(): void {
     if (this.msgTimer) clearTimeout(this.msgTimer);
     if (this.toastTimer) clearTimeout(this.toastTimer);
+    if (this.tsayTimer) clearTimeout(this.tsayTimer);
     this.ro.disconnect();
     this.root.remove();
     this.style.remove();
