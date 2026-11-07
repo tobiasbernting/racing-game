@@ -2,6 +2,7 @@
 // race reports back. Without options the game plays its default race: the farm course, three laps, five
 // computer cars and the player's colour.
 import type { GarageCar, RaceRules } from '../shared/rally.ts';
+import type { RaceMods, RaceStats, RaceTwist } from './mods.ts';
 
 /** What a finished race reports (through RallyOptions.onDone, once, before ctx.end). */
 export interface RallyResult {
@@ -22,6 +23,12 @@ export interface RallyResult {
   medal: 'gold' | 'silver' | 'bronze' | null;
   /** The player's car damage 0..100 at the end. */
   damage: number;
+  /** Kronor the trinkets added at the finish (not in `kronor`). */
+  bonus?: number;
+  /** Ms the trinkets took off `time` (already taken off). */
+  timeBonus?: number;
+  /** What happened on the way, for the funny stats of a run. */
+  stats?: RaceStats;
 }
 
 export interface RallyOptions {
@@ -32,6 +39,12 @@ export interface RallyOptions {
   seed?: number;
   /** The player's best time (ms) on this course over `rules.laps` laps, for the "new record" toast. */
   best?: number;
+  /** The player's trinkets turned into numbers and hooks (see mods.ts). Without them the race is plain. */
+  mods?: RaceMods;
+  /** A twist on the race: a boss, an icy road, hay bales. */
+  twist?: RaceTwist;
+  /** Coins on the road to collect (their kr land in `RallyResult.coins`). */
+  coins?: boolean;
   /** Called once when the race is over, before `ctx.end`. */
   onDone?: (r: RallyResult) => void;
 }

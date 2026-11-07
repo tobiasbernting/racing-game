@@ -1,0 +1,172 @@
+// The state of a run in progress, as plain JSON (it is saved after every node), and the small rules on it:
+// hearts, kronor, trinkets and the funny stats. Functions here never touch the DOM or the clock.
+import type { RaceStats } from '../rally/mods.ts';
+import { CAR_PAINTS, newCar, type CarDriver, type CarBody, type GarageCar } from '../shared/rally.ts';
+import { CAR_BODY_NAMES } from '../shared/names.ts';
+import { ACTS, actMap, findNode, type ActMap, type MapNode } from './map.ts';
+import { MAX_STACK, perksOf, type Owned } from './trinkets.ts';
+
+export const START_HEARTS = 3;
+export const CALM_HEARTS = 5;
+
+export interface RunStats extends RaceStats {
+  races: number;
+  wins: number;
+  heartsLost: number;
+  kronorEarned: number;
+  bossesBeaten: number;
+  /** Best placing so far (1 = first), 0 before the first race. */
+  bestPlace: number;
+}
+
+export const emptyRunStats = (): RunStats => ({
+  bounces: 0,
+  driftSeconds: 0,
+  bananas: 0,
+  bananaHits: 0,
+  boosts: 0,
+  coins: 0,
+  squashed: 0,
+  quacks: 0,
+  jumps: 0,
+  races: 0,
+  wins: 0,
+  heartsLost: 0,
+  kronorEarned: 0,
+  bossesBeaten: 0,
+  bestPlace: 0,
+});
+
+/** What a race came to, shown on the card after it. */
+export interface RaceSummary {
+  place: number;
+  n: number;
+  finished: boolean;
+  /** ms */
+  time: number;
+  heartLost: boolean;
+  prize: number;
+  coins: number;
+  bonus: number;
+  /** Kronor added to the purse in the end (scaled for the act and the mode). */
+  total: number;
+  goal?: { text: string; met: boolean };
+  medal: 'gold' | 'silver' | 'bronze' | null;
+  /** Is a trinket to pick next? */
+  reward: boolean;
+}
+
+export interface ShopItem {
+  id: string;
+  sold: boolean;
+}
+
+export type Screen =
+  | { kind: 'prerace'; nodeId: string }
+  | { kind: 'postrace'; nodeId: string; summary: RaceSummary }
+  | { kind: 'reward'; nodeId: string; choices: string[]; source: 'race' | 'elite' | 'boss' | 'event' }
+  | { kind: 'shop'; nodeId: string; stock: ShopItem[]; rerolls: number; healed: boolean; repaired: boolean }
+  | { kind: 'workshop'; nodeId: string; used: boolean; note: string }
+  | { kind: 'event'; nodeId: string; eventId: string; outcome: { text: string; lines: string[] } | null };
+
+export type RunStatus = 'running' | 'won' | 'dead';
+
+export interface RunState {
+  v: 1;
+  seed: number;
+  calm: boolean;
+  /** The meta trophies when the run began: which trinkets are in the pool. */
+  pool: number;
+  act: number;
+  /** The last node finished in this act (null at the start of an act). */
+  at: string | null;
+  /** The nodes finished in this act, in order (the walked road on the map). */
+  path: string[];
+  hearts: number;
+  maxHearts: number;
+  kronor: number;
+  trinkets: Owned[];
+  car: GarageCar;
+  screen: Screen | null;
+  stats: RunStats;
+  status: RunStatus;
+  nodesDone: number;
+}
+
+export interface NewRunOpts {
+  seed: number;
+  calm: boolean;
+  body: CarBody;
+  driver: CarDriver;
+  paint: string;
+  trophies: number;
+}
+
+export function newRun(o: NewRunOpts): RunState {
+  const car = newCar(1, o.body, CAR_BODY_NAMES[o.body], o.paint);
+  car.style.driver = o.driver;
+  const hearts = o.calm ? CALM_HEARTS : START_HEARTS;
+  return { v: 1, seed: o.seed, calm: o.calm, pool: o.trophies, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0 };
+}
+
+export const copyRun = (r: RunState): RunState => structuredClone(r);
+
+export const mapOf = (r: RunState): ActMap => actMap(r.seed, Math.min(r.act, ACTS - 1));
+export const nodeOf = (r: RunState, id: string): MapNode | undefined => findNode(mapOf(r), id);
+
+/** The nodes the player may go to next. */
+export function reachable(r: RunState): MapNode[] {
+  if (r.status !== 'running') return [];
+  const m = mapOf(r);
+  if (r.at === null) return m.rows[0]!;
+  const from = findNode(m, r.at);
+  return from ? from.next.map((id) => findNode(m, id)!).filter(Boolean) : [];
+}
+
+export const trinketCount = (r: RunState): number => r.trinkets.reduce((a, t) => a + t.n, 0);
+export const ownedN = (r: RunState, id: string): number => r.trinkets.find((t) => t.id === id)?.n ?? 0;
+
+/** Adds one trinket (same id: stacks, up to MAX_STACK). Perks that act at once (hearts) apply here. */
+export function addTrinket(r: RunState, id: string): void {
+  const have = r.trinkets.find((t) => t.id === id);
+  if (have) have.n = Math.min(MAX_STACK, have.n + 1);
+  else r.trinkets.push({ id, n: 1 });
+  const before = r.maxHearts;
+  r.maxHearts = (r.calm ? 5 : 3) + perksOf(r.trinkets).maxHearts;
+  if (r.maxHearts > before) r.hearts += r.maxHearts - before;
+}
+
+export function addKronor(r: RunState, n: number): void {
+  r.kronor = Math.max(0, r.kronor + Math.round(n));
+  if (n > 0) r.stats.kronorEarned += Math.round(n);
+}
+
+/** Loses a heart; the last one ends the run unless `spare` says it must stay. */
+export function loseHeart(r: RunState, spare = false): boolean {
+  if (spare && r.hearts <= 1) return false;
+  if (r.hearts <= 0) return false;
+  r.hearts -= 1;
+  r.stats.heartsLost++;
+  if (r.hearts <= 0) r.status = 'dead';
+  return true;
+}
+
+export function healHeart(r: RunState, n = 1): boolean {
+  if (r.hearts >= r.maxHearts) return false;
+  r.hearts = Math.min(r.maxHearts, r.hearts + n);
+  return true;
+}
+
+/** Kronor are scaled up in later acts and in calm mode. */
+export const KRONOR_SCALE = [1, 1.3, 1.7] as const;
+export const actScale = (act: number): number => KRONOR_SCALE[Math.min(act, KRONOR_SCALE.length - 1)]!;
+
+/** Finishing in the bottom third, or not at all, costs a heart. */
+export function costsHeart(place: number, n: number, finished: boolean): boolean {
+  if (!finished) return true;
+  if (n <= 1) return false;
+  const bottom = Math.max(1, Math.round(n / 3));
+  return place > n - bottom;
+}
+
+export const validPaint = (p: string): boolean => (CAR_PAINTS as readonly string[]).includes(p);

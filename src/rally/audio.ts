@@ -269,6 +269,46 @@ export class RallyAudio {
     noiseShot(this.a, this.out, 0.5, { freq: 1800, q: 0.7, vol: 0.08 });
   }
 
+  /** Rubber duck: a squeaky two-part kvack. */
+  quack(): void {
+    const f = 620 + Math.random() * 120;
+    tone(this.a, this.out, f, 0.11, { type: 'sawtooth', to: f * 0.55, vol: 0.13, attack: 0.01 });
+    tone(this.a, this.out, f * 1.05, 0.13, { type: 'square', to: f * 0.5, vol: 0.07, at: 0.02, attack: 0.01 });
+    tone(this.a, this.out, f * 0.9, 0.14, { type: 'sawtooth', to: f * 0.45, vol: 0.12, at: 0.15, attack: 0.01 });
+    noiseShot(this.a, this.out, 0.05, { freq: 1800, q: 1.2, vol: 0.08 });
+  }
+
+  /** A springy boing. */
+  boing(): void {
+    tone(this.a, this.out, 180, 0.35, { type: 'sine', to: 620, vol: 0.16 });
+    tone(this.a, this.out, 620, 0.3, { type: 'triangle', to: 220, vol: 0.08, at: 0.12 });
+  }
+
+  /** A party popper: pop, then a rising tinkle. */
+  party(): void {
+    noiseShot(this.a, this.out, 0.12, { freq: 1200, q: 0.5, vol: 0.2 });
+    tone(this.a, this.out, 120, 0.12, { type: 'square', to: 50, vol: 0.1 });
+    [784, 988, 1319, 1568].forEach((f, i) => tone(this.a, this.out, f, 0.16, { type: 'triangle', vol: 0.06, at: 0.08 + i * 0.05 }));
+  }
+
+  /** A coin: two quick bright notes. */
+  coin(): void {
+    tone(this.a, this.out, 988, 0.07, { type: 'square', vol: 0.05 });
+    tone(this.a, this.out, 1319, 0.16, { type: 'square', vol: 0.05, at: 0.06 });
+  }
+
+  /** Slipping on a banana: a descending slide whistle. */
+  slip(): void {
+    tone(this.a, this.out, 1100, 0.4, { type: 'sine', to: 220, vol: 0.12 });
+    noiseShot(this.a, this.out, 0.18, { freq: 3000, q: 0.8, vol: 0.08 });
+  }
+
+  /** The disco beat: a soft kick, with a hi-hat on the off-beat. */
+  beat(off: boolean): void {
+    if (off) noiseShot(this.a, this.out, 0.05, { freq: 7000, q: 1, vol: 0.05 });
+    else tone(this.a, this.out, 140, 0.18, { type: 'sine', to: 45, vol: 0.2 });
+  }
+
   poof(): void {
     noiseShot(this.a, this.out, 0.4, { freq: 2200, q: 0.8, vol: 0.12 });
     tone(this.a, this.out, 600, 0.3, { type: 'sine', to: 1400, vol: 0.06 });
