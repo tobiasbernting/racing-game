@@ -8,6 +8,7 @@ import { Geo, mat } from './geo.ts';
 import {
   CHROME,
   DARK,
+  overallsColor,
   GLASS_CAR,
   beam,
   bodyClassify,
@@ -25,7 +26,7 @@ import {
 
 const V = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x, y, z);
 const SKIN = '#e8c39e';
-const JEANS = '#3b4a6b';
+const JEANS = '#2a3042';
 const BOOT = '#2a2a2e';
 
 /** A side-facing panel sorter for small painted parts: sides to the doors, the top to the bonnet, ends to front and back. */
@@ -34,7 +35,7 @@ const panel = (topZ: number): Classify => bodyClassify(topZ, -9);
 /** The rider: torso, head, arms to the grips and legs to the pegs, in the hip's frame (the hip is the origin). */
 export function riderGeo(who: CarDriver, style: CarStyle, pose: RiderPose, helmet: boolean): THREE.BufferGeometry {
   const g = new Geo();
-  const shirt = who === 'human' ? style.paint2 : '#4a6fa5';
+  const shirt = overallsColor(who, style);
   const sh = pose.sh ?? 0.25;
   const tl = pose.torso ?? 0.5;
   const X = V(1, 0, 0);
@@ -46,13 +47,8 @@ export function riderGeo(who: CarDriver, style: CarStyle, pose: RiderPose, helme
   g.box(0.1, 0.1, 0.1, SKIN, neck.x, neck.y, neck.z);
   // the head
   const hc = rot(0, tl + 0.24, 0.05);
-  if (helmet && who === 'human') {
-    g.sphere(0.24, style.paint, hc.x, hc.y + 0.01, hc.z, 1, 0.95, 1.08, 10, 8);
-    g.box(0.32, 0.1, 0.1, '#1d2433', hc.x, hc.y, hc.z + 0.18, pose.tilt * 0.5);
-    g.box(0.07, 0.03, 0.34, style.paint2, hc.x, hc.y + 0.235, hc.z, pose.tilt * 0.5);
-  } else {
-    g.addColored(driverHead(who, style.paint), mat(hc.x, hc.y, hc.z, pose.tilt * 0.5));
-  }
+  g.addColored(driverHead(who, style.paint, style.paint2), mat(hc.x, hc.y, hc.z, pose.tilt * 0.5));
+  void helmet;
   // arms to the grips
   const [hx, hy, hz] = pose.hands;
   for (const sx of [-1, 1]) {

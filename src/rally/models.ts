@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { CAR_BODY_DEFS, defaultStyle, type CarBody, type CarDriver, type CarSpoiler, type CarStyle, type CarWheels, type DecalSlot } from '../shared/rally.ts';
 import { Geo, mat } from './geo.ts';
+import { hullGeometry, outlineMaterial, outlineMesh } from './look.ts';
 import { ATLAS, paintCar, paintCrack, paintDamage, paintPlate, REGION_KIND, type DecalSpot, type PaintLayout, type Region, type RegionSizes } from './style.ts';
 import { rng } from './util.ts';
 import { EXTRA_BODIES, riderGeo } from './vehicles.ts';
@@ -488,14 +489,37 @@ export function person(): { shirt: THREE.BufferGeometry; rest: THREE.BufferGeome
 /** Who drives: you or a farm animal (the computer cars' faces). */
 export type Driver = CarDriver;
 
-/** The driver's head, seen through the windows. */
-export function driverHead(kind: Driver, color: string): THREE.BufferGeometry {
+/** The colour of the driver's race overalls: the second paint colour, darkened, for a person; dark denim for the animals. */
+export function overallsColor(who: Driver, style: CarStyle): string {
+  if (who !== 'human') return '#2b3347';
+  const c = new THREE.Color(style.paint2);
+  return '#' + c.lerp(new THREE.Color('#111318'), 0.45).getHexString();
+}
+
+/**
+ * A race helmet over a head: a painted dome, a stripe over the top and either a dark visor or a pair of goggles.
+ * (y, z) is the dome's centre, (rx, ry, rz) its radii.
+ */
+export function helmet(g: Geo, color: string, accent: string, y: number, z: number, rx: number, ry: number, rz: number, front: 'visor' | 'goggles' | 'none' = 'visor'): void {
+  g.sphere(1, color, 0, y, z, rx, ry, rz, 10, 8);
+  g.box(rx * 0.14, ry * 0.1, rz * 1.9, accent, 0, y + ry * 0.96, z);
+  if (front === 'visor') {
+    g.box(rx * 1.45, ry * 0.42, rz * 0.5, '#0d1016', 0, y + ry * 0.02, z + rz * 0.72);
+    g.box(rx * 0.5, ry * 0.07, rz * 0.12, '#8fb8ff', -rx * 0.38, y + ry * 0.14, z + rz * 0.97);
+  } else if (front === 'goggles') {
+    g.box(rx * 2.06, ry * 0.2, rz * 1.9, '#1a1a20', 0, y - ry * 0.05, z);
+    for (const sx of [-1, 1]) g.cyl(ry * 0.3, ry * 0.3, rz * 0.2, 8, '#ffb02e', sx * rx * 0.42, y - ry * 0.05, z + rz * 0.95, Math.PI / 2);
+  }
+}
+
+/** The driver's head, seen through the windows: every one of them in a helmet or goggles. `accent` is the stripe colour. */
+export function driverHead(kind: Driver, color: string, accent = '#f4f4f0'): THREE.BufferGeometry {
   const g = new Geo();
   switch (kind) {
     case 'human':
-      g.sphere(0.2, '#f4f4f4', 0, 0, 0, 1, 1.05, 1.1, 10, 8);
-      g.box(0.42, 0.08, 0.3, color, 0, 0.1, 0);
-      g.box(0.36, 0.12, 0.1, '#1d2433', 0, -0.02, 0.19);
+      g.sphere(0.17, '#e0b48c', 0, -0.02, 0.02, 1, 1.05, 1.1, 10, 8);
+      helmet(g, color, accent, 0.03, 0, 0.23, 0.22, 0.24, 'visor');
+      g.box(0.3, 0.07, 0.1, '#15171c', 0, -0.17, 0.12);
       break;
     case 'cow':
       g.box(0.34, 0.32, 0.38, WHITE, 0, 0, 0.02);
@@ -503,30 +527,41 @@ export function driverHead(kind: Driver, color: string): THREE.BufferGeometry {
       g.box(0.18, 0.14, 0.05, '#232323', 0.06, 0.08, 0.2);
       for (const sx of [-1, 1]) {
         g.box(0.16, 0.06, 0.08, '#232323', sx * 0.24, 0.08, 0);
-        g.cone(0.04, 0.14, 4, '#efe6cf', sx * 0.11, 0.21, 0);
+        g.cone(0.04, 0.2, 4, '#efe6cf', sx * 0.2, 0.2, 0, 0);
       }
+      helmet(g, color, accent, 0.1, -0.02, 0.2, 0.15, 0.2, 'goggles');
       break;
     case 'pig':
       g.box(0.36, 0.32, 0.32, '#f2a8b0', 0, 0, 0);
       g.cyl(0.09, 0.09, 0.08, 8, '#e88c98', 0, -0.03, 0.2, Math.PI / 2);
-      for (const sx of [-1, 1]) g.box(0.1, 0.04, 0.09, '#e4949e', sx * 0.12, 0.18, 0.05, 0.4, 0, sx * 0.3);
+      for (const sx of [-1, 1]) g.box(0.1, 0.04, 0.09, '#e4949e', sx * 0.2, 0.1, 0.02, 0.4, 0, sx * 0.9);
+      helmet(g, color, accent, 0.1, -0.02, 0.2, 0.15, 0.19, 'visor');
       break;
     case 'sheep':
       g.box(0.24, 0.28, 0.32, '#2a2622', 0, -0.02, 0.05);
       g.ball(0.2, '#f2eee2', 0, 0.12, -0.02, 1.1, 0.75, 1.1, 0);
       for (const sx of [-1, 1]) g.box(0.14, 0.05, 0.07, '#2a2622', sx * 0.16, 0.02, 0);
+      helmet(g, color, accent, 0.19, -0.02, 0.2, 0.13, 0.2, 'goggles');
       break;
     case 'rooster':
       g.ball(0.17, '#f7f3ea', 0, 0, 0);
       g.box(0.05, 0.14, 0.2, '#e0301e', 0, 0.2, 0);
       g.cone(0.05, 0.14, 4, '#f2b233', 0, -0.02, 0.2);
       g.box(0.04, 0.1, 0.05, '#e0301e', 0, -0.13, 0.12);
+      // aviator goggles on a strap, the comb sticking out of the back
+      g.box(0.37, 0.07, 0.35, '#1a1a20', 0, 0.04, 0);
+      for (const sx of [-1, 1]) {
+        g.cyl(0.065, 0.065, 0.06, 8, '#ffb02e', sx * 0.09, 0.05, 0.15, Math.PI / 2);
+        g.cyl(0.075, 0.075, 0.03, 8, '#2b2b33', sx * 0.09, 0.05, 0.135, Math.PI / 2);
+      }
+      g.box(0.05, 0.05, 0.3, accent, 0, 0.19, -0.03);
       break;
     case 'horse':
       g.box(0.26, 0.3, 0.46, '#7a4a2a', 0, 0, 0.08);
       g.box(0.08, 0.16, 0.3, '#f1ede4', 0, 0.06, 0.16);
       g.box(0.08, 0.2, 0.3, '#2a1c14', 0, 0.16, -0.12);
-      for (const sx of [-1, 1]) g.box(0.05, 0.12, 0.05, '#7a4a2a', sx * 0.08, 0.22, 0.02);
+      for (const sx of [-1, 1]) g.box(0.05, 0.12, 0.05, '#7a4a2a', sx * 0.15, 0.2, 0.0);
+      helmet(g, color, accent, 0.12, 0.0, 0.17, 0.15, 0.24, 'goggles');
       break;
     case 'dog':
       g.box(0.3, 0.28, 0.3, '#c8925a', 0, 0, 0);
@@ -537,6 +572,7 @@ export function driverHead(kind: Driver, color: string): THREE.BufferGeometry {
         g.box(0.05, 0.05, 0.02, '#1e1a18', sx * 0.08, 0.06, 0.155);
       }
       g.box(0.06, 0.03, 0.08, '#e85a70', 0.02, -0.15, 0.24);
+      helmet(g, color, accent, 0.1, -0.02, 0.2, 0.14, 0.2, 'visor');
       break;
     case 'rabbit':
       // a grey-white rabbit with tall ears, a pink nose and two front teeth
@@ -550,6 +586,7 @@ export function driverHead(kind: Driver, color: string): THREE.BufferGeometry {
         g.box(0.05, 0.4, 0.04, '#f0a0b0', sx * 0.1, 0.38, 0.0, 0, 0, sx * 0.12);
         g.box(0.05, 0.05, 0.02, '#1e1a18', sx * 0.09, 0.06, 0.165);
       }
+      helmet(g, color, accent, 0.1, -0.02, 0.19, 0.14, 0.19, 'visor');
       break;
     case 'cat':
       g.box(0.32, 0.26, 0.28, '#f0a050', 0, 0, 0);
@@ -560,7 +597,7 @@ export function driverHead(kind: Driver, color: string): THREE.BufferGeometry {
         g.box(0.05, 0.06, 0.02, '#2a6a3a', sx * 0.07, 0.04, 0.145);
         g.box(0.12, 0.008, 0.008, '#ffffff', sx * 0.15, -0.06, 0.16);
       }
-      g.box(0.3, 0.04, 0.29, '#c8742c', 0, 0.09, 0);
+      helmet(g, color, accent, 0.1, -0.02, 0.19, 0.13, 0.17, 'goggles');
       break;
   }
   return g.build();
@@ -577,6 +614,8 @@ export interface CarModel {
   shadow: THREE.Mesh;
   /** Show the car's damage 0..100: dents, dirt, a cracked window, a loose bumper; smoke is the game's job. */
   setDamage(d: number): void;
+  /** Dirt that builds up during a race (0 clean .. 1 filthy) together with the damage 0..100. */
+  setWear(dirt: number, damage: number): void;
   /** Night: headlights, tail lights and the underglow on. */
   setNight(on: boolean): void;
   /** Nitro burning (0 off .. 1 full): exhaust flames glow. */
@@ -1587,10 +1626,14 @@ export function carModel(opts: CarModelOpts): CarModel {
 
   // the driver (and shoulders, so open cars and big windows look occupied)
   const [hx, hy, hz] = spec.head;
-  const shirt = who === 'human' ? style.paint2 : '#4a6fa5';
+  const shirt = overallsColor(who, style);
   if (!spec.rider) {
     P.tg.box(0.44, 0.3, 0.26, shirt, hx, hy - 0.3, hz - 0.02);
-    P.tg.addColored(driverHead(who, style.paint), mat(hx, hy, hz));
+    // race overalls: a stripe over the chest, a collar and the harness straps
+    P.tg.box(0.45, 0.05, 0.27, style.paint2, hx, hy - 0.26, hz - 0.02);
+    P.tg.box(0.3, 0.06, 0.1, '#15171c', hx, hy - 0.17, hz + 0.02);
+    for (const sx of [-1, 1]) P.tg.box(0.05, 0.3, 0.02, '#15171c', hx + sx * 0.1, hy - 0.3, hz + 0.12);
+    P.tg.addColored(driverHead(who, style.paint, style.paint2), mat(hx, hy, hz));
     P.tg.box(0.08, 0.1, 0.08, '#e8c39e', hx, hy - 0.17, hz);
   }
 
@@ -1632,12 +1675,19 @@ export function carModel(opts: CarModelOpts): CarModel {
   const bodyMesh = new THREE.Mesh(paintGeo, paint);
   bodyMesh.castShadow = true;
   shell.add(bodyMesh);
+  // the outline shells ('high' only: they double the triangles of what they wrap)
+  const hull = (m: THREE.Mesh, width?: number): void => {
+    const o = outlineMesh(m, hi, undefined, width);
+    if (o) keep(o.geo);
+  };
+  hull(bodyMesh);
 
   const trimMat = keep(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.15, flatShading: true, envMap: opts.envMap, envMapIntensity: 0.6 }));
   const trimGeo = keep(P.tg.build());
   const trim = new THREE.Mesh(trimGeo, trimMat);
   trim.castShadow = true;
   shell.add(trim);
+  hull(trim);
 
   // a rider who sits on top: its own group, pivoting at the hip
   let rider: THREE.Group | null = null;
@@ -1647,6 +1697,7 @@ export function carModel(opts: CarModelOpts): CarModel {
     const rm = new THREE.Mesh(keep(riderGeo(who, style, spec.rider.pose, !!spec.rider.helmet)), trimMat);
     rm.castShadow = true;
     rm.scale.setScalar(S);
+    hull(rm, 1.3);
     rider.add(rm);
     body.add(rider);
   }
@@ -1716,6 +1767,7 @@ export function carModel(opts: CarModelOpts): CarModel {
   const wheelR = Math.max(...spec.wheels.map((w) => w.r));
   const wheelMat = keep(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: style.wheels === 'gold' ? 0.6 : 0.2, flatShading: true, envMap: opts.envMap, envMapIntensity: 0.8 }));
   const wgeos = new Map<string, THREE.BufferGeometry>();
+  const hullGeos = new Map<string, THREE.BufferGeometry>();
   const wheels: THREE.Group[] = [];
   const wheelMeshes: THREE.Mesh[] = [];
   for (const w of spec.wheels) {
@@ -1729,6 +1781,12 @@ export function carModel(opts: CarModelOpts): CarModel {
     const mesh = new THREE.Mesh(geo, wheelMat);
     mesh.scale.setScalar(S);
     mesh.castShadow = true;
+    if (hi) {
+      let hg = hullGeos.get(key);
+      if (!hg) hullGeos.set(key, (hg = keep(hullGeometry(geo))));
+      const hm = new THREE.Mesh(hg, outlineMaterial(undefined, 1.3));
+      mesh.add(hm);
+    }
     spin.add(mesh);
     steer.add(spin);
     root.add(steer);
@@ -1796,7 +1854,7 @@ export function carModel(opts: CarModelOpts): CarModel {
   // nitro flames at the pipes
   const flames = new THREE.Group();
   const fgeo = keep(flameGeo());
-  const fmat = keep(new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.88, depthWrite: false, side: THREE.DoubleSide }));
+  const fmat = keep(new THREE.MeshBasicMaterial({ vertexColors: true, color: new THREE.Color(2.6, 2.3, 2.0), transparent: true, opacity: 0.92, depthWrite: false, side: THREE.DoubleSide }));
   const flameMeshes: THREE.Mesh[] = [];
   for (const [x, y, z] of pipes) {
     const f = new THREE.Mesh(fgeo, fmat);
@@ -1822,47 +1880,58 @@ export function carModel(opts: CarModelOpts): CarModel {
     { c: new THREE.Vector3(-s2 * spec.halfW * 0.4, spec.belt, spec.nose - 0.25), d: new THREE.Vector3(0, -0.8, -0.6).normalize() },
   ];
   let bucket = -1;
-  const setDamage = (dmg: number): void => {
+  let dirtNow = 0;
+  const setWear = (dirt: number, dmg: number): void => {
+    const dd = Math.max(0, Math.min(1, Number.isFinite(dirt) ? dirt : 0));
     const b = Math.max(0, Math.min(10, Math.round((Number.isFinite(dmg) ? dmg : 0) / 10)));
-    if (b === bucket) return;
-    bucket = b;
+    const key = b * 100 + Math.round(dd * 8);
+    if (key === bucket) return;
+    const dentsChanged = Math.floor(bucket / 100) !== b;
+    bucket = key;
+    dirtNow = dd;
     const d = b * 10;
-    // dents: a few vertices pushed in round seeded points, deeper as the damage grows
-    const arr = posAttr.array as Float32Array;
-    arr.set(base);
-    const R = 0.6;
-    for (let i = 0; i < dents.length; i++) {
-      const k = Math.max(0, Math.min(1, (d - (10 + i * 20)) / 30));
-      if (k <= 0) continue;
-      const { c, d: dir } = dents[i]!;
-      for (let v = 0; v < arr.length; v += 3) {
-        const x = base[v]!;
-        const y = base[v + 1]!;
-        const z = base[v + 2]!;
-        const dist = Math.hypot(x - c.x, y - c.y, z - c.z);
-        if (dist >= R) continue;
-        const f = (1 - dist / R) ** 2 * k * 0.28 * (0.6 + 0.8 * hash3(x, y, z));
-        arr[v] = x + dir.x * f;
-        arr[v + 1] = y + dir.y * f;
-        arr[v + 2] = z + dir.z * f;
+    if (dentsChanged) {
+      // dents: a few vertices pushed in round seeded points, deeper as the damage grows
+      const arr = posAttr.array as Float32Array;
+      arr.set(base);
+      const R = 0.6;
+      for (let i = 0; i < dents.length; i++) {
+        const k = Math.max(0, Math.min(1, (d - (10 + i * 20)) / 30));
+        if (k <= 0) continue;
+        const { c, d: dir } = dents[i]!;
+        for (let v = 0; v < arr.length; v += 3) {
+          const x = base[v]!;
+          const y = base[v + 1]!;
+          const z = base[v + 2]!;
+          const dist = Math.hypot(x - c.x, y - c.y, z - c.z);
+          if (dist >= R) continue;
+          const f = (1 - dist / R) ** 2 * k * 0.34 * (0.6 + 0.8 * hash3(x, y, z));
+          arr[v] = x + dir.x * f;
+          arr[v + 1] = y + dir.y * f;
+          arr[v + 2] = z + dir.z * f;
+        }
       }
+      posAttr.needsUpdate = true;
+      paintGeo.computeVertexNormals();
     }
-    posAttr.needsUpdate = true;
-    paintGeo.computeVertexNormals();
-    // dirt and scratches over the clean paint
+    // dirt and scratches over the clean paint: the dirt grows with the race, the damage with the hits
     cvg.setTransform(1, 0, 0, 1, 0, 0);
     cvg.drawImage(clean, 0, 0);
-    paintDamage(cvg, S2, layout, d / 100);
+    paintDamage(cvg, S2, layout, Math.max(dd * 0.75, d / 100), d / 100);
     tex.needsUpdate = true;
     crack.visible = d >= 40;
-    const loose = d >= 70;
-    bumper.rotation.set(loose ? 0.12 : 0, 0, loose ? 0.2 : 0);
-    if (spoiler) spoiler.rotation.set(loose ? 0.08 : 0, 0, loose ? 0.14 : 0);
+    // the bumper works loose, then hangs by one end
+    const hang = d >= 90 ? 3 : d >= 70 ? 2 : d >= 50 ? 1 : 0;
+    bumper.rotation.set([0, 0.05, 0.18, 0.4][hang]!, 0, [0, 0.12, 0.35, 0.75][hang]!);
+    bumper.position.y = bumperY0 - [0, 0, 0.04, 0.12][hang]!;
+    if (spoiler) spoiler.rotation.set(d >= 70 ? 0.08 : 0, 0, d >= 70 ? 0.14 : 0);
     // a wobbly wheel: tilted inside its spin group, so it wobbles as it turns
     const wob = wheelMeshes[3];
     if (wob) wob.rotation.z = d >= 85 ? 0.13 : 0;
   };
-  setDamage(0);
+  const setDamage = (dmg: number): void => setWear(dirtNow, dmg);
+  const bumperY0 = bumper.position.y;
+  setWear(0, 0);
 
   let lit = false;
   const setNight = (on: boolean): void => {
@@ -1878,8 +1947,9 @@ export function carModel(opts: CarModelOpts): CarModel {
     flames.visible = on;
     if (!on) return;
     for (const f of flameMeshes) {
-      const w = 0.7 + 0.5 * k;
-      f.scale.set(w, w, k * (0.75 + Math.random() * 0.5));
+      const w = (0.8 + 0.6 * k) * (0.85 + Math.random() * 0.3);
+      f.scale.set(w, w, k * (1.2 + Math.random() * 1.0));
+      f.rotation.z = Math.random() * 6;
     }
   };
 
@@ -1892,6 +1962,7 @@ export function carModel(opts: CarModelOpts): CarModel {
     paint,
     shadow,
     setDamage,
+    setWear,
     setNight,
     setNitro,
     headlights: lampPos.map((p) => p.clone().multiplyScalar(S)),

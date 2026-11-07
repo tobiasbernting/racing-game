@@ -136,6 +136,47 @@ function flamePath(g: CanvasRenderingContext2D, s: number): void {
 // Stickers: drawn once into a little canvas with a white die-cut border, then stamped on the body
 // ---------------------------------------------------------------------------
 
+/** A rounded rectangle plate for a sponsor sticker. */
+function plate(g: CanvasRenderingContext2D, fill: string, edge: string): void {
+  g.fillStyle = edge;
+  g.beginPath();
+  g.roundRect(-0.5, -0.4, 1, 0.8, 0.12);
+  g.fill();
+  g.fillStyle = fill;
+  g.beginPath();
+  g.roundRect(-0.45, -0.35, 0.9, 0.7, 0.09);
+  g.fill();
+}
+
+function stripes(g: CanvasRenderingContext2D, col: string): void {
+  g.fillStyle = col;
+  g.save();
+  g.beginPath();
+  g.roundRect(-0.45, -0.35, 0.9, 0.7, 0.09);
+  g.clip();
+  for (let i = -3; i < 4; i++) {
+    g.beginPath();
+    g.moveTo(-0.5 + i * 0.22, -0.4);
+    g.lineTo(-0.4 + i * 0.22, -0.4);
+    g.lineTo(-0.2 + i * 0.22, -0.28);
+    g.lineTo(-0.3 + i * 0.22, -0.28);
+    g.fill();
+  }
+  g.restore();
+}
+
+/** Two lines of heavy brand lettering; `big` is the first line's size. */
+function brand(g: CanvasRenderingContext2D, a: string, b: string, col: string, dy = 0, big = 0.25): void {
+  g.fillStyle = col;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  const w = 0.82;
+  g.font = `900 ${big}px Impact, 'Arial Black', system-ui, sans-serif`;
+  g.fillText(a, 0, dy - big * 0.45, w);
+  g.font = `900 ${big * (b.length > 5 ? 0.8 : 1)}px Impact, 'Arial Black', system-ui, sans-serif`;
+  g.fillText(b, 0, dy + big * 0.6, w);
+}
+
 const STICKER_PX = 160;
 const stickerCache = new Map<string, HTMLCanvasElement>();
 
@@ -145,16 +186,75 @@ function drawDecal(g: CanvasRenderingContext2D, d: CarDecal, num: number): void 
   g.lineCap = 'round';
   switch (d) {
     case 'number': {
+      // a scuffed race roundel: black ring, white disc, a heavy stencil number
       circle(g, 0, 0, 0.48, '#15171c');
-      circle(g, 0, 0, 0.42, '#ffffff');
+      circle(g, 0, 0, 0.4, '#f1eee6');
       g.fillStyle = '#15171c';
       const s = String(Math.max(1, Math.min(99, Math.round(num))));
-      g.font = `bold ${s.length > 1 ? 0.5 : 0.6}px system-ui, Arial, sans-serif`;
+      g.font = `900 ${s.length > 1 ? 0.5 : 0.62}px Impact, 'Arial Black', system-ui, sans-serif`;
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillText(s, 0, 0.04);
       break;
     }
+    case 'grusolja':
+      plate(g, '#ffcf1f', '#15171c');
+      stripes(g, '#15171c');
+      brand(g, 'GRUS', 'OLJA', '#15171c', -0.06);
+      g.fillStyle = '#15171c';
+      g.beginPath();
+      g.moveTo(0, 0.2);
+      g.bezierCurveTo(-0.1, 0.3, -0.1, 0.4, 0, 0.42);
+      g.bezierCurveTo(0.1, 0.4, 0.1, 0.3, 0, 0.2);
+      g.fill();
+      break;
+    case 'kaosbensin':
+      plate(g, '#e03a24', '#f4f1ea');
+      brand(g, 'KAOS', 'BENSIN', '#f8f4ea', 0.02, 0.2);
+      g.fillStyle = '#ffd23f';
+      g.save();
+      g.translate(0, -0.3);
+      flamePath(g, 0.5);
+      g.fill();
+      g.restore();
+      break;
+    case 'dackdunder':
+      circle(g, 0, 0, 0.48, '#15171c');
+      g.strokeStyle = '#4a4d57';
+      g.lineWidth = 0.07;
+      g.setLineDash([0.06, 0.05]);
+      g.beginPath();
+      g.arc(0, 0, 0.41, 0, TAU);
+      g.stroke();
+      g.setLineDash([]);
+      circle(g, 0, 0, 0.33, '#f4f1ea');
+      brand(g, 'DÄCK &', 'DUNDER', '#15171c', 0.02, 0.17);
+      break;
+    case 'skrotfix':
+      plate(g, '#ff7a1a', '#15171c');
+      brand(g, 'SKROT', 'FIX', '#15171c', -0.02, 0.24);
+      g.strokeStyle = '#15171c';
+      g.lineWidth = 0.06;
+      g.beginPath();
+      g.moveTo(-0.22, 0.34);
+      g.lineTo(0.22, 0.34);
+      g.stroke();
+      break;
+    case 'mackens':
+      plate(g, '#18a89a', '#f4f1ea');
+      brand(g, 'MACKENS', 'KIOSK', '#f8f4ea', 0.0, 0.15);
+      break;
+    case 'surstark':
+      plate(g, '#6ccf3a', '#15171c');
+      brand(g, 'SUR', 'STARK', '#15171c', -0.1, 0.22);
+      g.fillStyle = '#15171c';
+      g.save();
+      g.translate(0, 0.28);
+      g.scale(0.55, 0.4);
+      boltPath(g);
+      g.fill();
+      g.restore();
+      break;
     case 'star':
       g.fillStyle = '#ffcf1f';
       starPath(g, 0, 0.03, 0.5);
@@ -714,8 +814,8 @@ export function paintCar(cv: HTMLCanvasElement, style: CarStyle, layout: PaintLa
  * The damage layer over the clean paint: mud splashes up from the sills, scratches on the doors.
  * `amount` 0..1. Seeded, so the same car always gets the same splashes, more of them as it grows.
  */
-export function paintDamage(g: CanvasRenderingContext2D, S: number, layout: PaintLayout, amount: number): void {
-  if (amount <= 0) return;
+export function paintDamage(g: CanvasRenderingContext2D, S: number, layout: PaintLayout, amount: number, dmg = amount): void {
+  if (amount <= 0 && dmg <= 0) return;
   g.setTransform(1, 0, 0, 1, 0, 0);
   const r = rng(layout.seed * 7 + 13);
   const mud = ['rgba(92,66,40,0.75)', 'rgba(120,88,52,0.7)', 'rgba(70,52,34,0.8)'];
@@ -754,9 +854,51 @@ export function paintDamage(g: CanvasRenderingContext2D, S: number, layout: Pain
   splash('front', Math.round(4 + amount * 18), 0.4);
   splash('back', Math.round(4 + amount * 22), 0.35);
   splash('hood', Math.round(amount * 14), 0);
+  // stone chips on the nose, and oily smears along the flanks as the race wears on
+  g.fillStyle = 'rgba(30,26,24,0.55)';
+  for (let i = 0, n = Math.round(amount * 26); i < n; i++) {
+    const [fx, fy, fw, fh] = ATLAS[i % 3 === 0 ? 'hood' : 'front'];
+    g.beginPath();
+    g.arc((fx + fw * r()) * S, (fy + fh * (0.5 + 0.5 * r())) * S, S * (0.0025 + r() * 0.004), 0, TAU);
+    g.fill();
+  }
+  if (amount > 0.2) {
+    g.fillStyle = 'rgba(24,20,18,0.28)';
+    for (const reg of ['doorP', 'doorN'] as const) {
+      const [fx, fy, fw, fh] = ATLAS[reg];
+      for (let i = 0, n = Math.round(amount * 6); i < n; i++) {
+        const x = (fx + fw * (0.05 + 0.9 * r())) * S;
+        const y = (fy + fh * (0.35 + 0.3 * r())) * S;
+        g.beginPath();
+        g.ellipse(x, y, S * (0.02 + r() * 0.03), S * 0.004, 0, 0, TAU);
+        g.fill();
+      }
+    }
+  }
+  // scorch marks on a really battered car
+  if (dmg > 0.55) {
+    const k = (dmg - 0.55) / 0.45;
+    for (const [reg, n] of [['hood', 3], ['front', 2], ['back', 2], ['roof', 1]] as const) {
+      const [fx, fy, fw, fh] = ATLAS[reg];
+      g.save();
+      clipRegion(g, S, reg);
+      for (let i = 0; i < n; i++) {
+        const gr = g.createRadialGradient(0, 0, 0, 0, 0, S * 0.06);
+        gr.addColorStop(0, `rgba(10,8,8,${0.55 * k})`);
+        gr.addColorStop(1, 'rgba(10,8,8,0)');
+        g.save();
+        g.translate((fx + fw * r()) * S, (fy + fh * r()) * S);
+        g.scale(1.6, 1);
+        g.fillStyle = gr;
+        g.fillRect(-S * 0.1, -S * 0.1, S * 0.2, S * 0.2);
+        g.restore();
+      }
+      g.restore();
+    }
+  }
   // scratches through the paint
-  if (amount >= 0.3) {
-    const n = Math.round(amount * 10);
+  if (dmg >= 0.3) {
+    const n = Math.round(dmg * 12);
     g.strokeStyle = 'rgba(235,235,235,0.75)';
     g.lineWidth = Math.max(1, S / 400);
     for (let i = 0; i < n; i++) {

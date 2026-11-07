@@ -779,8 +779,10 @@ export class App {
   private runOptions(run: RunState): RallyOptions {
     const plan = currentPlan(run)!;
     const node = currentNode(run)!;
+    // dev builds only: a test can force the course of the next race
+    const forced = import.meta.env.DEV ? (window as unknown as { __forceCourse?: RallyCourse }).__forceCourse : undefined;
     return {
-      rules: plan.rules,
+      rules: forced ? { ...plan.rules, course: forced } : plan.rules,
       car: run.car,
       seed: node.seed,
       mods: buildMods(run.trinkets, run.car.body),
