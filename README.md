@@ -2,8 +2,9 @@
 
 Ett 3D-rallyspel i webbläsaren (three.js): kom först i mål mot gårdens djur på sju banor. Det är
 en egen fristående version av rallyt från Lilla Gården och ska bli en roguelite (se [PLAN.md](PLAN.md)).
-Fas 1 var porten (ett lopp på dator, surfplatta och mobil); fas 2 (den här) gör det till en roguelite: en runda är tre
-akter med varsin förgrenad karta och en boss, och på vägen samlar man galna prylar.
+Fas 1 var porten (ett lopp på dator, surfplatta och mobil), fas 2 gjorde det till en roguelite: en runda är tre
+akter med varsin förgrenad karta och en boss, och på vägen samlar man galna prylar. Fas 3 (den här) lägger till
+fem nya fordon, fem nya banor, banor som ser olika ut varje gång, fler prylar, händelser och en ny boss.
 
 Styrning: piltangenter/WASD, mellanslag = handbroms, L = nitro, C = kamera, R = tillbaka på vägen,
 Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
@@ -18,14 +19,36 @@ Escape = paus. Handkontroll och pekknappar på skärmen fungerar också.
 - **Hjärtan och kronor**: kommer man sist (nedersta tredjedelen) eller bryter förlorar man ett hjärta; vid 0 är rundan slut.
   Loppen ger kronor (pris + mynt på banan + prylbonus, skalat per akt) som går till kiosken (prylar, laga bilen, läka
   hjärta, nya varor) och verkstaden (en gratis uppgradering av en del, eller måla om).
-- **Prylar** (`src/run/trinkets.ts`, 31 st): vanlig/ovanlig/legendarisk, samma pryl två gånger gör den starkare. Varje pryl är
+- **Prylar** (`src/run/trinkets.ts`, 48 st): vanlig/ovanlig/legendarisk, samma pryl två gånger gör den starkare. Varje pryl är
   data: `tune` ändrar siffror när loppet startar, `hooks` reagerar på tick/boost/sladd/stöt/varv/pickup/mål, `perk` ändrar
   rundan (rabatt, hjärtan, fler val). Loppet får dem som `RallyOptions.mods` (`src/rally/mods.ts`); bossarnas trick går via
   `RallyOptions.twist`. Lägg till en pryl genom att lägga till en rad i listan.
-- **Troféer** 🏆 efter varje runda (2 per besegrad boss, 3 för seger) låser upp bilar (pickup 3, sportbil 8, monstertruck
-  15) och lägger fler prylar i potten.
+- **Troféer** 🏆 efter varje runda (2 per besegrad boss, 3 för seger) låser upp fordon (pickup 3, moppe 4, fyrhjuling 6,
+  sportbil 8, traktor 11, motorcykel 13, monstertruck 15, soffbil 20) och lägger fler prylar i potten.
 - Rundan är deterministisk från ett frö: kartor, kioskens varor och händelsernas utfall räknas ut från fröet och behöver
   aldrig sparas.
+
+## Fordon, banor och variation (fas 3)
+
+- **Fordon** (`CAR_BODY_DEFS` i `src/shared/rally.ts`, modeller i `src/rally/vehicles.ts`): varje kropp har en `feel` som
+  `car.ts` läser (massa, styrning, tröghet, toppfart, grepp på grus och gräs, lutning, två hjul).
+  🛞 **Fyrhjuling**: lätt och yr, älskar grus och hopp. 🏍️ **Motorcykel**: väldigt snabb, lutar sig i kurvorna, har mindre grepp
+  och ramlar på ett komiskt sätt vid en stor smäll (föraren gör en volt, sen är man på hjulen igen). 🛵 **Moppe**: långsam men
+  vig, med korg och en hög ring-ring-klocka (H tutar, och den ringer själv bakom andra bilar). 🚜 **Traktor**: seg, tung och
+  oåterkallelig: puttar undan andra bilar och bryr sig knappt om bananskal och höbalar. 🛋️ **Soffbil**: en soffa på hjul med kuddar,
+  lampa och kaffekopp. Förarna (djuren också) sitter ovanpå. Varje fordon har egen motorklang (`audio.ts`) och egen tuta, och
+  datorförarna kör dem ibland också.
+- **Banor** (`src/rally/courses-wild.ts`, scenerin i `src/rally/wild.ts`): 🏜️ Öknen (dyner, kaktusar, kamel, oas), 🌋 Vulkanen
+  (svart sten, lavasjö, rykande krater), 🍭 Godislandet (klubbor, chokladflod, pepparkakshus), 🌙 Månen (kratrar, stjärnhimmel
+  med jorden, låg tyngdkraft för alla) och 🥣 Köket (ett jättebord med rutig duk, flingor, muggar och sylt). Akt 2 drar mest
+  öknen och vulkanen, akt 3 godis, månen och köket, blandat med de gamla (`ACT_COURSES` i `src/run/map.ts`).
+- **Variation** (`src/shared/variation.ts`, `src/rally/variant.ts`): från platsens frö (snabbracet får ett eget) kan banan
+  speglas och/eller köras åt andra hållet, rekvisitan tätare eller glesare, marken och träden få en nyans, och dag/natt och
+  regn väljs (aldrig regn på månen, i köket eller i öknen). Pads, mynt och höbalar placeras också från fröet.
+- **Bossar**: Bonden Bengt kör traktor och släpper höbalar, Älgen Ingrid kör fyrhjuling och hoppar, Isdrottningen gör vägen
+  isig (akt 2 har Ingrid eller Isdrottningen, fröet väljer) och **Kapten Kanin** kör soffa på månen i jättehopp (akt 3).
+- **Prylar för fordonen**: Sidvagn (motorcykel), Turbofläkt (traktor), Ringklocka i guld (moppe), Ångvisslan, Fordonskarusellen
+  (byter fordon varje varv) med flera. `buildMods(owned, body)` låter en pryl veta vilket fordon man kör.
 
 ## Utveckling
 
@@ -43,7 +66,7 @@ GameContext), `src/run/` (rena regler för rundan: karta, prylar, ekonomi, händ
 och `src/app.ts` (skalet: paus, pekkontroller, flödet mellan skärmar och lopp). Ett lopp startas med `RallyOptions`
 (`src/rally/options.ts`) och rapporterar `RallyResult` via `onDone`.
 
-För tester finns `window.__app` med `fakeFinish()` (avslutar loppet direkt med ett påhittat resultat), `debugRun()`,
+Dev-bygget har också `window.__rallyDebug` (`tumble()`, `honk()`, `swap(kropp)`) under ett lopp. För tester finns `window.__app` med `fakeFinish()` (avslutar loppet direkt med ett påhittat resultat), `debugRun()`,
 `debugEnter(typ)` och `debugMeta()`. I dev-bygget finns dessutom `?rallydebug&rallyauto&rallyturbo=30&rallygo` som låter
 datorn köra bilen i hög hastighet.
 
