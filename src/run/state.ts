@@ -80,6 +80,8 @@ export interface RunState {
   act: number;
   /** The last node finished in this act (null at the start of an act). */
   at: string | null;
+  /** The nodes finished in this act, in order (the walked road on the map). */
+  path: string[];
   hearts: number;
   maxHearts: number;
   kronor: number;
@@ -104,7 +106,7 @@ export function newRun(o: NewRunOpts): RunState {
   const car = newCar(1, o.body, CAR_BODY_NAMES[o.body], o.paint);
   car.style.driver = o.driver;
   const hearts = o.calm ? CALM_HEARTS : START_HEARTS;
-  return { v: 1, seed: o.seed, calm: o.calm, pool: o.trophies, act: 0, at: null, hearts, maxHearts: hearts, kronor: 0, trinkets: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0 };
+  return { v: 1, seed: o.seed, calm: o.calm, pool: o.trophies, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0 };
 }
 
 export const copyRun = (r: RunState): RunState => structuredClone(r);

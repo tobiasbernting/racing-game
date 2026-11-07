@@ -9,15 +9,20 @@ import { CAR_BODIES, CAR_PAINTS, RALLY_COURSES, RALLY_COURSE_DEFS, defaultRules,
 import { CAR_BODY_NAMES, RALLY_COURSE_NAMES } from './shared/names.ts';
 import { loadPrefs, savePrefs, type Prefs } from './prefs.ts';
 import { fmtTime } from './rally/util.ts';
+import { buildMods, trinketById } from './run/trinkets.ts';
+import { chooseEvent, continueAfterRace, currentNode, currentPlan, enterNode, finishNode, pickReward, submitRace, backToMap } from './run/flow.ts';
+import { buyHeart, buyRepair, buyTrinket, reroll, workshopPaint, workshopRepair, workshopUpgrade } from './run/economy.ts';
+import { BODY_UNLOCK, trophiesFor, unlockedBodies, unlockedTrinkets, type Meta } from './run/meta.ts';
+import { newSeed } from './run/rng.ts';
+import { allNodes, type NodeType } from './run/map.ts';
+import { clearRun, loadMeta, loadRun, saveMeta, saveRun } from './run/save.ts';
+import { mapOf, newRun, type RunState } from './run/state.ts';
+import { btn, arrowNav, el } from './ui/dom.ts';
+import { bagView, collectionView, eventView, mapView, menuView, overView, pickView, postraceView, preraceView, rewardView, shopView, titleView, workshopView, type OverInfo, type PickSel } from './ui/views.ts';
 
 type State = 'menu' | 'loading' | 'playing' | 'paused' | 'result';
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string | null, ...kids: (Node | string | null | undefined | false)[]): HTMLElementTagNameMap[K] {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  for (const k of kids) if (k !== null && k !== undefined && k !== false) e.append(k);
-  return e;
-}
+/** Quick race (one race, the old front end) or a run (the roguelite). */
+type Mode = 'quick' | 'run';
 
 export class App {
   private root = el('div', 'arcade');
@@ -40,6 +45,13 @@ export class App {
   private result: RallyResult | null = null;
   private preview: { update(car: ReturnType<typeof newCar>): void; dispose(): void } | null = null;
   private factory: Promise<GameFactory> | null = null;
+  private mode: Mode = 'quick';
+  private meta: Meta = loadMeta();
+  private runState: RunState | null = null;
+  /** The end-of-run summary, kept so a redraw does not count the run twice. */
+  private over: { run: RunState; info: OverInfo } | null = null;
+  /** The car and driver being picked for a new run. */
+  private sel: PickSel;
 
   constructor(private parent: HTMLElement) {
     const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -47,6 +59,7 @@ export class App {
     const small = Math.min(screen.width, screen.height) < 700;
     this.quality = coarse || small ? 'low' : 'high';
     this.prefs = loadPrefs();
+    this.sel = { body: this.meta.body, driver: this.meta.driver, paint: this.meta.paint };
     this.root.append(this.stage, this.touchEl, this.bar, this.card, this.rotate);
     parent.append(this.root);
 
@@ -73,7 +86,7 @@ export class App {
     // the page never scrolls or zooms
     this.root.addEventListener('contextmenu', (e) => e.preventDefault());
     this.root.addEventListener('gesturestart', (e) => e.preventDefault());
-    this.menu();
+    this.title();
     // so a test (or a curious grown-up) can reach the app
     (window as unknown as { __app: App }).__app = this;
   }
@@ -88,6 +101,14 @@ export class App {
   private show(...kids: Node[]): void {
     this.card.className = 'arc-card show' + (this.state === 'menu' ? ' menu' : '');
     this.card.replaceChildren(...kids);
+  }
+
+  /** A run screen: the card is the whole screen, laid out by the screen itself. */
+  private showScreen(view: HTMLElement): void {
+    this.card.className = 'arc-card show menu rg';
+    this.card.replaceChildren(view);
+    const first = view.querySelector<HTMLElement>('.rg-go:not(:disabled), .rg-node.reach, button:not(:disabled)');
+    first?.focus({ preventScroll: true });
   }
 
   private hideCard(): void {
@@ -121,7 +142,8 @@ export class App {
 
   // ---- menu ----
 
-  private menu(): void {
+  private quickMenu(): void {
+    this.mode = 'quick';
     this.stopGame();
     this.set('menu');
     this.touchEl.replaceChildren();
@@ -179,13 +201,15 @@ export class App {
     const go = el('button', 'arc-go', 'Kör!');
     go.type = 'button';
     go.addEventListener('click', () => void this.start());
+    const back = btn('arc-btn back', '← Titel', () => this.title());
+    back.setAttribute('aria-label', 'Tillbaka till titeln');
     const how = el('ul', 'arc-how', ...(this.touch ? RALLY_HOW_TO.touch : RALLY_HOW_TO.keys).map((l) => el('li', null, l)));
 
     this.show(
       el(
         'div',
         'arc-panel menu-panel',
-        el('div', 'arc-head', el('h1', 'arc-title', 'Galna Rallyt'), el('p', 'arc-sub', 'Kom först i mål!')),
+        el('div', 'arc-head', back, el('h1', 'arc-title', 'Snabbrace'), el('p', 'arc-sub', 'Ett lopp, välj bana och bil')),
         el('div', 'arc-picks', el('div', 'arc-h', 'Bana'), courseRow, el('div', 'arc-h', 'Bil'), bodyRow, previewBox, paintRow),
         go,
         how,
@@ -211,6 +235,7 @@ export class App {
   // ---- playing ----
 
   private rallyOptions(): RallyOptions {
+    if (this.mode === 'run' && this.runState) return this.runOptions(this.runState);
     const p = this.prefs;
     const car = newCar(1, p.body, CAR_BODY_NAMES[p.body], p.paint);
     return {
@@ -253,7 +278,7 @@ export class App {
       input: this.input,
       audio: this.audio,
       out: this.master,
-      player: { name: 'Du', color: this.prefs.paint },
+      player: { name: 'Du', color: this.opts.car.style.paint },
       touch: this.touch,
       quality: this.quality,
       dpr: Math.min(window.devicePixelRatio || 1, dprCap),
@@ -289,7 +314,7 @@ export class App {
   private error(msg: string): void {
     this.set('menu');
     const b = el('button', 'arc-btn', 'Till menyn');
-    b.addEventListener('click', () => this.menu());
+    b.addEventListener('click', () => this.title());
     this.show(el('div', 'arc-panel', el('div', 'arc-detail', msg), b));
   }
 
@@ -302,10 +327,10 @@ export class App {
     this.input.clear();
     const cont = el('button', 'arc-go', 'Fortsätt');
     cont.addEventListener('click', () => this.resume());
-    const again = el('button', 'arc-btn', 'Starta om');
+    const again = el('button', 'arc-btn', this.mode === 'run' ? 'Starta om loppet' : 'Starta om');
     again.addEventListener('click', () => void this.start());
-    const quit = el('button', 'arc-btn', 'Till menyn');
-    quit.addEventListener('click', () => this.menu());
+    const quit = el('button', 'arc-btn', this.mode === 'run' ? 'Till kartan' : 'Till titeln');
+    quit.addEventListener('click', () => (this.mode === 'run' ? this.showRun() : this.title()));
     this.show(el('div', 'arc-panel', el('h1', 'arc-title', 'Paus'), cont, el('div', 'arc-stack', again, quit)));
     cont.focus({ preventScroll: true });
   }
@@ -322,6 +347,10 @@ export class App {
 
   private finish(score: number, detail?: string): void {
     if (this.state !== 'playing') return;
+    if (this.mode === 'run' && this.runState) {
+      this.raceDone(this.result);
+      return;
+    }
     this.set('result');
     this.input.clear();
     this.touchEl.replaceChildren();
@@ -336,12 +365,254 @@ export class App {
     }
     const again = el('button', 'arc-go', 'Kör igen');
     again.addEventListener('click', () => void this.start());
-    const menu = el('button', 'arc-btn', 'Till menyn');
-    menu.addEventListener('click', () => this.menu());
+    const menu = el('button', 'arc-btn', 'Till titeln');
+    menu.addEventListener('click', () => this.title());
     lines.push(again, el('div', 'arc-stack', menu));
     // the game's last frame stays behind the card
     this.show(el('div', 'arc-panel', ...lines));
     again.focus({ preventScroll: true });
+  }
+
+  // ---- the title and the run ----
+
+  private title(): void {
+    this.mode = 'quick';
+    this.stopGame();
+    this.set('menu');
+    this.touchEl.replaceChildren();
+    this.stage.replaceChildren();
+    this.over = null;
+    this.meta = loadMeta();
+    const saved = loadRun();
+    this.showScreen(
+      titleView({
+        meta: this.meta,
+        saved,
+        onNew: () => this.pickScreen(),
+        onContinue: () => {
+          if (saved) this.resumeRun(saved);
+        },
+        onQuick: () => this.quickMenu(),
+        onCollection: () => this.collection(),
+        onCalm: (on) => {
+          this.meta.calm = on;
+          saveMeta(this.meta);
+          this.title();
+        },
+      }),
+    );
+  }
+
+  private collection(): void {
+    this.showScreen(collectionView(this.meta, { onBack: () => this.title() }));
+  }
+
+  private selCar(): ReturnType<typeof newCar> {
+    const car = newCar(1, this.sel.body, CAR_BODY_NAMES[this.sel.body], this.sel.paint);
+    car.style.driver = this.sel.driver;
+    return car;
+  }
+
+  private pickScreen(): void {
+    // a car locked since (cleaned meta) falls back to the rally car
+    if (!unlockedBodies(this.meta.trophies).includes(this.sel.body)) this.sel.body = 'hatch';
+    this.showScreen(
+      pickView(this.meta, this.sel, {
+        onChange: () => this.preview?.update(this.selCar()),
+        onStart: (s) => this.beginRun(s),
+        onBack: () => this.title(),
+      }),
+    );
+    const box = this.card.querySelector<HTMLElement>('.rg-preview');
+    if (box) void this.mountPreview(box, this.selCar());
+  }
+
+  private beginRun(s: PickSel): void {
+    this.disposePreview();
+    this.meta.body = s.body;
+    this.meta.driver = s.driver;
+    this.meta.paint = s.paint;
+    saveMeta(this.meta);
+    this.over = null;
+    this.commit(newRun({ seed: newSeed(), calm: this.meta.calm, body: s.body, driver: s.driver, paint: s.paint, trophies: this.meta.trophies }));
+  }
+
+  private resumeRun(r: RunState): void {
+    this.mode = 'run';
+    this.runState = r;
+    this.showRun();
+  }
+
+  /** Takes the new state of the run: saves it, notes the trinkets seen, ends the run when it is over. */
+  private commit(r: RunState): void {
+    this.mode = 'run';
+    this.runState = r;
+    const seen = new Set(this.meta.seen);
+    const before = seen.size;
+    r.trinkets.forEach((t) => seen.add(t.id));
+    if (r.screen?.kind === 'shop') r.screen.stock.forEach((i) => seen.add(i.id));
+    if (r.screen?.kind === 'reward') r.screen.choices.forEach((i) => seen.add(i));
+    if (seen.size !== before) {
+      this.meta.seen = [...seen];
+      saveMeta(this.meta);
+    }
+    if (r.status === 'running') saveRun(r);
+    else this.endRun(r);
+    this.showRun();
+  }
+
+  /** Draws whatever the run is doing now: the map, or the node it is in. */
+  private showRun(): void {
+    const r = this.runState;
+    if (!r) return this.title();
+    this.stopGame();
+    this.set('menu');
+    this.stage.replaceChildren();
+    if (r.status !== 'running' && r.screen?.kind !== 'postrace') return this.showOver(r);
+    const scr = r.screen;
+    const next = (fn: (x: RunState) => RunState) => () => this.commit(fn(r));
+    const act = (fn: (x: RunState) => unknown) => () => {
+      const c = structuredClone(r);
+      fn(c);
+      this.commit(c);
+    };
+    if (!scr) {
+      this.showScreen(
+        mapView({
+          run: r,
+          onEnter: (id) => this.commit(enterNode(r, id)),
+          onBag: () => this.showScreen(bagView(r, { onClose: () => this.showRun() })),
+          onMenu: () => this.showScreen(menuView(r, { onClose: () => this.showRun(), onTitle: () => this.title() })),
+        }),
+      );
+      return;
+    }
+    switch (scr.kind) {
+      case 'prerace':
+        this.showScreen(preraceView(r, { onGo: () => void this.start(), onBack: next(backToMap) }));
+        break;
+      case 'postrace':
+        this.showScreen(postraceView(r, scr, { onNext: () => (r.status !== 'running' ? this.showOver(r) : this.commit(continueAfterRace(r))) }));
+        break;
+      case 'reward':
+        this.showScreen(rewardView(r, scr, { onPick: (i) => this.commit(pickReward(r, i)) }));
+        break;
+      case 'shop':
+        this.showScreen(
+          shopView(r, scr, {
+            onBuy: (i) => act((c) => buyTrinket(c, i))(),
+            onHeal: act(buyHeart),
+            onRepair: act(buyRepair),
+            onReroll: act(reroll),
+            onLeave: next(finishNode),
+            note: '',
+          }),
+        );
+        break;
+      case 'workshop':
+        this.showScreen(
+          workshopView(r, scr, {
+            onUpgrade: (p) => act((c) => workshopUpgrade(c, p))(),
+            onRepair: act(workshopRepair),
+            onPaint: (col) => act((c) => workshopPaint(c, col))(),
+            onLeave: next(finishNode),
+          }),
+        );
+        break;
+      case 'event':
+        this.showScreen(eventView(r, scr, { onChoose: (i) => this.commit(chooseEvent(r, i)), onNext: next(finishNode) }));
+        break;
+    }
+  }
+
+  /** The run is over (lost or won): the trophies go to the meta progress once, and the save is cleared. */
+  private endRun(r: RunState): void {
+    if (this.over?.run === r) return;
+    const won = r.status === 'won';
+    const gain = trophiesFor({ bossesBeaten: r.stats.bossesBeaten, won, races: r.stats.races });
+    const old = this.meta.trophies;
+    const total = old + gain;
+    const bodies = unlockedBodies(total).filter((b) => BODY_UNLOCK[b] > old);
+    const trinkets = unlockedTrinkets(total)
+      .filter((t) => t.unlock > old)
+      .map((t) => t.id);
+    const seen = new Set(this.meta.seen);
+    trinkets.forEach((id) => seen.add(id));
+    this.meta = { ...this.meta, trophies: total, runs: this.meta.runs + 1, wins: this.meta.wins + (won ? 1 : 0), bestAct: Math.max(this.meta.bestAct, won ? 3 : r.act + 1), seen: [...seen] };
+    saveMeta(this.meta);
+    clearRun();
+    this.over = { run: r, info: { won, trophies: gain, total, unlockedBodies: bodies, unlockedTrinkets: trinkets } };
+  }
+
+  private showOver(r: RunState): void {
+    this.endRun(r);
+    this.showScreen(overView(r, this.over!.info, { onAgain: () => this.pickScreen(), onTitle: () => this.title() }));
+  }
+
+  private runOptions(run: RunState): RallyOptions {
+    const plan = currentPlan(run)!;
+    const node = currentNode(run)!;
+    return {
+      rules: plan.rules,
+      car: run.car,
+      seed: node.seed,
+      mods: buildMods(run.trinkets),
+      twist: plan.twist,
+      coins: true,
+      onDone: (res) => {
+        this.result = res;
+      },
+    };
+  }
+
+  /** The race of the run is over (or was cut short by a test): apply it and show how it went. */
+  private raceDone(res: RallyResult | null): void {
+    const r = this.runState;
+    if (!r) return;
+    this.result = null;
+    this.stopGame();
+    const result: RallyResult = res ?? { place: 9, n: 4, finished: false, time: 0, laps: 0, kronor: 10, coins: 0, medal: null, damage: 0 };
+    this.commit(submitRace(r, result));
+  }
+
+  // ---- hooks for tests (and curious grown-ups): reached through window.__app ----
+
+  /** Ends the race in progress at once with a made-up result (the real race is far too slow to wait for in a software-GL test). */
+  fakeFinish(partial: Partial<RallyResult> = {}): void {
+    if (this.mode !== 'run' || !this.runState || (this.state !== 'playing' && this.state !== 'paused' && this.state !== 'loading')) return;
+    const n = this.opts?.rules.ai ? this.opts.rules.ai + 1 : 4;
+    this.raceDone({ place: 1, n, finished: true, time: 95000, laps: 2, kronor: 120, coins: 10, medal: 'silver', damage: 0, ...partial });
+  }
+
+  /** The run now, and a way to change it (kronor, hearts…) before the next screen. */
+  debugRun(fn?: (r: RunState) => void): RunState | null {
+    if (this.runState && fn) {
+      const c = structuredClone(this.runState);
+      fn(c);
+      this.commit(c);
+    }
+    return this.runState;
+  }
+
+  /** Puts the run at a node of this type (anywhere on this act's map) and enters it. */
+  debugEnter(type: NodeType): boolean {
+    if (!this.runState) return false;
+    const r = structuredClone(this.runState);
+    const nodes = allNodes(mapOf(r));
+    const node = nodes.find((n) => n.type === type);
+    if (!node) return false;
+    r.screen = null;
+    r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
+    this.commit(enterNode(r, node.id));
+    return true;
+  }
+
+  debugMeta(fn?: (m: Meta) => void): Meta {
+    if (fn) {
+      fn(this.meta);
+      saveMeta(this.meta);
+    }
+    return this.meta;
   }
 
   // ---- keys and focus ----
@@ -353,7 +624,10 @@ export class App {
       e.preventDefault();
       return;
     }
-    if (this.state !== 'playing') return;
+    if (this.state !== 'playing') {
+      if (e.type === 'keydown' && (this.state === 'menu' || this.state === 'paused' || this.state === 'result') && arrowNav(this.card, e)) e.preventDefault();
+      return;
+    }
     if (this.input.keyEvent(e)) e.preventDefault();
   };
 

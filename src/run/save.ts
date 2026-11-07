@@ -121,6 +121,7 @@ export function parseRun(raw: unknown): RunState | null {
     pool: num(raw.pool, 0, 9999, 0),
     act,
     at,
+    path: Array.isArray(raw.path) ? raw.path.filter((x): x is string => typeof x === 'string' && !!findNode(m, x)).slice(0, 12) : [],
     hearts,
     maxHearts,
     kronor: num(raw.kronor, 0, 9_999_999, 0),

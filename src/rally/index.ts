@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { NITRO_SECONDS, RACE_DNF_PRIZE, cleanRules, newCar, raceMedal, racePrize, type GarageCar } from '../shared/rally.ts';
 import { Loop } from '../arcade/kit.ts';
+import { RIVAL_NAMES } from '../shared/names.ts';
 import type { GameContext, GameInstance } from '../arcade/types.ts';
 import { Driver, steerTo } from './ai.ts';
 import { RallyAudio } from './audio.ts';
@@ -80,11 +81,11 @@ interface Runner {
 }
 
 const ROSTER: { name: string; face: Face; skill: number; power: number; bias: number; wobble: number }[] = [
-  { name: 'Kossan Mu', face: 'cow', skill: 0.93, power: 1.0, bias: 0.3, wobble: 0.4 },
-  { name: 'Hästen Blixt', face: 'horse', skill: 0.91, power: 0.98, bias: -0.6, wobble: 0.8 },
-  { name: 'Grisen Kurre', face: 'pig', skill: 0.88, power: 0.96, bias: 0.9, wobble: 1.0 },
-  { name: 'Tuppen Kuckeli', face: 'rooster', skill: 0.86, power: 0.94, bias: -1.0, wobble: 1.2 },
-  { name: 'Fåret Ull', face: 'sheep', skill: 0.83, power: 0.91, bias: 0.2, wobble: 0.9 },
+  { name: RIVAL_NAMES[0], face: 'cow', skill: 0.93, power: 1.0, bias: 0.3, wobble: 0.4 },
+  { name: RIVAL_NAMES[1], face: 'horse', skill: 0.91, power: 0.98, bias: -0.6, wobble: 0.8 },
+  { name: RIVAL_NAMES[2], face: 'pig', skill: 0.88, power: 0.96, bias: 0.9, wobble: 1.0 },
+  { name: RIVAL_NAMES[3], face: 'rooster', skill: 0.86, power: 0.94, bias: -1.0, wobble: 1.2 },
+  { name: RIVAL_NAMES[4], face: 'sheep', skill: 0.83, power: 0.91, bias: 0.2, wobble: 0.9 },
 ];
 const PALETTE = ['#2f6fe0', '#f4c20d', '#2fa84f', '#8a4fd8', '#ff8a1f', '#e8412c', '#18b7c9', '#f06ba8', '#f2f2f2'];
 /** Difficulty: the computer cars' courage and how hard the rubber band pulls. */

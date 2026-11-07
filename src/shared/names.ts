@@ -51,3 +51,6 @@ export const CAR_PART_TEXT: Record<CarPart, string> = {
   turbo: 'En nitro till i varje lopp',
   armour: 'Tål smällar',
 };
+
+/** The computer drivers in grid order (a boss takes the first one's place). */
+export const RIVAL_NAMES = ['Kossan Mu', 'Hästen Blixt', 'Grisen Kurre', 'Tuppen Kuckeli', 'Fåret Ull'] as const;

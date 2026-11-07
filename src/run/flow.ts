@@ -164,11 +164,15 @@ export function finishNode(run: RunState): RunState {
     healHeart(r, 1);
     r.act++;
     r.at = null;
+    r.path = [];
     if (r.act >= ACTS) {
       r.act = ACTS - 1;
       r.status = 'won';
     }
-  } else r.at = scr.nodeId;
+  } else {
+    r.at = scr.nodeId;
+    r.path.push(scr.nodeId);
+  }
   return r;
 }
 
