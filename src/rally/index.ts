@@ -707,21 +707,23 @@ const rally = (ctx: GameContext): GameInstance => {
       else skids.lift(id);
       if (!rear) continue;
       // dust on gravel, spray on snow and sand
-      if (dusty && sp > 4 && Math.random() < rate * (0.25 + sp / 40) * (surf === Ground_.Gravel ? 1 : 0.6)) {
+      if (dusty && sp > 4 && Math.random() < rate * (0.12 + sp / 90) * (surf === Ground_.Gravel ? 1 : 0.6) * (isPlayer ? 0.8 : 1)) {
+        // a light, short puff just behind the wheel; it spreads a little and is gone in about a second
+        const back = isPlayer ? 0.5 : 0;
         particles.emit({
-          x: x + (Math.random() - 0.5) * 0.6,
-          y: c.y + 0.3,
-          z: z + (Math.random() - 0.5) * 0.6,
-          vx: -sinH * sp * 0.15 + (Math.random() - 0.5) * 2,
-          vy: 0.8 + Math.random() * 1.2,
-          vz: -cosH * sp * 0.15 + (Math.random() - 0.5) * 2,
-          life: 1.6 + Math.random() * 1.4,
-          size0: 1.0,
-          size1: (surf === Ground_.Gravel ? 4.2 : 3.0) + sp * 0.06,
+          x: x - sinH * back + (Math.random() - 0.5) * 0.5,
+          y: c.y + 0.25,
+          z: z - cosH * back + (Math.random() - 0.5) * 0.5,
+          vx: -sinH * sp * 0.1 + (Math.random() - 0.5) * 1.6,
+          vy: 0.5 + Math.random() * 0.8,
+          vz: -cosH * sp * 0.1 + (Math.random() - 0.5) * 1.6,
+          life: 0.6 + Math.random() * 0.7,
+          size0: 0.5,
+          size1: (surf === Ground_.Gravel ? 2.0 : 1.5) + sp * 0.015,
           color: dustCol,
-          alpha: surf === Ground_.Gravel ? 0.4 : 0.26,
-          drag: 1.4,
-          gravity: -0.15,
+          alpha: surf === Ground_.Gravel ? 0.2 : 0.14,
+          drag: 1.8,
+          gravity: -0.1,
         });
       }
       // smoke when sliding on tarmac
@@ -1825,6 +1827,10 @@ const rally = (ctx: GameContext): GameInstance => {
     adapt();
     sky.update(timeU.value, camera, tmpV.set(player().car.x, player().car.y, player().car.z));
     particles.setScale(H * ctx.dpr, camera.fov);
+    {
+      const pc = player().car;
+      particles.setViewer(camMode === 1 || phase === 'intro' ? 0 : Math.hypot(camera.position.x - pc.x, camera.position.y - pc.y, camera.position.z - pc.z));
+    }
     weather?.update(timeU.value, camera.position);
     // the minimap and speedometer
     if (phase !== 'intro') {

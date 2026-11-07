@@ -6,6 +6,7 @@ const PART_VERT = /* glsl */ `
 attribute float size;
 attribute vec4 col;
 uniform float uScale;
+uniform float uNear;
 varying vec4 vCol;
 #include <fog_pars_vertex>
 void main() {
@@ -13,6 +14,8 @@ void main() {
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   // fade out what drifts right in front of the camera
   vCol.a *= smoothstep(1.5, 8.0, -mvPosition.z);
+  // and what drifts between the chase camera and the player's own car, so dust never hides it
+  vCol.a *= mix(1.0, smoothstep(uNear * 0.45, uNear * 1.6 + 1.0, -mvPosition.z), step(0.5, uNear));
   gl_PointSize = size * uScale / max(0.1, -mvPosition.z);
   gl_Position = projectionMatrix * mvPosition;
   #include <fog_vertex>
@@ -86,7 +89,7 @@ export class Particles {
     geo.setAttribute('size', this.aSize);
     geo.setDrawRange(0, 0);
     this.mat = new THREE.ShaderMaterial({
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uScale: { value: 400 } }]),
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uScale: { value: 400 }, uNear: { value: 0 } }]),
       vertexShader: PART_VERT,
       fragmentShader: PART_FRAG,
       transparent: true,
@@ -101,6 +104,11 @@ export class Particles {
   /** Pixels per metre at 1 m distance: viewport height / (2 tan(fov/2)). */
   setScale(heightPx: number, fovDeg: number): void {
     this.mat.uniforms.uScale!.value = heightPx / (2 * Math.tan(THREE.MathUtils.degToRad(fovDeg) / 2));
+  }
+
+  /** Distance from the camera to the player's car (0 = no chase camera): dust in front of the car fades out. */
+  setViewer(distToPlayer: number): void {
+    this.mat.uniforms.uNear!.value = distToPlayer;
   }
 
   emit(p: Puff): void {
