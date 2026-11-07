@@ -156,7 +156,8 @@ function lastActPlans(kind: RaceKind | null, count: number, calm = false) {
   return out.slice(0, count);
 }
 
-describe('balance (race times, not dice)', () => {
+// Whole-run simulations: several seconds each on a slow CI runner, so not the 5 s default.
+describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
   it('a normal run: a poor or average player loses it, a good one wins it about as often as not, a strong one usually', () => {
     const poor = winRate(profile('poor'), false);
     const average = winRate(profile('average'), false);
