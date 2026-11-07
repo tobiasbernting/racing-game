@@ -1,7 +1,6 @@
 // What the result screen shows, worked out from a finished run: the verdict, the fun stats and the headline,
 // the timeline, the build (with where every piece came from) and the unlock progress. Pure: the view only draws it.
-import { CAR_PARTS, type CarPart } from '../shared/rally.ts';
-import { CAR_BODY_NAMES, CAR_PART_EMOJI, CAR_PART_NAMES } from '../shared/names.ts';
+import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { KIND_EMOJI, KIND_NAMES, type RaceKind } from '../shared/kinds.ts';
 import { fmtTime, ordinal } from '../rally/util.ts';
 import { ACTS, NODE_EMOJI, NODE_NAMES } from './map.ts';
@@ -9,6 +8,7 @@ import { kitOf, LEAN_EMOJI, LEAN_NAMES } from '../shared/abilities.ts';
 import { challengeReport, type ChallengeLine } from './unlocks.ts';
 import type { NodeLog, RunState, RunStats } from './state.ts';
 import { TRINKETS, trinketById, type TrinketPath } from './trinkets.ts';
+import { TREES, TREE_INFO, activeCombos, itemInfo, nodePath, reqName, treeLines, upgradeById, type TreeId } from './upgrades.ts';
 
 export const ACT_NAMES = ['Bondlandet', 'Vildmarken', 'Galna stan'] as const;
 
@@ -62,14 +62,14 @@ interface Def {
 
 const topTrinket = (st: RunStats): { id: string; n: number } | null => {
   let best: { id: string; n: number } | null = null;
-  for (const [id, n] of Object.entries(st.triggers)) if (trinketById(id) && (!best || n > best.n)) best = { id, n };
+  for (const [id, n] of Object.entries(st.triggers)) if (itemInfo(id) && (!best || n > best.n)) best = { id, n };
   return best;
 };
 
 function defs(run: RunState): Def[] {
   const s = run.stats;
   const tt = topTrinket(s);
-  const tdef = tt ? trinketById(tt.id) : undefined;
+  const tdef = tt ? itemInfo(tt.id) ?? undefined : undefined;
   const list: Def[] = [
     { id: 'wins', icon: '🏁', label: 'Vunna lopp', n: s.wins, ref: 9, fmt: () => `${s.wins} av ${s.races}`, line: (n) => (n >= 8 ? 'Pokalhyllan har gett upp och ber om hjälp.' : 'Några pokaler blev det. Mormor är stolt.') },
     { id: 'podiums', icon: '🥉', label: 'Pallplatser', n: s.podiums, ref: 9, line: (n) => `${times(n)} på pallen. Champagnen var ljummen men glädjen äkta.` },
@@ -175,8 +175,11 @@ function resultOf(l: NodeLog): { text: string; tone: TimelineItem['tone'] } {
   return { text, tone: l.lost > 0 ? 'bad' : l.place === 1 ? 'good' : 'ok' };
 }
 
-const GOT_NAME = (what: 'trinket' | 'part', id: string): string => {
-  if (what === 'part') return `${CAR_PART_EMOJI[id as CarPart] ?? '🔧'} ${CAR_PART_NAMES[id as CarPart] ?? id} +1`;
+const GOT_NAME = (what: 'trinket' | 'part' | 'up', id: string): string => {
+  if (what === 'up') {
+    const u = upgradeById(id);
+    return `${u?.emoji ?? '🔧'} ${u?.name ?? id}`;
+  }
   const d = trinketById(id);
   return `${d?.emoji ?? '🎁'} ${d?.name ?? id}`;
 };
@@ -213,8 +216,6 @@ export function buildTimeline(run: RunState): TimelineAct[] {
 
 export const PATH_NAMES: Record<TrinketPath, string> = { ram: 'Ram', race: 'Race', fuffens: 'Fuffens', stunt: 'Stunt', girig: 'Girig', kaos: 'Kaos' };
 export const PATH_EMOJI: Record<TrinketPath, string> = { ram: '🛡️', race: '🏎️', fuffens: '🦨', stunt: '🤸', girig: '🤑', kaos: '🎲' };
-/** Which build a part upgrade counts for. */
-export const PART_PATH: Record<CarPart, TrinketPath> = { engine: 'race', tyres: 'race', brakes: 'race', turbo: 'race', suspension: 'stunt', armour: 'ram' };
 
 export interface MixPart {
   path: TrinketPath;
@@ -223,16 +224,16 @@ export interface MixPart {
   pct: number;
 }
 
-/** The build by path as whole percentages that add up to 100 (largest remainder), biggest first. Trinkets count by stack, parts by level. */
+/** The build by path as whole percentages that add up to 100 (largest remainder), biggest first. Trinkets count by stack, upgrade nodes one each. */
 export function buildMix(run: RunState): MixPart[] {
   const w = new Map<TrinketPath, number>();
   for (const o of run.trinkets) {
     const d = trinketById(o.id);
     if (d) w.set(d.path, (w.get(d.path) ?? 0) + o.n);
   }
-  for (const p of CAR_PARTS) {
-    const lv = run.car.parts[p] ?? 0;
-    if (lv > 0) w.set(PART_PATH[p], (w.get(PART_PATH[p]) ?? 0) + lv);
+  for (const id of run.up) {
+    const path = nodePath(id);
+    if (path) w.set(path, (w.get(path) ?? 0) + 1);
   }
   const total = [...w.values()].reduce((a, b) => a + b, 0);
   if (total <= 0) return [];
@@ -261,12 +262,32 @@ export interface BuildTrinket {
   from: string[];
 }
 
-export interface BuildPart {
-  part: CarPart;
+/** One node of the car's upgrade trees on the result screen. */
+export interface BuildNode {
+  id: string;
   emoji: string;
   name: string;
-  level: number;
+  tier: number;
+  cap: boolean;
   from: string[];
+}
+
+/** The nodes taken in one tree, and how many the tree has in all. */
+export interface BuildTree {
+  tree: TreeId | 'car';
+  name: string;
+  emoji: string;
+  nodes: BuildNode[];
+  total: number;
+}
+
+export interface BuildCombo {
+  id: string;
+  name: string;
+  emoji: string;
+  text: string;
+  /** Names of the two halves. */
+  needs: string[];
 }
 
 const sources = (list: { from: string }[]): string[] => {
@@ -285,10 +306,12 @@ export interface AbilityInfo {
   passive: { name: string; text: string };
   lean: string;
   vehicle: string;
+  /** The vehicle's own ability upgrades taken (0 to 2). */
+  ups: { name: string; text: string }[];
 }
 export function abilityOf(run: RunState): AbilityInfo {
   const k = kitOf(run.car.body);
-  return { emoji: k.active.emoji, name: k.active.name, text: k.active.text, uses: Math.round(run.stats.abilityUses), passive: { name: k.passive.name, text: k.passive.text }, lean: `${LEAN_EMOJI[k.lean]} ${LEAN_NAMES[k.lean]}`, vehicle: CAR_BODY_NAMES[run.car.body] };
+  return { emoji: k.active.emoji, name: k.active.name, text: k.active.text, uses: Math.round(run.stats.abilityUses), passive: { name: k.passive.name, text: k.passive.text }, lean: `${LEAN_EMOJI[k.lean]} ${LEAN_NAMES[k.lean]}`, vehicle: CAR_BODY_NAMES[run.car.body], ups: run.up.map((id) => upgradeById(id)).filter((u): u is NonNullable<typeof u> => !!u && u.tree === 'car').map((u) => ({ name: u.name, text: u.text })) };
 }
 
 /** The challenges this run moved or completed, for the result screen. */
@@ -298,9 +321,32 @@ export function challengesOf(run: RunState, progressNow: Record<string, number>)
 
 export interface BuildView {
   trinkets: BuildTrinket[];
-  parts: BuildPart[];
+  trees: BuildTree[];
+  combos: BuildCombo[];
   mix: MixPart[];
   ability: AbilityInfo;
+}
+
+/** The nodes taken so far, tree by tree (only trees with something in them), with where each came from. */
+export function buildTrees(run: RunState): BuildTree[] {
+  const out: BuildTree[] = [];
+  for (const tree of [...TREES, 'car' as const]) {
+    const nodes: BuildNode[] = [];
+    for (const id of run.up) {
+      const u = upgradeById(id);
+      if (!u || u.tree !== tree) continue;
+      const from = sources(run.got.filter((g) => g.what === 'up' && g.id === id));
+      nodes.push({ id, emoji: u.emoji, name: u.name, tier: u.tier, cap: u.cap, from: from.length ? from : ['Hittad på vägen'] });
+    }
+    if (!nodes.length) continue;
+    const info = tree === 'car' ? { name: 'Fordonet', emoji: kitOf(run.car.body).active.emoji } : TREE_INFO[tree];
+    out.push({ tree, name: info.name, emoji: info.emoji, nodes, total: treeLines(tree, run.car.body).reduce((a, l) => a + l.tiers.length, 0) });
+  }
+  return out;
+}
+
+export function buildCombos(run: RunState): BuildCombo[] {
+  return activeCombos({ owned: run.trinkets, ups: run.up }).map((c) => ({ id: c.id, name: c.name, emoji: c.emoji, text: c.text, needs: [reqName(c.a), reqName(c.b)] }));
 }
 
 export function buildView(run: RunState): BuildView {
@@ -312,11 +358,7 @@ export function buildView(run: RunState): BuildView {
     trinkets.push({ id: o.id, emoji: d.emoji, name: d.name, n: o.n, path: d.path, from: from.length ? from : ['Hittad på vägen'] });
   }
   trinkets.sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'sv'));
-  const parts: BuildPart[] = CAR_PARTS.filter((p) => (run.car.parts[p] ?? 0) > 0).map((p) => {
-    const from = sources(run.got.filter((g) => g.what === 'part' && g.id === p));
-    return { part: p, emoji: CAR_PART_EMOJI[p], name: CAR_PART_NAMES[p], level: run.car.parts[p] ?? 0, from: from.length ? from : ['Hittad på vägen'] };
-  });
-  return { trinkets, parts, mix: buildMix(run), ability: abilityOf(run) };
+  return { trinkets, trees: buildTrees(run), combos: buildCombos(run), mix: buildMix(run), ability: abilityOf(run) };
 }
 
 // ---- trophies and unlocks ----

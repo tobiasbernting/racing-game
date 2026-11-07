@@ -54,6 +54,28 @@ export interface ModTune {
   tough: number;
   /** A sidecar on the motorbike: steadier, heavier, and the bike stops falling over. */
   sidecar: boolean;
+  /** Mass multiplier (heavier cars shove harder and are shoved less). */
+  mass: number;
+  /** Health multiplier in Blodbad. */
+  hp: number;
+  /** Damage dealt to other cars multiplier (spikes, hammers). */
+  spike: number;
+  /** Brake force multiplier. */
+  brakes: number;
+  /** Extra stability assist and softer landings (added). */
+  assist: number;
+  /** The vehicle's ability: cooldown multiplier, duration/strength multiplier, and the extras it gets. */
+  abilCd: number;
+  abilDur: number;
+  plus: string[];
+  /** Dirty tricks: the cooldown multiplier on the Fuffens tricks (below 1 = more often, longer). */
+  trickCd: number;
+  /** Stunt payouts (kronor and nitro from airtime, flips and near misses) multiplier. */
+  stunt: number;
+  /** The car does flips in the air (0 = no). */
+  flip: number;
+  /** The stunts fill the nitro (a slot of its own if the car has none). */
+  fill: boolean;
 }
 
 export const neutralTune = (): ModTune => ({
@@ -79,6 +101,18 @@ export const neutralTune = (): ModTune => ({
   top: 1,
   tough: 1,
   sidecar: false,
+  mass: 1,
+  hp: 1,
+  spike: 1,
+  brakes: 1,
+  assist: 0,
+  abilCd: 1,
+  abilDur: 1,
+  plus: [],
+  trickCd: 1,
+  stunt: 1,
+  flip: 0,
+  fill: false,
 });
 
 /** Things the funny stats at the end of a run count. */
@@ -127,6 +161,9 @@ export interface TickState {
   racing: boolean;
   /** Seconds since the lights went green. */
   time: number;
+  /** Braking hard at speed, and on one wheel line (a wheelie, or a long wide slide). */
+  braking: boolean;
+  wheelie: boolean;
 }
 
 export interface FinishInfo {
@@ -187,10 +224,27 @@ export interface RaceApi {
   /** Sparkles round the car. */
   sparkle(n: number): void;
   stat(k: keyof RaceStats, n?: number): void;
+  /** Dirty tricks (Fuffens): a slick of oil, a mine, a coin that pops, a blinding cloud (seconds) behind the car. */
+  oil(): void;
+  mine(): void;
+  fakeCoin(): void;
+  smoke(sec: number): void;
+  /** A shockwave: cars within `radius` m are thrown out (m/s) and, in Blodbad, lose `dmg` health. */
+  shock(radius: number, push: number, dmg: number): void;
+  /** The bumper hits harder for a while (multiplier on the ram power). */
+  ramUp(sec: number, k: number): void;
+  /** Fills the nitro (1 = one charge). */
+  nitro(frac: number): void;
+  /** A burst of fire out of the exhaust: cars close behind slow down and, in Blodbad, are singed. */
+  flame(): void;
+  /** Heals the plating (and, in Blodbad, the health) by this much of the whole (0..1). */
+  heal(frac: number): void;
 }
 
 export interface HookCtx {
   api: RaceApi;
+  /** The final (capped) numbers of the build, for hooks that scale with them. */
+  tune: ModTune;
   /** The vehicle the player started the race in. */
   body: CarBody;
   /** How many of this trinket the player has. */
@@ -209,6 +263,12 @@ export interface ModHooks {
   /** The horn (or the moped's bell) rang. `near` is how many cars are within 14 m. */
   honk?(c: HookCtx, near: number): void;
   finish?(c: HookCtx, r: FinishInfo): FinishAdjust | void;
+  /** A stunt: `air` (a landing after seconds in the air), `flip` (number of flips), `near` (a near miss, 0..1 how close), `lap` is the lap start. */
+  trick?(c: HookCtx, kind: 'air' | 'flip' | 'near', v: number): void;
+  /** The player wrecked a car (Blodbad), was wrecked, or passed a car (`leader`: it was in front of the field). */
+  takedown?(c: HookCtx): void;
+  wreck?(c: HookCtx): void;
+  overtake?(c: HookCtx, leader: boolean): void;
 }
 
 /** One kind of trinket the player carries. */
@@ -265,6 +325,18 @@ export class ModBus {
     for (const e of this.entries) e.hooks.honk?.(e.ctx, near);
   }
   /** Sums what the finish hooks add. */
+  trick(kind: 'air' | 'flip' | 'near', v: number): void {
+    for (const e of this.entries) e.hooks.trick?.(e.ctx, kind, v);
+  }
+  takedown(): void {
+    for (const e of this.entries) e.hooks.takedown?.(e.ctx);
+  }
+  wreck(): void {
+    for (const e of this.entries) e.hooks.wreck?.(e.ctx);
+  }
+  overtake(leader: boolean): void {
+    for (const e of this.entries) e.hooks.overtake?.(e.ctx, leader);
+  }
   finish(r: FinishInfo): Required<FinishAdjust> {
     const out = { kronor: 0, time: 0 };
     for (const e of this.entries) {
@@ -319,15 +391,16 @@ export function softCap(x: number, knee: number, max: number): number {
 
 /** Soft caps on what trinkets can add together (the player's parts come on top, and are capped by their levels). */
 export function capTune(t: ModTune): ModTune {
-  t.power = softCap(t.power, 1.25, 1.5);
-  t.grip = softCap(t.grip, 1.1, 1.22);
+  // the build's own power and grip (upgrades and trinkets together); the body's total goes through capPower and capGrip after
+  t.power = softCap(t.power, 1.55, 1.9);
+  t.grip = softCap(t.grip, 1.22, 1.4);
   t.offroad = softCap(t.offroad, 1.3, 1.6);
   t.size = softCap(t.size, 1.3, 1.7);
   t.wheels = softCap(t.wheels, 1.8, 2.4);
   t.gravity = Math.max(0.4, t.gravity);
   t.nitroSeconds = softCap(t.nitroSeconds, 1.6, 2.4);
   t.nitroPower = softCap(t.nitroPower, 1.3, 1.6);
-  t.charges = Math.round(softCap(t.charges, 2, 3) * 100) / 100;
+  t.charges = Math.round(softCap(t.charges, 3.5, 5) * 100) / 100;
   t.driftRate = softCap(t.driftRate, 3, 5);
   t.magnet = Math.min(30, t.magnet);
   t.coinValue = softCap(t.coinValue, 2, 3);
@@ -336,6 +409,16 @@ export function capTune(t: ModTune): ModTune {
   t.shove = softCap(t.shove, 1.5, 3);
   t.top = Math.min(1.5, t.top);
   t.tough = Math.max(0.45, t.tough);
+  t.mass = softCap(t.mass, 1.6, 2.4);
+  t.hp = softCap(t.hp, 1.45, 1.9);
+  t.spike = softCap(t.spike, 1.6, 2.2);
+  t.brakes = Math.min(1.5, t.brakes);
+  t.assist = Math.min(0.45, t.assist);
+  t.abilCd = Math.max(0.5, t.abilCd);
+  t.abilDur = Math.min(2.2, t.abilDur);
+  t.trickCd = Math.max(0.4, t.trickCd);
+  t.stunt = Math.min(2.2, t.stunt);
+  t.flip = Math.min(2, t.flip);
   return t;
 }
 

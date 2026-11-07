@@ -1,10 +1,9 @@
 // The ❓ events: a silly situation and two choices. Each choice has one or more outcomes (picked by weight from
 // the run seed), each a short Swedish line plus effects on the run. A choice can need some kronor to be allowed.
-import { CAR_PARTS, type CarPart } from '../shared/rally.ts';
-import { CAR_PART_NAMES } from '../shared/names.ts';
 import { Rng } from './rng.ts';
-import { drawTrinkets, canUpgrade } from './economy.ts';
-import { addKronor, addTrinket, healHeart, loseHeart, noteGot, type RunState } from './state.ts';
+import { drawTrinkets, drawUpgrades } from './economy.ts';
+import { addKronor, addTrinket, addUp, healHeart, loseHeart, type RunState } from './state.ts';
+import { upgradeById } from './upgrades.ts';
 import { trinketById, type Rarity } from './trinkets.ts';
 
 export type Fx =
@@ -335,12 +334,10 @@ export function resolveChoice(run: RunState, ev: EventDef, choiceIdx: number, no
         lines.push('Bilen blev skadad 🔧');
         break;
       case 'part': {
-        const open = CAR_PARTS.filter((p: CarPart) => canUpgrade(run, p));
-        const part = open.length ? rg.pick(open) : null;
-        if (part) {
-          run.car.parts[part] = (run.car.parts[part] ?? 0) + 1;
-          noteGot(run, 'part', part, `Händelse: ${ev.title}`, nodeId);
-          lines.push(`${CAR_PART_NAMES[part]} +1 ⬆️`);
+        const pick = drawUpgrades(run, rg, 1, 'event')[0];
+        if (pick) {
+          addUp(run, pick, { from: `Händelse: ${ev.title}`, node: nodeId });
+          lines.push(`${upgradeById(pick)?.emoji ?? '🔧'} ${upgradeById(pick)?.name ?? pick} ⬆️`);
         } else {
           addKronor(run, 50);
           lines.push('+50 kr (bilen kan inte bli bättre)');

@@ -3,14 +3,14 @@
 // save after every step and tests can walk a whole run.
 import type { RallyResult } from '../rally/options.ts';
 import { ACTS, NODE_NAMES, type MapNode } from './map.ts';
-import { canUpgrade, drawTrinkets, makeStock, partOfChoice, rewardChoices } from './economy.ts';
+import { drawTrinkets, makeStock, rewardChoices, upgradeChoices } from './economy.ts';
 import { eventById, pickEventId, resolveChoice } from './events.ts';
 import { BOSS_DEFS, goalMet, planRace, type RacePlan } from './plan.ts';
 import { addRaceStats } from './stats.ts';
 import { RALLY_COURSE_NAMES } from '../shared/names.ts';
 import { Rng } from './rng.ts';
-import { actScale, addKronor, addTrinket, copyRun, heartsLost, healHeart, loseHeart, nodeOf, noteGot, reachable, type NodeLog, type RaceSummary, type RunState } from './state.ts';
-import { perksOf } from './trinkets.ts';
+import { actScale, addKronor, addTrinket, addUp, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, type NodeLog, type RaceSummary, type RunState } from './state.ts';
+import { interestOn, isUpgrade, runPerks } from './upgrades.ts';
 
 /** Trophies and the end screen come from here when status is not 'running'. */
 export const isOver = (r: RunState): boolean => r.status !== 'running';
@@ -58,7 +58,7 @@ export function backToMap(run: RunState): RunState {
 
 /** The kronor a race pays: prize, coins and trinket bonus, scaled for the act, the node, the mode and trinkets. */
 export function scaleKronor(run: RunState, raw: number, nodeMul: number): number {
-  return Math.round(raw * actScale(run.act) * nodeMul * (run.calm ? 1.25 : 1) * (1 + perksOf(run.trinkets).kronor));
+  return Math.round(raw * actScale(run.act) * nodeMul * (run.calm ? 1.25 : 1) * (1 + runPerks(run.trinkets, run.up).kronor));
 }
 
 /** Applies a finished race to the run: hearts, kronor, stats, damage; sets the card that tells how it went. */
@@ -159,26 +159,22 @@ export function continueAfterRace(run: RunState): RunState {
   const node = nodeOf(r, nodeId)!;
   const source = summary.rewardKind === 'second' ? 'consolation' : node.type === 'boss' ? 'boss' : node.type === 'elite' ? 'elite' : 'race';
   const choices = rewardChoices(r, nodeId, source, node.kind);
-  // nothing left to offer (every trinket maxed): a little kronor instead
-  if (!choices.length) { addKronor(r, 40); return finishNode(r); }
-  r.screen = { kind: 'reward', nodeId, choices, source };
+  const ups = upgradeChoices(r, nodeId, source, node.kind);
+  // nothing left to offer (every trinket maxed and the trees full): a little kronor instead
+  if (!choices.length && !ups.length) { addKronor(r, 40); return finishNode(r); }
+  r.screen = { kind: 'reward', nodeId, choices, ups, source };
   return r;
 }
 
-/** Takes one of the offered trinkets (an index), or none (-1: a few kronor instead). */
+/** Takes one of the offered cards: an index into the trinkets and then the upgrades, or none (-1: a few kronor instead). */
 export function pickReward(run: RunState, index: number): RunState {
   if (run.screen?.kind !== 'reward') return run;
   const r = copyRun(run);
   const scr = run.screen;
-  const id = scr.choices[index];
-  const part = id ? partOfChoice(id) : null;
+  const id = [...scr.choices, ...(scr.ups ?? [])][index];
   const from = rewardFrom(r, scr.nodeId, scr.source);
-  if (part) {
-    if (canUpgrade(r, part)) {
-      r.car.parts[part] = (r.car.parts[part] ?? 0) + 1;
-      noteGot(r, 'part', part, from, scr.nodeId);
-    } else addKronor(r, 40);
-  } else if (id) addTrinket(r, id, { from, node: scr.nodeId });
+  if (id && isUpgrade(id)) addUp(r, id, { from, node: scr.nodeId });
+  else if (id) addTrinket(r, id, { from, node: scr.nodeId });
   else addKronor(r, 30);
   return finishNode(r);
 }
@@ -204,6 +200,10 @@ export function finishNode(run: RunState): RunState {
   const node = nodeOf(r, scr.nodeId);
   r.screen = null;
   r.nodesDone++;
+  // Girig: the kronor in the purse earn interest after every node
+  const rate = runPerks(r.trinkets, r.up).interest;
+  r.interest = interestOn(r.kronor, rate);
+  if (r.interest > 0) addKronor(r, r.interest);
   if (node && !r.log.some((l) => l.nodeId === node.id)) r.log.push(visitLog(r, node, scr));
   if (node?.type === 'boss') {
     r.stats.bossesBeaten++;

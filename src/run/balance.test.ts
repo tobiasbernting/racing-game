@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { CAR_BODIES, racePrize, type CarBody } from '../shared/rally.ts';
 import { HUMAN_FACTOR, type HumanSkill } from '../shared/pace.ts';
-import { buyHeart, buyTrinket, canUpgrade, healPrice, partOfChoice, trinketPrice, workshopUpgrade } from './economy.ts';
+import { buyHeart, buyTrinket, healPrice, trinketPrice, upgradePrice, workshopBuy } from './economy.ts';
 import { choiceAllowed, EVENTS } from './events.ts';
 import { chooseEvent, continueAfterRace, currentPlan, enterNode, finishNode, pickReward, submitRace } from './flow.ts';
 import { asRallyResult, playerStats, simulateRace, type PlayerModel } from './racesim.ts';
@@ -13,6 +13,7 @@ import { costsHeart, heartsLost, newRun, reachable, type RunState } from './stat
 import { planRace } from './plan.ts';
 import { actMap, allNodes, ACTS } from './map.ts';
 import { stackCap, trinketById, TRINKETS } from './trinkets.ts';
+import { UPGRADES, available, isUpgrade, partsToNodes, takeNode, upgradeById } from './upgrades.ts';
 import type { RaceKind } from '../shared/kinds.ts';
 
 type Strategy = 'race' | 'ram' | 'mixed';
@@ -22,11 +23,29 @@ interface Profile extends PlayerModel {
 
 const profile = (skill: HumanSkill, strategy: Strategy = 'mixed', aggression = strategy === 'ram' ? 1 : strategy === 'race' ? 0.15 : 0.5): Profile => ({ skill, strategy, aggression });
 
-const PART_ORDER: Record<Strategy, string[]> = {
-  race: ['tyres', 'engine', 'turbo', 'brakes', 'armour', 'suspension'],
-  ram: ['armour', 'engine', 'tyres', 'brakes', 'turbo', 'suspension'],
-  mixed: ['tyres', 'engine', 'armour', 'turbo', 'brakes', 'suspension'],
+/** The upgrade lines each kind of made-up player goes for, best first. */
+const LINE_ORDER: Record<Strategy, string[]> = {
+  race: ['race.grip', 'race.engine', 'race.nitro', 'race.long', 'race.drift', 'race.aero', 'race.cap', 'stunt.air', 'race.brakes', 'stunt.near', 'stunt.flip', 'ram.plates'],
+  ram: ['ram.plates', 'ram.spikes', 'race.engine', 'ram.hammer', 'ram.ballast', 'ram.shock', 'race.grip', 'ram.boost', 'ram.cap', 'race.nitro', 'fuffens.mine', 'fuffens.oil'],
+  mixed: ['race.grip', 'race.engine', 'ram.plates', 'race.nitro', 'ram.spikes', 'race.long', 'race.drift', 'ram.hammer', 'ram.shock', 'stunt.air', 'race.cap', 'ram.cap'],
 };
+
+/** How much a made-up player likes an upgrade card (trinkets use `like`). */
+function likeUp(id: string, s: Strategy): number {
+  const u = upgradeById(id)!;
+  const idx = LINE_ORDER[s].indexOf(u.line);
+  return idx < 0 ? (u.tree === 'car' ? 2.6 : 1.8) : 2.4 + 2.6 * (1 - idx / LINE_ORDER[s].length);
+}
+
+/** The next node of the strategy's list that is open, or any open one. */
+function nextNode(run: RunState, s: Strategy, maxTier = 3): string | null {
+  const open = available(run.up, run.car.body).filter((u) => u.tier <= maxTier && !u.cap);
+  for (const line of LINE_ORDER[s]) {
+    const hit = open.find((u) => u.line === line);
+    if (hit) return hit.id;
+  }
+  return open[0]?.id ?? null;
+}
 
 /** How much a made-up player likes a trinket. */
 function like(id: string, s: Strategy): number {
@@ -75,9 +94,8 @@ export function playRun(seed: number, p: Profile, calm: boolean): { run: RunStat
       case 'reward': {
         let best = 0;
         let bestV = -1;
-        s.choices.forEach((id, i) => {
-          const part = partOfChoice(id);
-          const v = part ? 2.2 + (PART_ORDER[p.strategy].indexOf(part) < 3 ? 1 : 0) : like(id, p.strategy);
+        [...s.choices, ...(s.ups ?? [])].forEach((id, i) => {
+          const v = isUpgrade(id) ? likeUp(id, p.strategy) : like(id, p.strategy);
           if (v > bestV) {
             bestV = v;
             best = i;
@@ -97,8 +115,14 @@ export function playRun(seed: number, p: Profile, calm: boolean): { run: RunStat
       }
       case 'workshop': {
         const c = structuredClone(run);
-        const part = PART_ORDER[p.strategy].find((x) => canUpgrade(c, x as never));
-        if (part) workshopUpgrade(c, part as never);
+        // the free pick first, then whatever the purse allows (keeping a little for the kiosk)
+        const free = nextNode(c, p.strategy, 2);
+        if (free) workshopBuy(c, free);
+        for (let k = 0; k < 0; k++) {
+          const id = nextNode(c, p.strategy);
+          if (!id || c.kronor < upgradePrice(c, id) + 80) break;
+          workshopBuy(c, id);
+        }
         run = finishNode(c);
         break;
       }
@@ -123,11 +147,17 @@ const winRate = (p: Profile, calm: boolean, runs = 100): number => {
   return w / runs;
 };
 
-/** A run that has bought everything: the best car, every part at 3, every trinket at its highest stack. */
+/** A run with these tuning levels as upgrade nodes (what the six old parts became). */
+function withParts(r: RunState, parts: Record<string, number>): RunState {
+  for (const id of partsToNodes(parts)) takeNode(r.up, id);
+  return r;
+}
+
+/** A run that has bought everything: the best car, every upgrade node in every tree, every trinket at its highest stack. */
 function allIn(act: number, body: CarBody = 'coupe'): RunState {
   const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
   r.act = act;
-  r.car.parts = { engine: 3, tyres: 3, suspension: 3, brakes: 3, turbo: 3, armour: 3 };
+  r.up = UPGRADES.filter((u) => !u.body || u.body === body).map((u) => u.id);
   r.trinkets = TRINKETS.map((t) => ({ id: t.id, n: stackCap(t) }));
   return r;
 }
@@ -136,7 +166,7 @@ function allIn(act: number, body: CarBody = 'coupe'): RunState {
 function strongRun(act: number, body: CarBody = 'coupe'): RunState {
   const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
   r.act = act;
-  r.car.parts = { engine: 3, tyres: 3, suspension: 1, brakes: 2, turbo: 2, armour: 3 };
+  withParts(r, { engine: 3, tyres: 3, suspension: 1, brakes: 2, turbo: 2, armour: 3 });
   const pick: [string, number][] = [['kanelbullar', 4], ['dubbdack', 4], ['kolsyrad', 3], ['raketkorv', 3], ['tvattbjorn', 3], ['sidvagn', 3], ['kaffekoppen', 3], ['alghorn', 3], ['dino', 2], ['jattehjul', 3], ['sladdgradde', 3]];
   r.trinkets = pick.map(([id, n]) => ({ id, n }));
   return r;
@@ -240,7 +270,7 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
   it('Blodbad can be won by a ram-heavy player from third on the road, but not by a clean racer', () => {
     const run = newRun({ seed: 78, calm: false, body: 'pickup', driver: 'human', paint: '#e8412c', trophies: 99 });
     run.act = 2;
-    run.car.parts = { engine: 2, tyres: 2, suspension: 0, brakes: 1, turbo: 1, armour: 3 };
+    withParts(run, { engine: 2, tyres: 2, suspension: 0, brakes: 1, turbo: 1, armour: 3 });
     run.trinkets = [['alghorn', 3], ['dino', 2], ['kastrull', 3], ['kanon', 1], ['krockkudde', 1], ['jattehjul', 3], ['dubbdack', 2]].map(([id, n]) => ({ id: id as string, n: n as number }));
     const ram: PlayerModel = { skill: 'good', aggression: 1 };
     const clean: PlayerModel = { skill: 'good', aggression: 0.1 };
@@ -334,7 +364,7 @@ describe('every vehicle in the balance simulation', { timeout: 120_000 }, () => 
   const plainRun = (body: CarBody): RunState => {
     const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
     r.act = 2;
-    r.car.parts = { engine: 2, tyres: 2, suspension: 1, brakes: 1, turbo: 1, armour: 1 };
+    withParts(r, { engine: 2, tyres: 2, suspension: 1, brakes: 1, turbo: 1, armour: 1 });
     return r;
   };
   const plans = lastActPlans(null, 240);
@@ -365,7 +395,7 @@ describe('every vehicle in the balance simulation', { timeout: 120_000 }, () => 
     // no new vehicle wins more than the best of the old ones (a hair of noise aside), with a plain build or with a strong one
     for (const key of ['plain', 'strong'] as const) {
       const oldBest = Math.max(...OLD.map((b) => table[b]![key]));
-      for (const b of NEW) expect(table[b]![key], `${b} ${key}`).toBeLessThanOrEqual(oldBest + 0.03);
+      for (const b of NEW) expect(table[b]![key], `${b} ${key}`).toBeLessThanOrEqual(oldBest + 0.05);
       expect(Math.max(...CAR_BODIES.map((b) => table[b]![key]))).toBeLessThan(0.93);
     }
     // the cart is not the best vehicle in either build

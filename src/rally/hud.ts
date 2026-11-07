@@ -125,6 +125,7 @@ const CSS = `
 .rl-tr { position: relative; font-size: calc(21px * var(--s)); line-height: 1; padding: calc(3px * var(--s)) calc(5px * var(--s)); border-radius: calc(10px * var(--s));
   background: rgba(16, 20, 34, 0.5); }
 .rl-tr b { position: absolute; right: -2px; bottom: -3px; font-size: calc(11px * var(--s)); background: #ffd23f; color: #2a1b00; border-radius: 999px; padding: 0 calc(4px * var(--s)); }
+.rl-tr.combo { box-shadow: 0 0 0 2px #ffd23f inset, 0 0 calc(10px * var(--s)) rgba(255, 210, 63, 0.55); }
 .rl-tr.pulse { animation: rl-tr 0.8s ease-out; }
 @keyframes rl-tr { 0% { transform: scale(1); } 20% { transform: scale(1.4) rotate(-6deg); background: #ffd23f; box-shadow: 0 0 calc(14px * var(--s)) #ffd23f; } 100% { transform: scale(1); } }
 .rl-trl { position: absolute; left: 50%; top: calc(100% + 3px * var(--s)); transform: translateX(-50%); white-space: nowrap; font-size: calc(11px * var(--s)); font-weight: 800; padding: 0 calc(6px * var(--s)); border-radius: 999px; background: rgba(16, 20, 34, 0.45); opacity: 0; pointer-events: none; z-index: 2; }
@@ -436,13 +437,13 @@ export class Hud {
   setTrinkets(items: { id: string; emoji: string; name: string; n: number }[]): void {
     this.trinketRow.replaceChildren();
     this.trinketEls.clear();
-    const shown = items.length > 9 ? items.slice(0, 8) : items;
+    const shown = items.length > 10 ? items.slice(0, 9) : items;
     if (shown.length < items.length) {
       const more = el('div', 'rl-tr more', this.trinketRow);
       more.textContent = `+${items.length - shown.length}`;
     }
     for (const it of shown) {
-      const e = el('div', 'rl-tr', this.trinketRow);
+      const e = el('div', it.id.startsWith('combo.') ? 'rl-tr combo' : 'rl-tr', this.trinketRow);
       e.textContent = it.emoji;
       e.title = it.name;
       if (it.n > 1) el('b', '', e).textContent = `×${it.n}`;

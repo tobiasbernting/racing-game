@@ -1006,8 +1006,8 @@ export function perksOf(owned: readonly Owned[]): Required<Perk> {
   return out;
 }
 
-/** Turns what the player owns into what the race needs. Unknown ids are skipped. */
-export function buildMods(owned: readonly Owned[], body: CarBody = 'hatch'): RaceMods {
+/** The raw pieces of what the player owns: uncapped numbers, the HUD items and the hooks. The run builds on these (upgrades and combos add their own). */
+export function collectParts(owned: readonly Owned[], body: CarBody = 'hatch'): { tune: ModTune; items: ModItem[]; entries: ModEntry[] } {
   const tune = neutralTune();
   const items: ModItem[] = [];
   const entries: ModEntry[] = [];
@@ -1017,8 +1017,14 @@ export function buildMods(owned: readonly Owned[], body: CarBody = 'hatch'): Rac
     const n = Math.min(stackCap(def), Math.floor(o.n));
     def.tune?.(tune, n, body);
     items.push({ id: def.id, name: def.name, emoji: def.emoji, n });
-    if (def.hooks) entries.push({ id: def.id, hooks: def.hooks, ctx: { api: null as never, body, n, st: {} } });
+    if (def.hooks) entries.push({ id: def.id, hooks: def.hooks, ctx: { api: null as never, tune, body, n, st: {} } });
   }
+  return { tune, items, entries };
+}
+
+/** Turns what the player owns into what the race needs. Unknown ids are skipped. */
+export function buildMods(owned: readonly Owned[], body: CarBody = 'hatch'): RaceMods {
+  const { tune, items, entries } = collectParts(owned, body);
   return { items, tune: capTune(tune), bus: new ModBus(entries) };
 }
 

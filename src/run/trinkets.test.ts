@@ -105,6 +105,15 @@ function recorder(): { api: RaceApi; calls: string[] } {
     kronor: log('kronor'),
     sparkle: log('sparkle'),
     stat: log('stat'),
+    oil: log('oil'),
+    mine: log('mine'),
+    fakeCoin: log('fakeCoin'),
+    smoke: log('smoke'),
+    shock: log('shock'),
+    ramUp: log('ramUp'),
+    nitro: log('nitro'),
+    flame: log('flame'),
+    heal: log('heal'),
   };
   return { api, calls };
 }
@@ -139,7 +148,7 @@ describe('the effect bus', () => {
       const { api, calls } = recorder();
       const m = buildMods([{ id: 'bananskal', n }]);
       m.bus.bind(api);
-      const s = { speed: 30, steer: 0, handbrake: false, handbrakePressed: false, straight: true, air: false, drifting: false, boosting: false, lap: 1, place: 1, racing: true, time: 0 };
+      const s = { speed: 30, steer: 0, handbrake: false, handbrakePressed: false, straight: true, air: false, drifting: false, boosting: false, lap: 1, place: 1, racing: true, time: 0, braking: false, wheelie: false };
       for (let i = 0; i < 600; i++) m.bus.tick(0.1, s);
       return calls.filter((c) => c.startsWith('banana')).length;
     };
@@ -200,10 +209,11 @@ describe('caps on runaway stacks', () => {
   });
   it('a pile of the same trinket cannot break the game: power, grip, nitro, drift, shove and toughness all stop', () => {
     const all = buildMods(TRINKETS.map((t) => ({ id: t.id, n: 5 }))).tune;
-    expect(all.power).toBeLessThanOrEqual(1.5);
-    expect(all.grip).toBeLessThanOrEqual(1.22);
+    // the build's own numbers (upgrades and trinkets together) stop at the soft caps; the body's total is capped again by capPower and capGrip
+    expect(all.power).toBeLessThanOrEqual(1.9);
+    expect(all.grip).toBeLessThanOrEqual(1.4);
     expect(all.nitroSeconds).toBeLessThanOrEqual(2.4);
-    expect(all.charges).toBeLessThanOrEqual(3);
+    expect(all.charges).toBeLessThanOrEqual(5);
     expect(all.driftRate).toBeLessThanOrEqual(5);
     expect(all.shove).toBeLessThanOrEqual(3);
     expect(all.tough).toBeGreaterThanOrEqual(0.45);
@@ -237,7 +247,7 @@ describe('the humour is chaos, not toilets', () => {
       m.bus.boost('nitro');
       m.bus.lap(1);
       m.bus.drift(2, 2);
-      m.bus.tick(5, { speed: 30, steer: 0, handbrake: false, handbrakePressed: false, straight: true, air: false, drifting: true, boosting: false, lap: 1, place: 2, racing: true, time: 20 });
+      m.bus.tick(5, { speed: 30, steer: 0, handbrake: false, handbrakePressed: false, straight: true, air: false, drifting: true, boosting: false, lap: 1, place: 2, racing: true, time: 20, braking: false, wheelie: false });
       expect(calls.filter((c) => c.startsWith('fart') || c.startsWith('gas') || c.startsWith('burp')), t.id).toEqual([]);
     }
   });

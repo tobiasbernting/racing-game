@@ -14,7 +14,9 @@ import { fmtTime } from './rally/util.ts';
 import { buildMods } from './run/trinkets.ts';
 import type { RaceKind } from './shared/kinds.ts';
 import { chooseEvent, continueAfterRace, currentNode, currentPlan, enterNode, finishNode, pickReward, submitRace, backToMap } from './run/flow.ts';
-import { buyHeart, buyRepair, buyTrinket, reroll, workshopPaint, workshopRepair, workshopUpgrade } from './run/economy.ts';
+import { buyHeart, buyRepair, buyTrinket, reroll, workshopBuy, workshopPaint, workshopRepair } from './run/economy.ts';
+import { buildRunMods, lookOf } from './run/upgrades.ts';
+import { buildScreen } from './ui/upgrades.ts';
 import { trophiesFor, unlockedBodies, unlockedTrinkets, type Meta } from './run/meta.ts';
 import { checkChallenges } from './run/unlocks.ts';
 import { kitOf } from './shared/abilities.ts';
@@ -384,13 +386,13 @@ export class App {
     void this.mountPreview(previewBox, mkCar());
   }
 
-  private async mountPreview(box: HTMLElement, car: ReturnType<typeof newCar>): Promise<void> {
+  private async mountPreview(box: HTMLElement, car: ReturnType<typeof newCar>, look?: Record<string, number>): Promise<void> {
     this.disposePreview();
     if (getComputedStyle(box).display === 'none') return;
     try {
       const { mountCarPreview } = await import('./rally/preview.ts');
       if (this.state !== 'menu' || !box.isConnected) return;
-      this.preview = mountCarPreview(box, car, { spin: true, quality: this.quality, background: 'radial-gradient(ellipse at 50% 40%, #3a2b63 0%, #1a1233 70%)' });
+      this.preview = mountCarPreview(box, car, { spin: true, quality: this.quality, look, background: 'radial-gradient(ellipse at 50% 40%, #3a2b63 0%, #1a1233 70%)' });
     } catch (err) {
       console.warn('car preview unavailable', err);
       box.style.display = 'none';
@@ -689,6 +691,7 @@ export class App {
           run: r,
           onEnter: (id) => this.commit(enterNode(r, id)),
           onBag: () => this.showScreen(bagView(r, { onClose: () => this.showRun() })),
+          onBuild: () => this.showBuild(r),
           onMenu: () => this.mapMenu(r),
         }),
       );
@@ -723,7 +726,7 @@ export class App {
       case 'workshop':
         this.showScreen(
           workshopView(r, scr, {
-            onUpgrade: (p) => act((c) => workshopUpgrade(c, p))(),
+            onBuy: (id) => act((c) => workshopBuy(c, id))(),
             onRepair: act(workshopRepair),
             onPaint: (col) => act((c) => workshopPaint(c, col))(),
             onLeave: next(finishNode),
@@ -737,7 +740,15 @@ export class App {
   }
 
   private mapMenu(r: RunState): void {
-    this.showScreen(menuView(r, { onClose: () => this.showRun(), onTitle: () => this.title(), onSettings: () => this.openSettings(() => this.mapMenu(r)) }));
+    this.showScreen(menuView(r, { onClose: () => this.showRun(), onTitle: () => this.title(), onSettings: () => this.openSettings(() => this.mapMenu(r)), onBuild: () => this.showBuild(r) }));
+  }
+
+  /** Bygget: the trees with what is taken, the combos, and the car with its mods on a turntable. */
+  private showBuild(r: RunState): void {
+    this.disposePreview();
+    this.showScreen(buildScreen(r, { onClose: () => this.showRun() }));
+    const box = this.card.querySelector<HTMLElement>('.up-preview');
+    if (box) void this.mountPreview(box, r.car, lookOf(r.up));
   }
 
   /** The run is over (lost or won): the trophies go to the meta progress once (the run remembers it in `end`), and the run stays saved until its summary has been left, so a reload shows it again. */
@@ -785,7 +796,8 @@ export class App {
       rules: forced ? { ...plan.rules, course: forced } : plan.rules,
       car: run.car,
       seed: node.seed,
-      mods: buildMods(run.trinkets, run.car.body),
+      mods: buildRunMods(run.trinkets, run.up, run.car.body),
+      look: lookOf(run.up),
       twist: plan.twist,
       field: plan.field,
       coins: true,

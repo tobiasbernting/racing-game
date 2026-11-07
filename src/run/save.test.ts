@@ -32,7 +32,7 @@ const sample = (): RunState => {
   let run = newRun({ seed: 2024, calm: false, body: 'buggy', driver: 'pig', paint: '#2f6fe0', trophies: 5 });
   run.trinkets = [{ id: 'gummianka', n: 2 }, { id: 'jattehjul', n: 1 }];
   run.kronor = 123;
-  run.car.parts.engine = 2;
+  run.up = ['race.engine1', 'race.engine2'];
   run.car.damage = 30;
   run = enterNode(run, reachable(run)[0]!.id);
   run = submitRace(run, { place: 2, n: 4, finished: true, time: 91000, laps: 2, kronor: 100, coins: 10, medal: 'bronze', damage: 12, bonus: 5, stats: { ...emptyStats(), bounces: 4, driftSeconds: 3.5, bananas: 1, bananaHits: 1, boosts: 2, coins: 7, quacks: 4, topSpeed: 140, longestDrift: 2.5 }, bestLap: 30000, triggers: { gummianka: 5 } });
@@ -46,12 +46,12 @@ describe('saving a run', () => {
     const back = loadRun();
     expect(back).toEqual(run);
     expect(back?.car.style.driver).toBe('pig');
-    expect(back?.car.parts.engine).toBe(2);
+    expect(back?.up).toEqual(['race.engine1', 'race.engine2']);
   });
 
   it('keeps a shop or a reward in progress', () => {
     let run = newRun({ seed: 5, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 3 });
-    run.screen = { kind: 'reward', nodeId: 'a0r0c0', choices: ['gummianka', 'bananskal'], source: 'boss' };
+    run.screen = { kind: 'reward', nodeId: 'a0r0c0', choices: ['gummianka', 'bananskal'], ups: ['race.grip1', 'ram.spikes1'], source: 'boss' };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
     run = { ...run, screen: { kind: 'shop', nodeId: 'a0r0c0', stock: [{ id: 'gummianka', sold: true }, { id: 'jattehjul', sold: false }], rerolls: 2, healed: true, repaired: false } };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
@@ -88,8 +88,9 @@ describe('saving a run', () => {
     expect(run!.kronor).toBe(0);
     expect(run!.trinkets).toEqual([{ id: 'gummianka', n: 5 }]);
     expect(run!.car.body).toBe('hatch');
-    expect(run!.car.parts.engine).toBe(3);
-    expect(run!.car.parts.tyres).toBe(0);
+    // the old part levels live on as nodes (see the migration tests): engine 99 is clamped to level 3
+    expect(run!.car.parts.engine).toBe(0);
+    expect(run!.up).toEqual(['race.engine1', 'race.engine2', 'race.engine3']);
     expect(run!.car.damage).toBe(100);
     expect(run!.car.style.driver).toBe('human');
     expect(run!.screen).toBeNull();
@@ -207,11 +208,12 @@ describe('a save from before phase 6', () => {
     const id = reachable(run)[0]!.id;
     run.screen = { kind: 'postrace', nodeId: id, summary: { place: 1, n: 4, finished: true, time: 90000, heartLost: false, hearts: 0, prize: 100, coins: 5, bonus: 0, total: 110, medal: null, reward: true, rewardKind: 'win', kind: 'carnage', points: 14, takedowns: 3, wrecked: 1, roadPlace: 3 } };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
+    // an old part card becomes the next tier of the line the part turned into
     run.screen = { kind: 'reward', nodeId: id, choices: ['gummianka', 'part:armour', 'bananskal'], source: 'race' };
-    expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
-    run.screen = { kind: 'reward', nodeId: id, choices: ['gummianka', 'bananskal'], source: 'consolation' };
+    expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual({ kind: 'reward', nodeId: id, choices: ['gummianka', 'bananskal'], ups: ['ram.plates1'], source: 'race' });
+    run.screen = { kind: 'reward', nodeId: id, choices: ['gummianka', 'bananskal'], ups: [], source: 'consolation' };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
     run.screen = { kind: 'reward', nodeId: id, choices: ['part:finnsinte', 'bananskal'], source: 'race' };
-    expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual({ kind: 'reward', nodeId: id, choices: ['bananskal'], source: 'race' });
+    expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual({ kind: 'reward', nodeId: id, choices: ['bananskal'], ups: [], source: 'race' });
   });
 });

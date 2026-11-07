@@ -7,6 +7,7 @@ import { ACTS, actMap, findNode, type ActMap, type BossId, type MapNode, type No
 import { kitOf } from '../shared/abilities.ts';
 import { MAX_STACK, perksOf, stackCap, trinketById, type Owned } from './trinkets.ts';
 import type { RaceKind } from '../shared/kinds.ts';
+import { takeNode } from './upgrades.ts';
 
 export const START_HEARTS = 3;
 export const CALM_HEARTS = 5;
@@ -90,9 +91,9 @@ export interface NodeLog {
   boss?: BossId;
 }
 
-/** A trinket or a part upgrade that came into the build, and where from. */
+/** A trinket or an upgrade node that came into the build, and where from (`part` is only in older saves). */
 export interface Acquired {
-  what: 'trinket' | 'part';
+  what: 'trinket' | 'part' | 'up';
   id: string;
   from: string;
   node: string;
@@ -136,7 +137,7 @@ export interface ShopItem {
 export type Screen =
   | { kind: 'prerace'; nodeId: string }
   | { kind: 'postrace'; nodeId: string; summary: RaceSummary }
-  | { kind: 'reward'; nodeId: string; choices: string[]; source: 'race' | 'elite' | 'boss' | 'event' | 'consolation' }
+  | { kind: 'reward'; nodeId: string; choices: string[]; /** The upgrade cards offered next to the trinkets (node ids). */ ups?: string[]; source: 'race' | 'elite' | 'boss' | 'event' | 'consolation' }
   | { kind: 'shop'; nodeId: string; stock: ShopItem[]; rerolls: number; healed: boolean; repaired: boolean }
   | { kind: 'workshop'; nodeId: string; used: boolean; note: string }
   | { kind: 'event'; nodeId: string; eventId: string; outcome: { text: string; lines: string[] } | null };
@@ -169,6 +170,8 @@ export interface RunState {
   maxHearts: number;
   kronor: number;
   trinkets: Owned[];
+  /** The upgrade nodes taken, in order (run/upgrades.ts). The old part levels live on as nodes. */
+  up: string[];
   car: GarageCar;
   screen: Screen | null;
   stats: RunStats;
@@ -179,6 +182,8 @@ export interface RunState {
   got: Acquired[];
   /** Hearts lost in the node being played (for the log of shops and events). */
   nodeLost: number;
+  /** The kronor of interest the last node paid (Girig), shown on the map. */
+  interest?: number;
   /** Challenge progress when the run began, and the vehicles it opened on the way (run/unlocks.ts). */
   chal0: Record<string, number>;
   opened: CarBody[];
@@ -201,7 +206,7 @@ export function newRun(o: NewRunOpts): RunState {
   const car = newCar(1, o.body, CAR_BODY_NAMES[o.body], o.paint);
   car.style.driver = o.driver;
   const hearts = o.calm ? CALM_HEARTS : START_HEARTS;
-  const run: RunState = { v: 1, seed: o.seed, calm: o.calm, pool: o.trophies, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0, log: [], got: [], nodeLost: 0, chal0: { ...(o.progress ?? {}) }, opened: [] };
+  const run: RunState = { v: 1, seed: o.seed, calm: o.calm, pool: o.trophies, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], up: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0, log: [], got: [], nodeLost: 0, chal0: { ...(o.progress ?? {}) }, opened: [] };
   // every vehicle starts with a trinket that fits it
   addTrinket(run, kitOf(o.body).trinket, { from: `Startpryl: ${CAR_BODY_NAMES[o.body]}`, node: '' });
   return run;
@@ -235,7 +240,13 @@ export function addTrinket(r: RunState, id: string, src?: { from: string; node: 
   if (r.maxHearts > before) r.hearts += r.maxHearts - before;
 }
 
-/** Remembers where a trinket or part came from (the build section of the result screen). */
+/** Adds an upgrade node (and any earlier tier it needs). */
+export function addUp(r: RunState, id: string, src?: { from: string; node: string }): void {
+  if (src) noteGot(r, 'up', id, src.from, src.node);
+  takeNode(r.up, id);
+}
+
+/** Remembers where a trinket or upgrade came from (the build section of the result screen). */
 export function noteGot(r: RunState, what: Acquired['what'], id: string, from: string, node: string): void {
   if (r.got.length < 300) r.got.push({ what, id, from, node });
 }

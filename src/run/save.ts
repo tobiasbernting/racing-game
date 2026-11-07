@@ -1,7 +1,7 @@
 // Saving: the run in progress (after every node) and the meta progress, in localStorage. Versioned; every
 // access is wrapped because storage can be missing, full or blocked; anything unreadable becomes "no save"
 // (run) or fresh progress (meta) instead of an error.
-import { CAR_DRIVERS, CAR_PARTS, isCarPart, PART_MAX_LEVEL, defaultStyle, isCarBody, newCar, type CarDriver, type GarageCar } from '../shared/rally.ts';
+import { CAR_DRIVERS, CAR_PARTS, isCarPart, PART_MAX_LEVEL, defaultStyle, emptyParts, isCarBody, newCar, type CarBody, type CarDriver, type GarageCar } from '../shared/rally.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { ACTS, BOSSES, NODE_TYPES, findNode, actMap, type BossId, type NodeType } from './map.ts';
 import { cleanMeta, defaultMeta, type Meta } from './meta.ts';
@@ -10,6 +10,7 @@ import { emptyRunStats, validPaint, type Acquired, type NodeLog, type RunEnd, ty
 import { MAX_STACK, isTrinket, perksOf, type Owned } from './trinkets.ts';
 import { isRaceKind } from '../shared/kinds.ts';
 import { partOfChoice } from './economy.ts';
+import { PART_LINE, isItemId, isUpgrade, nodeId as upNodeId, partsToNodes, takeNode, tierOf, upgradeById } from './upgrades.ts';
 import { eventById } from './events.ts';
 
 export const RUN_KEY = 'galna-rallyt:run:v1';
@@ -39,12 +40,13 @@ function cleanCar(raw: unknown): GarageCar {
   return car;
 }
 
-function cleanScreen(raw: unknown, act: number, seed: number): Screen | null {
+function cleanScreen(raw: unknown, act: number, seed: number, ups: readonly string[] = [], body: CarBody = 'hatch'): Screen | null {
   if (!isObj(raw) || typeof raw.nodeId !== 'string') return null;
   const m = actMap(seed, act);
   if (!findNode(m, raw.nodeId)) return null;
   const nodeId = raw.nodeId;
-  const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => isTrinket(x) || (typeof x === 'string' && partOfChoice(x) !== null)) : []);
+  const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => isTrinket(x)) : []);
+  const upIds = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => isUpgrade(x) && (!upgradeById(x)?.body || upgradeById(x)?.body === body)) : []);
   switch (raw.kind) {
     case 'prerace':
       return { kind: 'prerace', nodeId };
@@ -79,9 +81,19 @@ function cleanScreen(raw: unknown, act: number, seed: number): Screen | null {
     }
     case 'reward': {
       const choices = ids(raw.choices);
-      if (!choices.length) return null;
+      const offered = upIds(raw.ups);
+      // an old part card (`part:engine`) becomes the next tier of the line that part turned into
+      if (Array.isArray(raw.choices)) {
+        for (const x of raw.choices) {
+          const part = typeof x === 'string' ? partOfChoice(x) : null;
+          const line = part ? PART_LINE[part] : undefined;
+          const next = line ? upNodeId(line, tierOf(ups, line) + 1) : '';
+          if (next && isUpgrade(next) && !offered.includes(next)) offered.push(next);
+        }
+      }
+      if (!choices.length && !offered.length) return null;
       const source = raw.source === 'race' || raw.source === 'elite' || raw.source === 'boss' || raw.source === 'event' || raw.source === 'consolation' ? raw.source : 'race';
-      return { kind: 'reward', nodeId, choices, source };
+      return { kind: 'reward', nodeId, choices, ups: offered, source };
     }
     case 'shop': {
       const stock = Array.isArray(raw.stock) ? raw.stock.filter((x): x is Record<string, unknown> => isObj(x) && isTrinket(x.id)).map((x) => ({ id: x.id as string, sold: x.sold === true })) : [];
@@ -164,11 +176,19 @@ function cleanLog(raw: unknown): NodeLog[] {
 function cleanGot(raw: unknown): Acquired[] {
   if (!Array.isArray(raw)) return [];
   const out: Acquired[] = [];
+  // an old part upgrade is told as the node it became: the second engine upgrade is "Trimmad motor"
+  const seen: Record<string, number> = {};
   for (const x of raw.slice(0, 300)) {
     if (!isObj(x) || typeof x.id !== 'string') continue;
-    const what = x.what === 'part' ? 'part' : 'trinket';
-    if (what === 'trinket' ? !isTrinket(x.id) : !isCarPart(x.id)) continue;
-    out.push({ what, id: x.id, from: str(x.from), node: str(x.node, 12) });
+    const from = str(x.from);
+    const node = str(x.node, 12);
+    if (x.what === 'part') {
+      const line = isCarPart(x.id) ? PART_LINE[x.id] : undefined;
+      const id = line ? upNodeId(line, (seen[x.id] = (seen[x.id] ?? 0) + 1)) : '';
+      if (id && isUpgrade(id)) out.push({ what: 'up', id, from, node });
+    } else if (x.what === 'up') {
+      if (isUpgrade(x.id)) out.push({ what: 'up', id: x.id, from, node });
+    } else if (isTrinket(x.id)) out.push({ what: 'trinket', id: x.id, from, node });
   }
   return out;
 }
@@ -191,6 +211,12 @@ export function parseRun(raw: unknown): RunState | null {
   const maxHearts = (calm ? 5 : 3) + perksOf(trinkets).maxHearts;
   const status = raw.status === 'won' || raw.status === 'dead' ? raw.status : 'running';
   const hearts = num(raw.hearts, status === 'dead' ? 0 : 1, maxHearts, maxHearts);
+  const car = cleanCar(raw.car);
+  // the upgrade nodes; a save from before the trees has none, and its part levels become the nodes they were
+  const up: string[] = [];
+  if (Array.isArray(raw.up)) for (const id of raw.up) if (isUpgrade(id) && (!upgradeById(id)?.body || upgradeById(id)?.body === car.body)) takeNode(up, id);
+  for (const id of partsToNodes(car.parts)) takeNode(up, id);
+  car.parts = emptyParts();
   const m = actMap(seed, act);
   const at = typeof raw.at === 'string' && findNode(m, raw.at) ? raw.at : null;
   const rs = isObj(raw.stats) ? raw.stats : {};
@@ -199,7 +225,7 @@ export function parseRun(raw: unknown): RunState | null {
     if (k === 'triggers') continue;
     (stats as unknown as Record<string, number>)[k] = typeof rs[k] === 'number' && Number.isFinite(rs[k]) ? Math.max(0, rs[k] as number) : 0;
   }
-  if (isObj(rs.triggers)) for (const [id, n] of Object.entries(rs.triggers)) if (isTrinket(id) && typeof n === 'number' && Number.isFinite(n) && n > 0) stats.triggers[id] = Math.floor(n);
+  if (isObj(rs.triggers)) for (const [id, n] of Object.entries(rs.triggers)) if (isItemId(id) && typeof n === 'number' && Number.isFinite(n) && n > 0) stats.triggers[id] = Math.floor(n);
   return {
     v: 1,
     seed,
@@ -212,15 +238,17 @@ export function parseRun(raw: unknown): RunState | null {
     maxHearts,
     kronor: num(raw.kronor, 0, 9_999_999, 0),
     trinkets,
-    car: cleanCar(raw.car),
+    up,
+    car,
     // a finished run keeps the card that told how the last race went, so a reload still shows it
-    screen: status === 'running' ? cleanScreen(raw.screen, act, seed) : cleanEndScreen(raw.screen, act, seed),
+    screen: status === 'running' ? cleanScreen(raw.screen, act, seed, up, car.body) : cleanEndScreen(raw.screen, act, seed),
     stats,
     status,
     nodesDone: num(raw.nodesDone, 0, 999, 0),
     log: cleanLog(raw.log),
     got: cleanGot(raw.got),
     nodeLost: num(raw.nodeLost, 0, 9, 0),
+    interest: optNum(raw.interest, 0, 9999),
     chal0: cleanProgress(raw.chal0),
     opened: Array.isArray(raw.opened) ? raw.opened.filter(isCarBody) : [],
     end: status === 'running' ? undefined : cleanEnd(raw.end),

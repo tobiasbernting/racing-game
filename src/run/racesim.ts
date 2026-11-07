@@ -8,13 +8,13 @@ import { ramPowerOf } from '../rally/combat.ts';
 import { LASTLAP_BOOST, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
 import { pointsTable } from '../shared/kinds.ts';
 import { BODY_LAP, HOOK_SAVE, HUMAN_FACTOR, NITRO_SAVE, baseLap, carGain, driftSaving, rivalLap, type HumanSkill } from '../shared/pace.ts';
-import { CAR_BODY_DEFS, NITRO_SECONDS, PART_EFFECTS } from '../shared/rally.ts';
-import { PASSIVE_LAP, PASSIVE_RAM, activeLapSave } from '../shared/abilities.ts';
+import { CAR_BODY_DEFS, NITRO_SECONDS } from '../shared/rally.ts';
+import { PASSIVE_LAP, PASSIVE_RAM, activeLapSave, kitOf, usesPerLap } from '../shared/abilities.ts';
 import type { RallyResult } from '../rally/options.ts';
 import type { RacePlan } from './plan.ts';
 import { Rng } from './rng.ts';
 import type { RunState } from './state.ts';
-import { buildMods } from './trinkets.ts';
+import { buildRunMods, tierOf } from './upgrades.ts';
 
 /** A lap is about this long (m): the speed is only there to turn lap times into gaps. */
 export const LAP_M = 2400;
@@ -32,6 +32,9 @@ export interface PlayerStats {
   nitroSaved: number;
   driftSaved: number;
   ram: number;
+  /** Damage dealt multiplier (spikes) and health multiplier (plates). */
+  dmg: number;
+  hp: number;
   mass: number;
   tough: number;
   grip: number;
@@ -41,12 +44,11 @@ export interface PlayerStats {
 /** What a run's car and trinkets come to, as numbers the race model reads (the game's own caps included). */
 export function playerStats(run: RunState, m: PlayerModel): PlayerStats {
   const body = CAR_BODY_DEFS[run.car.body];
-  const mods = buildMods(run.trinkets, run.car.body);
+  const mods = buildRunMods(run.trinkets, run.up, run.car.body);
   const t = mods.tune;
-  const p = run.car.parts;
-  const power = capPower(body.power * (1 + PART_EFFECTS.enginePower * (p.engine ?? 0)) * t.power);
-  const grip = capGrip(body.grip * (1 + PART_EFFECTS.tyresGrip * (p.tyres ?? 0)) * t.grip);
-  const charges = Math.min(MAX_CHARGES, Math.round((p.turbo ?? 0) * PART_EFFECTS.turboCharges + t.charges));
+  const power = capPower(body.power * t.power);
+  const grip = capGrip(body.grip * t.grip);
+  const charges = Math.min(MAX_CHARGES, Math.round(t.charges));
   const len = charges ? Math.min(NITRO_SECONDS * t.nitroSeconds, MAX_NITRO_SECONDS / charges) : 0;
   const human = HUMAN_FACTOR[m.skill];
   // a vehicle with a top speed (moped, tractor) loses on the straights
@@ -56,18 +58,35 @@ export function playerStats(run: RunState, m: PlayerModel): PlayerStats {
   // the vehicle's own kit: a passive that is a little faster, and an active used a few times a lap by a driver who knows it
   const skillK = 0.5 + 0.5 * Math.min(1, (1.08 - human) * 8);
   const passive = PASSIVE_LAP[run.car.body] ?? 1;
+  // the upgrades that make a lap faster for a driver who uses them: stunts that fill the nitro, a boost on every drift, the faster ability
+  const upSave = Object.entries(UP_SAVE).reduce((a, [line, per]) => a + per * tierOf(run.up, line), 0) * skillK;
+  const k = kitOf(run.car.body);
+  const abilityMore = k.active.save * skillK * (usesPerLap(50, k.active.cooldown * t.abilCd) - usesPerLap(50, k.active.cooldown)) * (0.5 + 0.5 * t.abilDur) + (t.abilDur - 1) * k.active.save * skillK * usesPerLap(50, k.active.cooldown);
   return {
     lap: (course) => baseLap(course) * (bodyLap === undefined ? carGain(grip, power) : bodyLap * carGain(grip / body.grip, power / body.power)) * human * top * passive,
     nitroSaved: charges * len * NITRO_SAVE * (0.6 + 0.4 * Math.min(1, (1.08 - human) * 8)),
     // mini-turbos and the speed hooks together never save more than 2.2 s a lap
-    driftSaved: Math.min(1.6, driftSaving(human, t.driftRate) + run.trinkets.reduce((a, o) => a + (HOOK_SAVE[o.id] ?? 0) * Math.min(o.n, 3), 0) * skillK) + activeLapSave(run.car.body, 50, skillK),
-    ram: Math.max(ramPowerOf(t.shove), PASSIVE_RAM[run.car.body] ?? 1),
-    mass: body.feel.mass,
-    tough: Math.max(0.2, (1 - PART_EFFECTS.armourShield * (p.armour ?? 0)) * t.tough) / body.tough,
+    driftSaved: Math.min(1.7, driftSaving(human, t.driftRate) + run.trinkets.reduce((a, o) => a + (HOOK_SAVE[o.id] ?? 0) * Math.min(o.n, 3), 0) * skillK + upSave) + activeLapSave(run.car.body, 50, skillK) + abilityMore,
+    ram: Math.max(ramPowerOf(t.shove), PASSIVE_RAM[run.car.body] ?? 1) * (1 + 0.04 * tierOf(run.up, 'ram.boost')),
+    dmg: t.spike,
+    hp: t.hp,
+    mass: body.feel.mass * Math.pow(t.mass, 0.7),
+    tough: Math.max(0.2, t.tough) / body.tough,
     grip,
     power,
   };
 }
+
+/** Seconds per lap, per tier, that an upgrade line saves a driver who uses it (the stunts that fill the nitro, a spark on every drift or boost). */
+export const UP_SAVE: Record<string, number> = {
+  'stunt.air': 0.06,
+  'stunt.flip': 0.05,
+  'stunt.wheel': 0.04,
+  'stunt.near': 0.04,
+  'stunt.cap': 0.1,
+  'race.drift': 0.04,
+  'race.cap': 0.12,
+};
 
 const INCIDENT = { poor: 0.35, average: 0.2, good: 0.12, expert: 0.07 } as const;
 const SIGMA = { poor: 0.065, average: 0.05, good: 0.04, expert: 0.03 } as const;
@@ -130,11 +149,11 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
   let myWrecks = 0;
   const take: Record<string, number> = {};
   if (carnage) {
-    const lam = 0.35 + m.aggression * (1.1 + 2.4 * (stats.ram - 1) + 0.5 * (stats.mass - 1) + 0.4 * (stats.mass > 2 ? 1 : 0));
+    const lam = 0.35 + m.aggression * (1.1 + 2.4 * (stats.ram - 1) + 0.5 * (stats.mass - 1) + 0.4 * (stats.mass > 2 ? 1 : 0)) * (0.88 + 0.12 * stats.dmg);
     myTake = poisson(rg, Math.min(6, lam));
     for (const sp of field.rivals) take[`ai${sp.slot}`] = poisson(rg, 0.15 + 0.5 * sp.aggro * sp.ram);
     const hunt = field.rivals.reduce((a, sp) => a + sp.aggro * sp.ram, 0);
-    myWrecks = poisson(rg, (0.25 + 0.3 * hunt * stats.tough) / (0.7 + 0.3 * stats.mass));
+    myWrecks = poisson(rg, (0.25 + 0.3 * hunt * (stats.tough / Math.sqrt(stats.hp))) / (0.7 + 0.3 * stats.mass));
     for (let k = 0; k < myWrecks && field.rivals.length; k++) {
       const sp = field.rivals[rg.int(0, field.rivals.length - 1)]!;
       take[`ai${sp.slot}`] = (take[`ai${sp.slot}`] ?? 0) + 1;

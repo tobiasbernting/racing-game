@@ -57,7 +57,7 @@ describe('the run log and where things came from', () => {
     expect(run.got).toHaveLength(1);
     expect(run.got[0]!.from).toMatch(/^Vann på /);
     const view = buildView(run);
-    expect(view.trinkets.length + view.parts.length).toBe(1);
+    expect(view.trinkets.length + view.trees.length).toBe(1);
     const tl = buildTimeline(run);
     expect(tl).toHaveLength(1);
     expect(tl[0]!.items[0]!.rewards).toHaveLength(1);
@@ -135,10 +135,10 @@ describe('the build mix', () => {
     expect(mix[0]!.pct).toBe(50);
   });
 
-  it('counts part levels by their tree and is empty with nothing', () => {
+  it('counts upgrade nodes by their tree and is empty with nothing', () => {
     const run = fresh();
     expect(buildMix(run)).toEqual([]);
-    run.car.parts.armour = 2;
+    run.up = ['ram.plates1', 'ram.plates2'];
     expect(buildMix(run)).toEqual([{ path: 'ram', name: 'Ram', emoji: '🛡️', pct: 100 }]);
     run.trinkets = [{ id: TRINKETS.find((t) => t.path === 'race')!.id, n: 1 }, { id: TRINKETS.find((t) => t.path === 'stunt')!.id, n: 1 }];
     const m = buildMix(run);

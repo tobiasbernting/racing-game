@@ -1,9 +1,11 @@
 // Spending and picking: the shop's stock and prices, repairs, the workshop, and the three trinkets offered
 // after an elite or a boss. Every random choice comes from the run seed and the node, never from the clock.
-import { CAR_PARTS, PART_MAX_LEVEL, type CarPart } from '../shared/rally.ts';
+import { CAR_PARTS, type CarPart } from '../shared/rally.ts';
+import { kitOf, type Lean } from '../shared/abilities.ts';
 import { Rng } from './rng.ts';
-import { addKronor, addTrinket, healHeart, noteGot, type RunState, type Screen, type ShopItem } from './state.ts';
-import { RARITIES, TRINKET_PRICE, perksOf, stackCap, trinketById, type Rarity } from './trinkets.ts';
+import { addKronor, addTrinket, addUp, healHeart, type RunState, type Screen, type ShopItem } from './state.ts';
+import { RARITIES, TRINKET_PRICE, stackCap, trinketById, type Rarity } from './trinkets.ts';
+import { available, basePrice, canTake, lineById, runPerks, treeCount, upgradeById, type TreeId, type UpgradeDef } from './upgrades.ts';
 import { KIND_PATH, type RaceKind } from '../shared/kinds.ts';
 import { unlockedTrinkets } from './meta.ts';
 
@@ -37,26 +39,73 @@ export function drawTrinkets(run: RunState, rg: Rng, n: number, source: keyof ty
   return out;
 }
 
-/** The reward for a race: three trinkets (a part upgrade may take one slot after a win), or two plain ones as a consolation. */
+/** The trinkets offered after a race: three (more with perks), or two plain ones as a consolation. The upgrade cards come with `upgradeChoices`. */
 export function rewardChoices(run: RunState, nodeId: string, source: 'race' | 'elite' | 'boss' | 'event' | 'consolation', kind?: RaceKind): string[] {
   const rg = Rng.for(run.seed, nodeId, 'reward', source);
   const lean = kind ? KIND_PATH[kind] : null;
   if (source === 'consolation') return drawTrinkets(run, rg, 2, 'consolation', lean);
-  const out = drawTrinkets(run, rg, 3 + perksOf(run.trinkets).choices, source, lean);
-  // one of the options can be a part upgrade (Rally leans on the speed parts, Blodbad on armour)
-  if (source !== 'event' && kind && out.length >= 3) {
-    const open = CAR_PARTS.filter((p) => canUpgrade(run, p));
-    if (open.length && rg.chance(0.55)) {
-      const want = kind === 'carnage' ? ['armour', 'engine'] : kind === 'rally' ? ['tyres', 'engine', 'turbo', 'brakes'] : ['engine', 'tyres', 'armour'];
-      const pref = open.filter((p) => want.includes(p));
-      out[out.length - 1] = `part:${rg.pick(pref.length ? pref : open)}`;
-    }
-  }
-  return out;
+  return drawTrinkets(run, rg, 3 + runPerks(run.trinkets, run.up).choices, source, lean);
 }
 
-/** An offered id that is a part upgrade, or null. */
+/** An offered id from the old part upgrades (only old saves have them). */
 export const partOfChoice = (id: string): CarPart | null => (id.startsWith('part:') && (CAR_PARTS as readonly string[]).includes(id.slice(5)) ? (id.slice(5) as CarPart) : null);
+
+// ---- the upgrade cards ----
+
+/** How much each tree is wanted after a kind of race: Blodbad leans on Ram and Fuffens, Rally on Race and Stunt, Blandat is open. */
+export const KIND_TREE_BIAS: Record<RaceKind, Record<TreeId, number>> = {
+  carnage: { ram: 2.6, fuffens: 1.9, girig: 1, stunt: 0.7, race: 0.65 },
+  rally: { race: 2.6, stunt: 1.9, girig: 1, ram: 0.65, fuffens: 0.7 },
+  mixed: { ram: 1, race: 1, fuffens: 1, stunt: 1, girig: 1 },
+};
+const LEAN_TREE_BIAS: Record<Lean, Partial<Record<TreeId, number>>> = {
+  ram: { ram: 1.3, fuffens: 1.1 },
+  race: { race: 1.3, stunt: 1.1 },
+  mixed: {},
+};
+
+/** The weight of an open node in an offer (exported for the tests). */
+export function nodeWeight(run: RunState, u: UpgradeDef, source: keyof typeof ODDS, kind?: RaceKind): number {
+  const line = lineById(u.line)!;
+  let tree = 1.4;
+  let deepen = 1;
+  if (u.tree !== 'car') {
+    tree = (kind ? KIND_TREE_BIAS[kind][u.tree] : 1) * (LEAN_TREE_BIAS[kitOf(run.car.body).lean][u.tree] ?? 1);
+    // a tree you already walk comes up more often, so a build grows a shape
+    deepen = 1 + 0.3 * Math.min(treeCount(run.up, u.tree), 5);
+  }
+  const tierK = source === 'boss' ? (u.cap ? 2.2 : 1 + 0.25 * (u.tier - 1)) : source === 'elite' ? 1 + 0.15 * (u.tier - 1) : 1;
+  return line.weight * tree * deepen * tierK;
+}
+
+/** Up to `n` different open upgrades, by weight, from at least two trees when there are any to choose from. */
+export function drawUpgrades(run: RunState, rg: Rng, n: number, source: keyof typeof ODDS, kind?: RaceKind): string[] {
+  const w = (u: UpgradeDef): number => nodeWeight(run, u, source, kind);
+  let pool = available(run.up, run.car.body);
+  const out: UpgradeDef[] = [];
+  while (out.length < n && pool.length) {
+    const pick = rg.weighted(pool, w);
+    out.push(pick);
+    pool = pool.filter((p) => p !== pick);
+  }
+  if (out.length >= 3 && out.every((o) => o.tree === out[0]!.tree)) {
+    const other = pool.filter((p) => p.tree !== out[0]!.tree);
+    if (other.length) out[out.length - 1] = rg.weighted(other, w);
+  }
+  return out.map((o) => o.id);
+}
+
+/** The upgrade cards after a win, an elite or a boss: three (more with perks), none for the consolation prize. */
+export function upgradeChoices(run: RunState, nodeId: string, source: 'race' | 'elite' | 'boss' | 'event' | 'consolation', kind?: RaceKind): string[] {
+  if (source === 'consolation') return [];
+  const rg = Rng.for(run.seed, nodeId, 'ups', source);
+  return drawUpgrades(run, rg, 3 + runPerks(run.trinkets, run.up).choices, source, kind);
+}
+
+/** What a node costs in the workshop now: the base price, the act's markup and the discounts. */
+export function upgradePrice(run: RunState, id: string): number {
+  return round5(basePrice(id) * (1 + run.act * 0.15) * (1 - runPerks(run.trinkets, run.up).shopDiscount));
+}
 
 // ---- the shop ----
 
@@ -66,12 +115,12 @@ const round5 = (n: number): number => Math.max(5, Math.round(n / 5) * 5);
 export function trinketPrice(run: RunState, id: string): number {
   const def = trinketById(id);
   if (!def) return 999;
-  return round5(TRINKET_PRICE[def.rarity] * (1 + run.act * 0.15) * (1 - perksOf(run.trinkets).shopDiscount));
+  return round5(TRINKET_PRICE[def.rarity] * (1 + run.act * 0.15) * (1 - runPerks(run.trinkets, run.up).shopDiscount));
 }
 
 /** A heart costs about one decent race's pay; on the very last heart the kiosk takes a quarter off. */
-export const healPrice = (run: RunState): number => round5(100 * (1 + run.act * 0.15) * (1 - perksOf(run.trinkets).shopDiscount) * (run.hearts <= 1 ? 0.75 : 1));
-export const repairPrice = (run: RunState): number => (run.car.damage <= 0 ? 0 : Math.max(5, round5(run.car.damage * 0.7 * (1 - perksOf(run.trinkets).shopDiscount))));
+export const healPrice = (run: RunState): number => round5(100 * (1 + run.act * 0.15) * (1 - runPerks(run.trinkets, run.up).shopDiscount) * (run.hearts <= 1 ? 0.75 : 1));
+export const repairPrice = (run: RunState): number => (run.car.damage <= 0 ? 0 : Math.max(5, round5(run.car.damage * 0.7 * (1 - runPerks(run.trinkets, run.up).shopDiscount))));
 export const rerollPrice = (screen: ShopScreen): number => 20 + 15 * screen.rerolls;
 
 export function makeStock(run: RunState, nodeId: string, reroll: number): ShopItem[] {
@@ -130,19 +179,28 @@ export function reroll(run: RunState): BuyResult {
   return 'ok';
 }
 
-// ---- the workshop: one free thing, and paint any time ----
+// ---- the workshop: one free thing, the rest for kronor, and paint any time ----
 
-export const canUpgrade = (run: RunState, part: CarPart): boolean => (run.car.parts[part] ?? 0) < PART_MAX_LEVEL;
-export const upgradeable = (run: RunState): CarPart[] => CAR_PARTS.filter((p) => canUpgrade(run, p));
+/** The free pick of a workshop visit is any node of tier 1 or 2 (not a capstone). */
+export function workshopFree(run: RunState, id: string): boolean {
+  const u = upgradeById(id);
+  return run.screen?.kind === 'workshop' && !run.screen.used && !!u && u.tier <= 2 && !u.cap;
+}
 
-export function workshopUpgrade(run: RunState, part: CarPart): boolean {
+/** Takes a node in the workshop: the free pick once per visit, otherwise for its price. */
+export function workshopBuy(run: RunState, id: string): BuyResult {
   const w = run.screen;
-  if (w?.kind !== 'workshop' || w.used || !canUpgrade(run, part)) return false;
-  run.car.parts[part] = (run.car.parts[part] ?? 0) + 1;
-  noteGot(run, 'part', part, 'Skruvhörnan', w.nodeId);
-  w.used = true;
-  w.note = `${part}`;
-  return true;
+  if (w?.kind !== 'workshop' || !canTake(run.up, id, run.car.body)) return 'nothing';
+  const free = workshopFree(run, id);
+  const price = free ? 0 : upgradePrice(run, id);
+  if (run.kronor < price) return 'poor';
+  if (price > 0) addKronor(run, -price);
+  addUp(run, id, { from: free ? 'Skruvhörnan (gratis)' : 'Köpt i Skruvhörnan', node: w.nodeId });
+  if (free) {
+    w.used = true;
+    w.note = id;
+  }
+  return 'ok';
 }
 
 export function workshopRepair(run: RunState): boolean {
