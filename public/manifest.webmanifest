@@ -1,14 +1,14 @@
 {
   "name": "Galna Rallyt",
   "short_name": "Galna Rallyt",
-  "description": "Ett galet rallyspel: kör, samla prylar och slå bossarna!",
+  "description": "Galna Rallyt: ett vansinnigt rallyspel. Kör, samla skräp, prutta bort rivalerna och kuka bossarna.",
   "lang": "sv",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],
-  "background_color": "#120d24",
-  "theme_color": "#120d24",
+  "background_color": "#0b0b14",
+  "theme_color": "#0b0b14",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

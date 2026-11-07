@@ -1037,3 +1037,122 @@ div.rg-tcard { cursor: default; }
   .rg-overbody { flex-direction: column; }
   .rg-overright { flex: 0 1 auto; }
 }
+
+/* ======================================================================================================
+   Phase 5 look: an arcade racer after dark. Asphalt black, neon pink / yellow / cyan, checkered flags,
+   a bold slanted display font (Google Fonts; falls back to Impact-ish system fonts when offline).
+   Only colours, type and decoration: sizes and layouts above stay as they were.
+   ====================================================================================================== */
+:root {
+  --display: 'Racing Sans One', Impact, 'Haettenschweiler', 'Arial Narrow Bold', 'Arial Black', system-ui, sans-serif;
+  --body: 'Chakra Petch', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  --neon-y: #ffe500;
+  --neon-p: #ff2e7e;
+  --neon-c: #19e3ff;
+  --asphalt: #0b0b14;
+  --checker: repeating-conic-gradient(#fff 0% 25%, #0b0b14 0% 50%) 0 0 / 14px 14px;
+}
+html,
+body { font-family: var(--body); background: var(--asphalt); }
+.arcade,
+.arc-card.menu {
+  background:
+    linear-gradient(115deg, transparent 0 62%, rgba(255, 46, 126, 0.16) 62% 63.2%, transparent 63.2% 66%, rgba(25, 227, 255, 0.12) 66% 66.8%, transparent 66.8%),
+    radial-gradient(ellipse at 50% 0%, #2a1038 0%, #12111f 45%, #07070d 100%);
+}
+/* the checkered strip along the top and the bottom of every menu screen */
+.arc-card.rg {
+  background:
+    var(--checker) top / 100% 8px no-repeat,
+    var(--checker) bottom / 100% 8px no-repeat,
+    linear-gradient(115deg, transparent 0 62%, rgba(255, 46, 126, 0.16) 62% 63.2%, transparent 63.2% 66%, rgba(25, 227, 255, 0.12) 66% 66.8%, transparent 66.8%),
+    radial-gradient(ellipse at 50% 0%, #2a1038 0%, #12111f 45%, #07070d 100%);
+  padding-top: max(14px, calc(var(--safe-t) + 6px));
+  padding-bottom: max(14px, calc(var(--safe-b) + 6px));
+}
+.arc-title,
+.rg-h,
+.rg-bigh,
+.rg-pretitle h2,
+.rg-bossname,
+.rg-hero,
+.rg-go,
+.rg-btn.rg-big {
+  font-family: var(--display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.arc-title {
+  color: var(--neon-y);
+  font-style: italic;
+  text-shadow: 3px 3px 0 var(--neon-p), 6px 6px 0 rgba(0, 0, 0, 0.45), 0 0 28px rgba(255, 46, 126, 0.55);
+  transform: rotate(-3deg) skewX(-8deg);
+}
+.arc-sub { color: var(--neon-c); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; font-size: 15px; opacity: 1; }
+.arc-h { color: var(--neon-c); opacity: 0.9; letter-spacing: 0.14em; }
+.rg-h,
+.rg-pretitle h2 { color: var(--neon-y); font-style: italic; text-shadow: 2px 2px 0 var(--neon-p); transform: skewX(-6deg); }
+.rg-bigh { color: var(--neon-y); text-shadow: 3px 3px 0 var(--neon-p), 0 0 24px rgba(255, 46, 126, 0.5); transform: rotate(-2deg) skewX(-8deg); }
+.rg-bossname { color: var(--neon-p); font-style: italic; text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5); }
+.rg-top { background: linear-gradient(90deg, rgba(255, 46, 126, 0.18), rgba(25, 227, 255, 0.08)); border-bottom: 2px solid rgba(255, 229, 0, 0.45); border-radius: 0 0 10px 10px; }
+.rg-kr, .rg-price, .rg-trophy, .rg-tfoot em { color: var(--neon-y); }
+.rg-maphint { color: var(--neon-c); text-transform: uppercase; letter-spacing: 0.05em; font-size: 14px; }
+/* buttons: sharper, slanted, neon edge */
+.rg-btn,
+.rg-choice,
+.rg-svc,
+.rg-chipbtn,
+.rg-part {
+  border-radius: 8px;
+  border: 2px solid rgba(25, 227, 255, 0.55);
+  background: linear-gradient(180deg, rgba(25, 227, 255, 0.14), rgba(10, 12, 28, 0.85));
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.55), 0 0 14px rgba(25, 227, 255, 0.12);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.rg-chipbtn[aria-pressed='true'] { background: var(--neon-y); color: #14100a; border-color: #fff7a8; box-shadow: 0 4px 0 #8a6d00, 0 0 18px rgba(255, 229, 0, 0.4); }
+.rg-btn.rg-big,
+.rg-go {
+  border-radius: 8px;
+  color: #14100a;
+  font-style: italic;
+  background: linear-gradient(#fff04d, #ffb800);
+  box-shadow: 0 6px 0 #9a5d00, 0 0 30px rgba(255, 229, 0, 0.35);
+  transform: skewX(-6deg);
+}
+.rg-go:active, .rg-btn.rg-big:active { transform: skewX(-6deg) translateY(3px); }
+.rg-btn.warn { background: var(--neon-p); border-color: #ffd0e0; color: #fff; }
+.rg-toggle[aria-pressed='true'] { background: linear-gradient(180deg, rgba(255, 46, 126, 0.55), rgba(70, 10, 40, 0.9)); border-color: var(--neon-p); }
+.rg-btn:focus-visible, .rg-go:focus-visible, .rg-icon:focus-visible, .rg-node:focus-visible, .rg-tcard:focus-visible, .rg-choice:focus-visible, .rg-chipbtn:focus-visible, .rg-swatch:focus-visible, .rg-part:focus-visible, .rg-svc:focus-visible { outline-color: var(--neon-y); }
+/* cards */
+.rg-tcard {
+  border-radius: 10px;
+  border: 2px solid rgba(160, 170, 200, 0.4);
+  background: linear-gradient(180deg, rgba(30, 32, 52, 0.95), rgba(12, 12, 24, 0.95));
+}
+.rg-tcard.r-rare { border-color: var(--neon-c); box-shadow: 0 5px 0 rgba(0, 0, 0, 0.5), 0 0 16px rgba(25, 227, 255, 0.4); }
+.rg-tcard.r-legendary { border-color: var(--neon-y); background: linear-gradient(180deg, rgba(255, 229, 0, 0.22), rgba(255, 46, 126, 0.14) 60%, rgba(12, 12, 24, 0.95)); box-shadow: 0 5px 0 rgba(0, 0, 0, 0.5), 0 0 26px rgba(255, 229, 0, 0.55); }
+.rg-tname { font-family: var(--display); font-weight: 400; font-size: 19px; letter-spacing: 0.02em; }
+.rg-rar { border-radius: 4px; background: rgba(255, 255, 255, 0.16); transform: skewX(-10deg); }
+.rg-rar.r-rare { background: var(--neon-c); color: #00232b; }
+.rg-rar.r-legendary { background: var(--neon-y); color: #14100a; }
+.rg-tag { background: var(--neon-p); border-radius: 4px; }
+/* the pre-race card */
+.rg-rivals li { display: flex; flex-direction: column; line-height: 1.15; margin-bottom: 4px; }
+.rg-rivals li small { font-size: 12px; font-weight: 600; opacity: 0.7; font-style: italic; }
+.rg-bossbox { border-radius: 10px; background: linear-gradient(135deg, rgba(255, 46, 126, 0.25), rgba(40, 8, 24, 0.85)); border: 2px solid var(--neon-p); }
+.rg-bossnick { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--neon-c); }
+.rg-quote { font-style: italic; }
+.rg-talk { margin-top: 8px; padding: 8px 12px; border-radius: 4px 14px 14px 14px; background: rgba(255, 229, 0, 0.12); border-left: 4px solid var(--neon-y); font-size: 14px; line-height: 1.3; font-style: italic; }
+.rg-talk b { color: var(--neon-y); font-style: normal; }
+.rg-goal { border-radius: 8px; background: rgba(255, 229, 0, 0.1); border-color: rgba(255, 229, 0, 0.55); }
+.rg-preright { border-radius: 10px; background: rgba(8, 8, 18, 0.7); border: 1px solid rgba(25, 227, 255, 0.3); }
+.rg-title-left .arc-title { transform-origin: left center; }
+.rg-deco { filter: drop-shadow(0 0 8px rgba(255, 46, 126, 0.5)); }
+.rg-hero { color: var(--neon-y); font-style: italic; text-shadow: 2px 2px 0 var(--neon-p); }
+/* the in-race HUD wears the same type */
+.rg-node { background: radial-gradient(circle at 35% 30%, #2b2b45, #10101c); border-color: rgba(25, 227, 255, 0.35); }
+.rg-node.t-boss, .rg-node.t-elite { border-color: var(--neon-p); }
+.rg-node.reach { border-color: var(--neon-y); background: radial-gradient(circle at 35% 30%, #5a2a6a, #231030); }
+.rg-links line.live { stroke: var(--neon-y); }

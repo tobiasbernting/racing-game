@@ -7,13 +7,14 @@ attribute float size;
 attribute vec4 col;
 uniform float uScale;
 uniform float uNear;
+uniform vec2 uFade;
 varying vec4 vCol;
 #include <fog_pars_vertex>
 void main() {
   vCol = col;
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   // fade out what drifts right in front of the camera
-  vCol.a *= smoothstep(1.5, 8.0, -mvPosition.z);
+  vCol.a *= smoothstep(uFade.x, uFade.y, -mvPosition.z);
   // and what drifts between the chase camera and the player's own car, so dust never hides it
   vCol.a *= mix(1.0, smoothstep(uNear * 0.45, uNear * 1.6 + 1.0, -mvPosition.z), step(0.5, uNear));
   gl_PointSize = size * uScale / max(0.1, -mvPosition.z);
@@ -68,8 +69,10 @@ export class Particles {
   private readonly aCol: THREE.BufferAttribute;
   private readonly aSize: THREE.BufferAttribute;
   private readonly mat: THREE.ShaderMaterial;
+  private readonly nearFade: [number, number];
 
-  constructor(private cap: number) {
+  constructor(private cap: number, nearFade: [number, number] = [1.5, 8]) {
+    this.nearFade = nearFade;
     this.pos = new Float32Array(cap * 3);
     this.vel = new Float32Array(cap * 3);
     this.life = new Float32Array(cap);
@@ -89,7 +92,7 @@ export class Particles {
     geo.setAttribute('size', this.aSize);
     geo.setDrawRange(0, 0);
     this.mat = new THREE.ShaderMaterial({
-      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uScale: { value: 400 }, uNear: { value: 0 } }]),
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uScale: { value: 400 }, uNear: { value: 0 }, uFade: { value: new THREE.Vector2(...nearFade) } }]),
       vertexShader: PART_VERT,
       fragmentShader: PART_FRAG,
       transparent: true,

@@ -7,14 +7,14 @@ import { clamp, fmtTime } from './util.ts';
 
 const CSS = `
 .rl-hud { position: absolute; inset: 0; pointer-events: none; color: #fff; z-index: 1; --s: 1;
-  font-family: 'Nunito', 'Trebuchet MS', system-ui, sans-serif; }
+  font-family: var(--body, system-ui), system-ui, sans-serif; }
 .rl-hud * { box-sizing: border-box; }
 .rl-panel { background: rgba(16, 20, 34, 0.5); border-radius: calc(14px * var(--s)); padding: calc(6px * var(--s)) calc(12px * var(--s));
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22); }
 .rl-tl { position: absolute; left: max(calc(12px * var(--s)), env(safe-area-inset-left)); top: max(calc(10px * var(--s)), env(safe-area-inset-top));
   display: flex; flex-direction: column; gap: calc(6px * var(--s)); align-items: flex-start; }
 .rl-pos { display: flex; align-items: baseline; gap: calc(4px * var(--s)); font-weight: 900; line-height: 1; }
-.rl-pos b { font-size: calc(52px * var(--s)); text-shadow: 0 3px 0 rgba(0,0,0,0.35); }
+.rl-pos b { font-family: var(--display, Impact, system-ui); font-weight: 400; font-style: italic; font-size: calc(52px * var(--s)); text-shadow: 0 3px 0 rgba(0,0,0,0.35); }
 .rl-pos i { font-style: normal; font-size: calc(22px * var(--s)); }
 .rl-pos small { font-size: calc(16px * var(--s)); opacity: 0.85; margin-left: calc(4px * var(--s)); font-weight: 700; }
 .rl-pos.first b { color: #ffd23f; }
@@ -59,7 +59,7 @@ const CSS = `
 .rl-wrong.show { display: block; }
 @keyframes rl-blink { 50% { opacity: 0.55; } }
 .rl-top { position: relative; }
-.rl-feed { position: absolute; left: 0; top: calc(100% + 6px * var(--s)); display: flex; flex-direction: column; gap: calc(4px * var(--s)); align-items: flex-start; z-index: 3; pointer-events: none; width: max-content; max-width: calc(300px * var(--s)); }
+.rl-feed { position: absolute; left: calc(100% + 8px * var(--s)); top: calc(2px * var(--s)); display: flex; flex-direction: column; gap: calc(4px * var(--s)); align-items: flex-start; z-index: 3; pointer-events: none; width: max-content; max-width: calc(240px * var(--s)); }
 .rl-line { padding: calc(3px * var(--s)) calc(10px * var(--s)); border-radius: calc(10px * var(--s)); background: rgba(16, 20, 34, 0.55); font-size: calc(13px * var(--s)); font-weight: 800; line-height: 1.25; animation: rl-line 3.2s ease-out forwards; }
 .rl-line.taunt { border-left: calc(3px * var(--s)) solid #ff3d7f; font-style: italic; }
 @keyframes rl-line { 0% { opacity: 0; transform: translateX(-8px); } 8% { opacity: 1; transform: none; } 80% { opacity: 0.9; } 100% { opacity: 0; } }
@@ -106,7 +106,7 @@ const CSS = `
 .rl-result td.r { text-align: right; }
 .rl-btns { position: absolute; right: max(calc(12px * var(--s)), env(safe-area-inset-right)); top: calc(max(calc(62px * var(--s)), 54px) + calc(166px * var(--s))); display: flex; flex-direction: column; align-items: flex-end; gap: calc(8px * var(--s)); }
 .rl-btn { pointer-events: auto; border: 2px solid rgba(255,255,255,0.5); background: rgba(16, 20, 34, 0.6); color: #fff; border-radius: 999px;
-  font: 900 calc(16px * var(--s)) 'Nunito', system-ui, sans-serif; padding: calc(6px * var(--s)) calc(12px * var(--s)); display: none; cursor: pointer; }
+  font: 800 calc(16px * var(--s)) var(--body, system-ui), system-ui, sans-serif; padding: calc(6px * var(--s)) calc(12px * var(--s)); display: none; cursor: pointer; }
 .rl-btn.show { display: block; }
 .rl-trinkets { position: absolute; left: 50%; top: calc(88px * var(--s)); transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center;
   gap: calc(4px * var(--s)); max-width: 46%; }

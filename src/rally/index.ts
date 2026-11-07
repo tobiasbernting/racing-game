@@ -230,6 +230,8 @@ const rally = (ctx: GameContext): GameInstance => {
   let water: Water;
   let scenery: Scenery;
   let particles: Particles;
+  /** The green gas clouds: never faded out in front of the chase camera, so the cloud behind your own car shows. */
+  let gasFx: Particles;
   let skids: Skids;
   let confetti: Confetti;
   let weather: Weather | null = null;
@@ -328,11 +330,13 @@ const rally = (ctx: GameContext): GameInstance => {
     disposers.push(() => shadowTex.dispose());
     buildCars();
     particles = new Particles(high ? 1600 : 600);
+    gasFx = new Particles(high ? 500 : 240, [1.5, 6]);
     skids = new Skids(high ? 3000 : 1200);
     confetti = new Confetti(high ? 420 : 200);
-    scene.add(particles.points, skids.mesh, confetti.mesh);
+    scene.add(particles.points, gasFx.points, skids.mesh, confetti.mesh);
     disposers.push(
       () => particles.dispose(),
+      () => gasFx.dispose(),
       () => skids.dispose(),
       () => confetti.dispose(),
     );
@@ -554,7 +558,7 @@ const rally = (ctx: GameContext): GameInstance => {
   }
   const colMySmoke = new THREE.Color();
   const colGrass = new THREE.Color('#6f9a3f');
-  const colGas = new THREE.Color('#9fe02a');
+  const colGas = new THREE.Color('#7ee81c');
   const hotdogs = ['#c8402a', '#e9a23b', '#f4d27a', '#8a2f1c'].map((c) => new THREE.Color(c));
   const colDirt = new THREE.Color('#8a7350');
   const colMud = new THREE.Color('#5c4226');
@@ -1131,22 +1135,24 @@ const rally = (ctx: GameContext): GameInstance => {
       const sinH = Math.sin(c.heading);
       const cosH = Math.cos(c.heading);
       // a fat green cloud hanging behind the car
-      const n = (high ? 26 : 14) + Math.round(strength * 4);
+      const n = Math.round(((high ? 26 : 14) + strength * 4) * (push ? 1 : 0.5));
+      // the cloud puffs out to both sides of the car (never right behind it, where it would hide the car from the chase camera)
       for (let k = 0; k < n; k++) {
-        const back = 2.4 + Math.random() * 2.2;
-        const side = (Math.random() - 0.5) * 3.2;
-        particles.emit({
-          x: c.x - sinH * back + cosH * side,
-          y: c.y + 0.5 + Math.random() * 0.8,
-          z: c.z - cosH * back - sinH * side,
-          vx: -sinH * (1 + Math.random() * 3) + (Math.random() - 0.5) * 2,
-          vy: 0.4 + Math.random() * 1.2,
-          vz: -cosH * (1 + Math.random() * 3) + (Math.random() - 0.5) * 2,
+        const high3 = k % 4 === 0;
+        const fwd = high3 ? -(2 + Math.random() * 3) : -1.5 + Math.random() * 3.5;
+        const side = (Math.random() < 0.5 ? -1 : 1) * (high3 ? Math.random() * 1.5 : 1.3 + Math.random() * 2);
+        gasFx.emit({
+          x: c.x + sinH * fwd + cosH * side,
+          y: c.y + (high3 ? 2.2 + Math.random() * 1.4 : 0.4 + Math.random() * 1.4),
+          z: c.z + cosH * fwd - sinH * side,
+          vx: cosH * side * 0.5 + (Math.random() - 0.5) * 1.5,
+          vy: 0.3 + Math.random() * 1.2,
+          vz: -sinH * side * 0.5 + (Math.random() - 0.5) * 1.5,
           life: 2.2 + Math.random() * 1.2,
           size0: 1.6,
-          size1: 5.5 + strength,
+          size1: 4.6 + strength * 0.5,
           color: colGas,
-          alpha: 0.62,
+          alpha: push ? 0.55 : 0.32,
           drag: 1.6,
           gravity: -0.2,
         });
@@ -1608,6 +1614,7 @@ const rally = (ctx: GameContext): GameInstance => {
     // ---- effects ----
     entrants.forEach((e, i) => carEffects(e.car, i, e === me, dt, e.model.wheelPos));
     particles.update(dt);
+    gasFx.update(dt);
     skids.flush();
     confetti.update(dt, timeU.value);
     road.update(timeU.value);
@@ -1903,6 +1910,8 @@ const rally = (ctx: GameContext): GameInstance => {
     adapt();
     sky.update(timeU.value, camera, tmpV.set(player().car.x, player().car.y, player().car.z));
     particles.setScale(H * ctx.dpr, camera.fov);
+    gasFx.setScale(H * ctx.dpr, camera.fov);
+    gasFx.setViewer(0);
     {
       const pc = player().car;
       particles.setViewer(camMode === 1 || phase === 'intro' ? 0 : Math.hypot(camera.position.x - pc.x, camera.position.y - pc.y, camera.position.z - pc.z));
