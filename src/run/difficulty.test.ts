@@ -74,11 +74,15 @@ describe('the four difficulties', () => {
   });
 
   it('heart rules: Söndagsåkare is lenient, the others share the normal rules', () => {
+    // Hård forgives a second place against a boss (−1), but a worse place still costs two
+    expect(heartsLost(2, 4, true, 'hard', true)).toBe(1);
+    expect(heartsLost(3, 4, true, 'hard', true)).toBe(2);
+    expect(heartsLost(1, 4, true, 'hard', true)).toBe(0);
     for (const d of ['normal', 'hard', 'one'] as const) {
       expect(heartsLost(3, 6, true, d)).toBe(0);
       expect(heartsLost(4, 6, true, d)).toBe(1);
       expect(heartsLost(2, 6, false, d)).toBe(2);
-      expect(heartsLost(2, 4, true, d, true)).toBe(2);
+      if (d !== 'hard') expect(heartsLost(2, 4, true, d, true)).toBe(2);
       expect(heartsLost(1, 4, true, d, true)).toBe(0);
     }
     expect(heartsLost(5, 6, true, 'calm', true)).toBe(0);
@@ -102,7 +106,8 @@ describe('the four difficulties', () => {
     // a boss race: second place is already a loss, a win is fine
     expect(submitRace(bossRun('one'), result({ place: 2, n: 4 })).status).toBe('dead');
     expect(submitRace(bossRun('one'), result({ place: 1, n: 4 })).status).toBe('running');
-    expect(submitRace(bossRun('hard'), result({ place: 2, n: 4 })).status).toBe('dead');
+    expect(submitRace(bossRun('hard'), result({ place: 2, n: 4 })).hearts).toBe(1);
+    expect(submitRace(bossRun('hard'), result({ place: 3, n: 4 })).status).toBe('dead');
   });
 
   it('a boss win heals one heart in Normal and nothing in Hård; Söndagsåkare pays two when the node ends', () => {
@@ -277,6 +282,7 @@ describe('the heart rule on the pre-race card', () => {
     expect(heartRuleText('normal', ctx)).toContain('−❤️❤️');
     expect(heartRuleText('normal', { ...ctx, boss: true })).toContain('Vinn och få ❤️ tillbaka');
     expect(heartRuleText('hard', { ...ctx, boss: true })).not.toContain('Vinn och få');
+    expect(heartRuleText('hard', { ...ctx, boss: true })).toContain('tvåa');
     expect(heartRuleText('hard', { ...ctx, boss: true })).toContain('Inget hjärta tillbaka');
     for (const c of [ctx, { ...ctx, carnage: true }, { ...ctx, arena: true }, { ...ctx, boss: true }, { ...ctx, boss: true, arena: true }]) {
       const t = heartRuleText('one', c);

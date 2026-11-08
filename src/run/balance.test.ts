@@ -108,12 +108,14 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
     const averageOne = rate('average', 'one');
     console.log('hard: average', averageHard, 'good', goodHard, 'expert', expertHard, '| one: average', averageOne, 'good', goodOne, 'expert', expertOne, '| normal good', goodNormal);
     for (let i = 0; i < 3; i++) {
-      // Hård: a good player wins far less than on Normal, a strong one still sometimes does
-      expect(goodHard[i]!).toBeLessThan(goodNormal[i]! - 0.25);
-      expect(goodHard[i]!).toBeLessThan(0.2);
-      expect(expertHard[i]!).toBeGreaterThan(0.08);
-      expect(expertHard[i]!).toBeLessThan(0.5);
-      expect(averageHard[i]!).toBeLessThan(0.03);
+      // Hård sits clearly between Normal and Ett liv: a good player wins about 15 to 30 percent, a strong one about 35 to 65
+      expect(goodHard[i]!).toBeLessThan(goodNormal[i]! - 0.15);
+      expect(goodHard[i]!).toBeGreaterThan(0.12);
+      expect(goodHard[i]!).toBeLessThan(0.32);
+      expect(expertHard[i]!).toBeGreaterThan(0.35);
+      expect(expertHard[i]!).toBeLessThan(0.65);
+      expect(goodHard[i]!).toBeGreaterThan(goodOne[i]! + 0.1);
+      expect(averageHard[i]!).toBeLessThan(0.08);
       // Ett liv: rare but possible for a strong player (5 to 25 percent), nearly never for a good one, never for an average one
       expect(expertOne[i]!).toBeGreaterThan(0.05);
       expect(expertOne[i]!).toBeLessThan(0.25);

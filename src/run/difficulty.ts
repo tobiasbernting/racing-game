@@ -33,7 +33,7 @@ export interface DiffDef {
 export const DIFFS: Record<Difficulty, DiffDef> = {
   calm: { id: 'calm', emoji: '🛋️', name: 'Söndagsåkare', blurb: '5 hjärtan och rivaler som tar det lugnt. För yngre förare.', hearts: 5, gentleRivals: true, shopHearts: true, healMul: 1, bossHealAny: 2, bossHealWin: 0, scrapEvery: 4, heartPerks: true, trophyMul: 1 },
   normal: { id: 'normal', emoji: '🏁', name: 'Normal', blurb: '3 hjärtan. Nedre halvan kostar ett, bryter du två. Så är spelet tänkt.', hearts: 3, gentleRivals: false, shopHearts: true, healMul: 1, bossHealAny: 0, bossHealWin: 1, scrapEvery: 4, heartPerks: true, trophyMul: 1 },
-  hard: { id: 'hard', emoji: '🔥', name: 'Hård', blurb: '2 hjärtan, dyrare hjärtan i kiosken, ingen hjälp av bossar. 1,5× troféer.', hearts: 2, gentleRivals: false, shopHearts: true, healMul: 1.5, bossHealAny: 0, bossHealWin: 0, scrapEvery: 6, heartPerks: true, trophyMul: 1.5 },
+  hard: { id: 'hard', emoji: '🔥', name: 'Hård', blurb: '2 hjärtan, dyrare hjärtan, ingen hjälp av bossar och tvåa mot bossen är ändå −❤️. 1,5× troféer.', hearts: 2, gentleRivals: false, shopHearts: true, healMul: 1.5, bossHealAny: 0, bossHealWin: 0, scrapEvery: 6, heartPerks: true, trophyMul: 1.5 },
   one: { id: 'one', emoji: '💀', name: 'Ett liv', blurb: '1 hjärta, inga påfyllningar. Ett dåligt lopp och det är slut. 2× troféer.', hearts: 1, gentleRivals: false, shopHearts: false, healMul: 1, bossHealAny: 0, bossHealWin: 0, scrapEvery: 0, heartPerks: false, trophyMul: 2 },
 };
 
@@ -60,6 +60,7 @@ export function heartRuleText(v: Difficulty | boolean, o: { boss: boolean; arena
     if (o.arena) return '💀 Ett liv: åker du ut bland de första (nedre halvan) eller bryter är rundan slut.';
     return `💀 Ett liv: hamnar du på nedre halvan${byPoints} eller bryter är rundan slut.`;
   }
+  if (o.boss && d === 'hard') return `❤️ Bossen: ${o.arena ? 'tvåa i derbyt' : `tvåa${byPoints}`} är −❤️, sämre än så −❤️❤️. Inget hjärta tillbaka för segern.`;
   const back = d === 'normal' ? ' Vinn och få ❤️ tillbaka.' : ' Inget hjärta tillbaka för segern.';
   if (o.boss) return `❤️ Bossen: ${o.arena ? 'vinner du inte derbyt' : `förlorar du${byPoints}`} är det −❤️❤️.${back}`;
   if (o.arena) return '❤️ Åker du ut bland de första (nedre halvan): −❤️. Bryter du: −❤️❤️.';

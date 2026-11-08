@@ -315,15 +315,17 @@ export const KRONOR_SCALE = [1, 1.3, 1.7] as const;
 export const actScale = (act: number): number => KRONOR_SCALE[Math.min(act, KRONOR_SCALE.length - 1)]!;
 
 /**
- * Hearts a race costs. Normal (and Hård and Ett liv, which just have fewer hearts to lose): the bottom half costs one,
+ * Hearts a race costs. Normal (and Hård, with one exception for bosses, and Ett liv, which just has one heart to lose): the bottom half costs one,
  * not finishing two, and losing a boss race (anything but first, or most points in Blodbad) two. In Söndagsåkare only a
  * DNF or dead last costs one, bosses included. `mode` is a difficulty, or the old true for Söndagsåkare.
  */
 export function heartsLost(place: number, n: number, finished: boolean, mode: Difficulty | boolean = false, boss = false): number {
   if (asDifficulty(mode) === 'calm') return !finished || (n > 1 && place >= n) ? 1 : 0;
+  const hard = asDifficulty(mode) === 'hard';
   if (!finished) return 2;
   if (n <= 1) return 0;
-  if (boss && place > 1) return 2;
+  // a boss: Hård forgives a second place (one heart), everything else costs two
+  if (boss && place > 1) return hard && place === 2 ? 1 : 2;
   return place > n / 2 ? 1 : 0;
 }
 

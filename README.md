@@ -383,7 +383,7 @@ Svårigheten väljs överst på bilsidan (Ny runda), med fyra knappar och en rad
 | | 🛋️ Söndagsåkare | 🏁 Normal | 🔥 Hård | 💀 Ett liv |
 |---|---|---|---|---|
 | Hjärtan | 5 | 3 | 2 | 1 |
-| Förlust | bara bryta eller sist: −❤️ | nedre halvan −❤️, bryta −❤️❤️, förlorad boss −❤️❤️ | som Normal | som Normal, och sista hjärtat är det enda: nedre halvan (på poäng i Blodbad, utslagsordning i derby), bryta eller förlorad boss = rundan slut |
+| Förlust | bara bryta eller sist: −❤️ | nedre halvan −❤️, bryta −❤️❤️, förlorad boss −❤️❤️ | som Normal, utom att tvåa mot en boss bara är −❤️ | som Normal, och sista hjärtat är det enda: nedre halvan (på poäng i Blodbad, utslagsordning i derby), bryta eller förlorad boss = rundan slut |
 | Rivaler | snällare | normala | normala | normala |
 | Hjärta i kiosken | ja | ja | ja, 50 % dyrare | finns inte |
 | Boss | läker 2 hjärtan | vinst läker 1 | läker inget | läker inget |
@@ -398,4 +398,4 @@ och på resultatskärmen och i troféraderna ("💀 Ett liv: 2× troféer"). Nor
 Utmaningarna som säger "på Söndagsåkare" räknar som förut. Ingen ny utmaning för Ett liv: varje fordon har redan sin, så bästa akten per svårighet sparas i stället.
 
 **Balans** (`balance.test.ts`, 200 simulerade rundor per ruta, vinstandel för Race / Ram / Blandat): Söndagsåkare ≈ alltid vinnbart (genomsnittlig spelare 100 %); Normal oförändrad (bra spelare 42 / 48 / 53 %, stark 72 / 83 / 82 %);
-Hård bra spelare 4 / 8 / 9 %, stark 13 / 31 / 25 %; Ett liv bra spelare 1 / 2 / 4 %, stark 9 / 16 / 19 %.
+Hård bra spelare 14 / 24 / 23 %, stark 38 / 55 / 53 %; Ett liv bra spelare 1 / 2 / 4 %, stark 9 / 16 / 19 %.
