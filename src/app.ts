@@ -75,7 +75,7 @@ export class App {
     const small = Math.min(screen.width, screen.height) < 700;
     this.quality = coarse || small ? 'low' : 'high';
     this.prefs = loadPrefs();
-    this.sel = { body: this.meta.body, driver: this.meta.driver, paint: this.meta.paint };
+    this.sel = { diff: this.meta.diff, body: this.meta.body, driver: this.meta.driver, paint: this.meta.paint };
     this.root.append(this.stage, this.touchEl, this.bar, this.card, this.rotate);
     parent.append(this.root);
 
@@ -286,7 +286,6 @@ export class App {
     this.showScreen(
       settingsView({
         settings,
-        calm: this.meta.calm,
         fullscreen: this.fullscreenState(),
         controls: this.ctl,
         touch: this.touch,
@@ -299,10 +298,6 @@ export class App {
         onChange: () => {
           saveSettings();
           this.applySettings();
-        },
-        onCalm: (on) => {
-          this.meta.calm = on;
-          saveMeta(this.meta);
         },
         onFullscreen: () => this.toggleFullscreen(),
         onClose: () => {
@@ -583,11 +578,6 @@ export class App {
         },
         onQuick: () => this.quickMenu(),
         onCollection: () => this.collection(),
-        onCalm: (on) => {
-          this.meta.calm = on;
-          saveMeta(this.meta);
-          this.title();
-        },
         onSettings: () => this.openSettings(() => this.title()),
         homeHint: this.touch && this.fullscreenState() === null && !matchMedia('(display-mode: standalone)').matches && /iPhone|iPad|iPod/.test(navigator.userAgent),
       }),
@@ -620,12 +610,13 @@ export class App {
 
   private beginRun(s: PickSel): void {
     this.disposePreview();
+    this.meta.diff = s.diff;
     this.meta.body = s.body;
     this.meta.driver = s.driver;
     this.meta.paint = s.paint;
     saveMeta(this.meta);
     clearRun();
-    this.commit(newRun({ seed: newSeed(), calm: this.meta.calm, body: s.body, driver: s.driver, paint: s.paint, trophies: this.meta.trophies, progress: this.meta.progress }));
+    this.commit(newRun({ seed: newSeed(), diff: s.diff, body: s.body, driver: s.driver, paint: s.paint, trophies: this.meta.trophies, progress: this.meta.progress }));
   }
 
   private resumeRun(r: RunState): void {

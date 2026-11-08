@@ -147,12 +147,12 @@ describe('meta progress', () => {
   });
 
   it('round trips and falls back to fresh progress on junk', () => {
-    const m = { ...defaultMeta(), trophies: 9, runs: 3, bestAct: 2, seen: ['gummianka', 'xx'], calm: true, bodies: [...STARTERS, 'coupe' as const], body: 'coupe' as const, driver: 'cat' as const };
+    const m = { ...defaultMeta(), trophies: 9, runs: 3, bestAct: 2, seen: ['gummianka', 'xx'], diff: 'calm' as const, bodies: [...STARTERS, 'coupe' as const], body: 'coupe' as const, driver: 'cat' as const };
     saveMeta(m);
     const back = loadMeta();
     expect(back.trophies).toBe(9);
     expect(back.seen).toEqual(['gummianka']);
-    expect(back.calm).toBe(true);
+    expect(back.diff).toBe('calm');
     expect(back.body).toBe('coupe');
     expect(back.driver).toBe('cat');
     store.setItem(META_KEY, 'trasig');

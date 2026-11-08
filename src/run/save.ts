@@ -6,8 +6,9 @@ import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { ACTS, BOSSES, NODE_TYPES, findNode, actMap, type BossId, type NodeType } from './map.ts';
 import { cleanMeta, defaultMeta, type Meta } from './meta.ts';
 import { CHALLENGES } from './unlocks.ts';
-import { emptyRunStats, validPaint, type Acquired, type NodeLog, type RunEnd, type RunState, type Screen } from './state.ts';
-import { MAX_STACK, isTrinket, perksOf, type Owned } from './trinkets.ts';
+import { asDifficulty, isDifficulty, type Difficulty } from './difficulty.ts';
+import { emptyRunStats, maxHeartsOf, validPaint, type Acquired, type NodeLog, type RunEnd, type RunState, type Screen } from './state.ts';
+import { MAX_STACK, isTrinket, type Owned } from './trinkets.ts';
 import { isRaceKind } from '../shared/kinds.ts';
 import { partOfChoice } from './economy.ts';
 import { PART_LINE, isItemId, isUpgrade, nodeId as upNodeId, partsToNodes, takeNode, tierOf, upgradeById } from './upgrades.ts';
@@ -135,6 +136,7 @@ function cleanEnd(raw: unknown): RunEnd | undefined {
   return {
     won: raw.won === true,
     trophies: num(raw.trophies, 0, 999, 0),
+    ...(typeof raw.trophyMul === 'number' && Number.isFinite(raw.trophyMul) ? { trophyMul: Math.max(1, Math.min(3, raw.trophyMul)) } : {}),
     total: num(raw.total, 0, 9999, 0),
     unlockedBodies: bodies,
     unlockedTrinkets: Array.isArray(raw.unlockedTrinkets) ? raw.unlockedTrinkets.filter(isTrinket) : [],
@@ -201,7 +203,9 @@ export function parseRun(raw: unknown): RunState | null {
   if (raw.v !== undefined && raw.v !== 1) return null;
   if (typeof raw.seed !== 'number' || !Number.isFinite(raw.seed)) return null;
   const seed = Math.floor(raw.seed) >>> 0;
-  const calm = raw.calm === true;
+  // an old save has only `calm`: true is Söndagsåkare, anything else Normal
+  const diff: Difficulty = isDifficulty(raw.diff) ? raw.diff : asDifficulty(raw.calm === true);
+  const calm = diff === 'calm';
   const act = num(raw.act, 0, ACTS - 1, 0);
   const trinkets: Owned[] = [];
   if (Array.isArray(raw.trinkets)) {
@@ -209,7 +213,7 @@ export function parseRun(raw: unknown): RunState | null {
       if (isObj(t) && isTrinket(t.id) && !trinkets.some((x) => x.id === t.id)) trinkets.push({ id: t.id, n: num(t.n, 1, MAX_STACK, 1) });
     }
   }
-  const maxHearts = (calm ? 5 : 3) + perksOf(trinkets).maxHearts;
+  const maxHearts = maxHeartsOf({ diff, trinkets });
   const status = raw.status === 'won' || raw.status === 'dead' ? raw.status : 'running';
   const hearts = num(raw.hearts, status === 'dead' ? 0 : 1, maxHearts, maxHearts);
   const car = cleanCar(raw.car);
@@ -231,6 +235,7 @@ export function parseRun(raw: unknown): RunState | null {
     v: 1,
     seed,
     calm,
+    diff,
     pool: num(raw.pool, 0, 9999, 0),
     act,
     at,

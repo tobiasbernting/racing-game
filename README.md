@@ -13,7 +13,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 ## Så fungerar en runda
 
 - **Titel**: Ny runda, Fortsätt runda (rundan sparas i localStorage efter varje plats), Snabbrace (ett enda lopp som förr),
-  Skrytlådan (upplåsta bilar och sedda prylar) och Söndagsåkare (5 hjärtan i stället för 3 och snällare rivaler).
+  Skrytlådan (upplåsta bilar och sedda prylar, och bästa rundan per svårighet). Svårigheten väljs på bilsidan, inte här; titeln visar bara vad som valdes sist.
 - **Karta**: tre akter (Bondlandet, Vildmarken, Galna stan), fem rader med 2–4 platser och sedan en boss. Platserna är
   🏁 lopp, ⏱️ utmaning (vinn eller skäms, topp 2 i spöregn, mörkerrallyt, slå klockan), 💀 dödslopp, 🛒 Mackens kiosk, 🔧 Skruvhörnan,
   ❓ helt random och 👑 boss (Sura Bengt med höbalar, Ingrid Ingenväjning som hoppar, Frost-Frida med isig väg, Kapten Kanin på månen).
@@ -62,7 +62,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
   spelet kan läggas på hemskärmen och köra i helskärm.
 - **Prestanda**: `quality: 'low'` (pek/små skärmar) har inga skuggor, färre partiklar, tunnare rekvisita och lägre pixelratio, och
   loppet sänker upplösningen själv om bildfrekvensen sjunker (`adapt()` i `src/rally/index.ts`).
-- **Inställningar** (`src/settings.ts`, från titeln och pausmenyn): ljudvolym, musik, skakningar, söndagsåkare (lugnt läge, sparnyckeln heter fortfarande `calm`), visa FPS, helskärm.
+- **Inställningar** (`src/settings.ts`, från titeln och pausmenyn): ljudvolym, musik, skakningar, visa FPS, helskärm.
 - **Fest**: konfetti vid vinst, "NY PRYL!" med fanfar, kronorna räknas upp på resultatkortet, räknarpip, kameraskak (kan stängas av).
 - **Slutskärm**: se resultatskärmen i fas 6b nedan. Rundans frö (`Frö: …`) visas smått på kartan och på resultatskärmen.
 - **Sparning**: en avslutad runda ligger kvar sparad (med `end`) tills summeringen lämnas, så en omladdning på det sista
@@ -113,7 +113,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 Efter en seger, efter sista hjärtat och efter en omladdning på sista kortet visas `resultView` (`src/ui/result.ts`, siffrorna räknas ut i
 `src/run/summary.ts` och är testade i `summary.test.ts`):
 
-- **Huvud**: stor dom (seger, eller vilken akt och plats du föll på), fordon, förare, lack, frö, total åktid och Söndagsåkare-bricka.
+- **Huvud**: stor dom (seger, eller vilken akt och plats du föll på), fordon, förare, lack, frö, total åktid och en bricka för svårigheten (🛋️ Söndagsåkare, 🔥 Hård, 💀 Ett liv).
 - **Rundans mest galna siffra** med en rolig rad, sedan 6-10 sifferkort och "Visa alla" för resten. Loppen sparar nu bland annat toppfart,
   längsta sladd, tid i luften och hopp, nitrosekunder, oljefläckar, omkörningar, utlagda fällor, bästa varv och hur ofta varje pryl utlöstes
   (`RaceStats` och `RallyResult`, summeras i `src/run/stats.ts`; toppfart och längsta sladd är maxvärden). Rundan räknar också pallplatser,
@@ -123,7 +123,7 @@ Efter en seger, efter sista hjärtat och efter en omladdning på sista kortet vi
 - **Bygget**: varje pryl med antal och varifrån den kom ("Vann Sura Bengt", "Köpt i kiosken", "Händelse: …", `RunState.got`), uppgraderingsträden med taget nod för nod och kombona,
   byggets mix per väg som en stapel ("55 % Ram · 30 % Fuffens · 15 % Race") och fordonets förmåga (`abilityOf`: aktiv förmåga med hur många gånger du använde den, och passiven).
 - **Troféer och upplåst**: varför troféerna blev så många, nya bilar och prylar, hur långt det är till nästa pryl-upplåsning och de **utmaningar** rundan flyttade ("Takedowns i en runda: 6/10", eller "✅ Monstertruck upplåst!").
-- **Svårighet**: på pekskärmar får rivalerna inte längre någon extra lättnad i normalt läge, bara i Söndagsåkare.
+- **Svårighet**: på pekskärmar får rivalerna inte längre någon extra lättnad i normalt läge, bara i Söndagsåkare. Se "Fyra svårigheter" nedan.
 
 ## Kontroller och växlar (fas 7)
 
@@ -373,3 +373,29 @@ Det som hålls: ingen varvas i akt 3, Söndagsåkare går att vinna nästan allt
 
 **Småfixar**: tidslinjens kioskkort och verkstadskort upprepar inte längre sitt namn, "UPPLÅST!"-lappen sitter nere till vänster på resultatskärmen i stället för över chipsen, kortet för platsen där rundan tog slut har läsbar text, och de fem moddar som inte syntes på bilen får en bult-on: Bromsar (röda och gula bromsok på blanka skivor), Nitrolängd (långa blå nitrorör längs sidorna),
 Sladd (lila fenor och en ankstjärt), Stötdämpare (gula spiralfjädrar över hjulen) och Rabattkort (ett RABATT-kort i backspegeln). Tak-prylar på cyklarna sitter på bagagehyllan bakom föraren eller på hjälmen (hatten), rullburet är en hög bygel bakom sadeln.
+
+## Fyra svårigheter
+
+Svårigheten väljs överst på bilsidan (Ny runda), med fyra knappar och en rad som förklarar den valda. Valet sparas som standard till nästa gång
+(`Meta.diff`). Reglerna ligger som data i `src/run/difficulty.ts` (`DIFFS`) och används av `state.ts` (hjärtan), `flow.ts` (läkning, Skrotpant), `economy.ts`
+(kiosken, vilka prylar som erbjuds) och `giveup.ts` (troféerna). Rivalerna är desamma som i Normal för alla utom Söndagsåkare (`RunState.calm` är `diff === 'calm'`).
+
+| | 🛋️ Söndagsåkare | 🏁 Normal | 🔥 Hård | 💀 Ett liv |
+|---|---|---|---|---|
+| Hjärtan | 5 | 3 | 2 | 1 |
+| Förlust | bara bryta eller sist: −❤️ | nedre halvan −❤️, bryta −❤️❤️, förlorad boss −❤️❤️ | som Normal, utom att tvåa mot en boss bara är −❤️ | som Normal, och sista hjärtat är det enda: nedre halvan (på poäng i Blodbad, utslagsordning i derby), bryta eller förlorad boss = rundan slut |
+| Rivaler | snällare | normala | normala | normala |
+| Hjärta i kiosken | ja | ja | ja, 50 % dyrare | finns inte |
+| Boss | läker 2 hjärtan | vinst läker 1 | läker inget | läker inget |
+| Skrotpant | var 4:e vrak | var 4:e vrak | var 6:e vrak | ingen |
+| Hjärtprylar och händelser | ja | ja | ja | prylen ger 60 kr och erbjuds inte; läkande händelser ger 40 kr |
+| Troféer | ×1 | ×1 | ×1,5 | ×2 |
+
+Brickan (emoji och namn) syns i statusraden på kartan och alla loppkort, i loppkortets hjärtregel ("💀 Ett liv: hamnar du på nedre halvan eller bryter är rundan slut."),
+och på resultatskärmen och i troféraderna ("💀 Ett liv: 2× troféer"). Normal visar ingen bricka. Skrytlådan visar längsta akt och antal segrar för varje svårighet (`Meta.best`).
+
+**Sparningar**: en gammal sparning har bara `calm`: `true` blir Söndagsåkare, allt annat Normal, och en pågående runda behåller sitt läge och sina hjärtan (`parseRun`). `calm` finns kvar i rundan som en genväg till rivalerna.
+Utmaningarna som säger "på Söndagsåkare" räknar som förut. Ingen ny utmaning för Ett liv: varje fordon har redan sin, så bästa akten per svårighet sparas i stället.
+
+**Balans** (`balance.test.ts`, 200 simulerade rundor per ruta, vinstandel för Race / Ram / Blandat): Söndagsåkare ≈ alltid vinnbart (genomsnittlig spelare 100 %); Normal oförändrad (bra spelare 42 / 48 / 53 %, stark 72 / 83 / 82 %);
+Hård bra spelare 14 / 24 / 23 %, stark 38 / 55 / 53 %; Ett liv bra spelare 1 / 2 / 4 %, stark 9 / 16 / 19 %.

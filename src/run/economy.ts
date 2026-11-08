@@ -8,6 +8,7 @@ import { RARITIES, TRINKET_PRICE, stackCap, trinketById, type Rarity } from './t
 import { available, basePrice, canTake, lineById, runPerks, treeCount, upgradeById, type TreeId, type UpgradeDef } from './upgrades.ts';
 import { KIND_PATH, type RaceKind } from '../shared/kinds.ts';
 import { unlockedTrinkets } from './meta.ts';
+import { DIFFS } from './difficulty.ts';
 
 type ShopScreen = Extract<Screen, { kind: 'shop' }>;
 
@@ -24,7 +25,8 @@ const ODDS: Record<'shop' | 'race' | 'elite' | 'boss' | 'event' | 'consolation',
 /** Up to `n` different trinkets from the unlocked pool, by rarity odds. */
 export function drawTrinkets(run: RunState, rg: Rng, n: number, source: keyof typeof ODDS, lean?: 'ram' | 'race' | null): string[] {
   // a trinket already at its highest stack adds nothing, so it is not offered again
-  const pool = unlockedTrinkets(run.pool).filter((t) => (run.trinkets.find((o) => o.id === t.id)?.n ?? 0) < stackCap(t));
+  const noHearts = !DIFFS[run.diff].heartPerks;
+  const pool = unlockedTrinkets(run.pool).filter((t) => (run.trinkets.find((o) => o.id === t.id)?.n ?? 0) < stackCap(t) && !(noHearts && t.perk?.maxHearts));
   const out: string[] = [];
   const odds = ODDS[source];
   const actBoost = 1 + run.act * 0.25;
@@ -119,7 +121,7 @@ export function trinketPrice(run: RunState, id: string): number {
 }
 
 /** A heart costs about one decent race's pay; on the very last heart the kiosk takes a quarter off. */
-export const healPrice = (run: RunState): number => round5(100 * (1 + run.act * 0.15) * (1 - runPerks(run.trinkets, run.up).shopDiscount) * (run.hearts <= 1 ? 0.75 : 1));
+export const healPrice = (run: RunState): number => round5(100 * DIFFS[run.diff].healMul * (1 + run.act * 0.15) * (1 - runPerks(run.trinkets, run.up).shopDiscount) * (run.hearts <= 1 ? 0.75 : 1));
 export const repairPrice = (run: RunState): number => (run.car.damage <= 0 ? 0 : Math.max(5, round5(run.car.damage * 0.7 * (1 - runPerks(run.trinkets, run.up).shopDiscount))));
 export const rerollPrice = (screen: ShopScreen): number => 20 + 15 * screen.rerolls;
 
@@ -148,7 +150,7 @@ export function buyTrinket(run: RunState, index: number): BuyResult {
 
 export function buyHeart(run: RunState): BuyResult {
   const sh = shopOf(run);
-  if (!sh || sh.healed || run.hearts >= run.maxHearts) return 'nothing';
+  if (!sh || sh.healed || !DIFFS[run.diff].shopHearts || run.hearts >= run.maxHearts) return 'nothing';
   const price = healPrice(run);
   if (run.kronor < price) return 'poor';
   addKronor(run, -price);
