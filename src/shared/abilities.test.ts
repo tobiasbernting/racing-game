@@ -31,7 +31,7 @@ describe('the vehicles\' kits', () => {
   it('cooldowns allow a few uses per lap at most, never a spam', () => {
     for (const b of CAR_BODIES) {
       const cd = KITS[b].active.cooldown;
-      expect(cd).toBeGreaterThanOrEqual(8);
+      expect(cd).toBeGreaterThanOrEqual(5);
       expect(cd).toBeLessThanOrEqual(20);
       // a lap is 40-70 s: at most three uses even for a perfect player
       expect(usesPerLap(40, cd)).toBeLessThanOrEqual(2.5);

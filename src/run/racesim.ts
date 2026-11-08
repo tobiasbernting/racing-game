@@ -52,10 +52,8 @@ export function playerStats(run: RunState, m: PlayerModel): PlayerStats {
   const charges = Math.min(MAX_CHARGES, Math.round(t.charges));
   const len = charges ? Math.min(NITRO_SECONDS * t.nitroSeconds, MAX_NITRO_SECONDS / charges) : 0;
   const human = HUMAN_FACTOR[m.skill];
-  // a vehicle with a top speed (moped, tractor) loses on the straights
-  // (the ten newest vehicles have their own measured lap factor instead, grip and power upgrades still counting on top of it)
+  // every vehicle has its own measured lap factor (grip and power upgrades still counting on top of it)
   const bodyLap = BODY_LAP[run.car.body];
-  const top = bodyLap === undefined && body.feel.top > 0 ? 1 + 0.55 * Math.max(0, 1 - (body.feel.top * t.top) / 50) : 1;
   // the vehicle's own kit: a passive that is a little faster, and an active used a few times a lap by a driver who knows it
   const skillK = 0.5 + 0.5 * Math.min(1, (1.08 - human) * 8);
   const passive = PASSIVE_LAP[run.car.body] ?? 1;
@@ -64,7 +62,7 @@ export function playerStats(run: RunState, m: PlayerModel): PlayerStats {
   const k = kitOf(run.car.body);
   const abilityMore = k.active.save * skillK * (usesPerLap(50, k.active.cooldown * t.abilCd) - usesPerLap(50, k.active.cooldown)) * (0.5 + 0.5 * t.abilDur) + (t.abilDur - 1) * k.active.save * skillK * usesPerLap(50, k.active.cooldown);
   return {
-    lap: (course) => baseLap(course) * (bodyLap === undefined ? carGain(grip, power) : bodyLap * carGain(grip / body.grip, power / body.power)) * human * top * passive,
+    lap: (course) => baseLap(course) * bodyLap * carGain(grip / capGrip(body.grip), power / capPower(body.power)) * human * passive,
     nitroSaved: charges * len * NITRO_SAVE * (0.6 + 0.4 * Math.min(1, (1.08 - human) * 8)),
     // mini-turbos and the speed hooks together never save more than 2.2 s a lap
     driftSaved: Math.min(1.7, driftSaving(human, t.driftRate) + run.trinkets.reduce((a, o) => a + (HOOK_SAVE[o.id] ?? 0) * Math.min(o.n, 3), 0) * skillK + upSave) + activeLapSave(run.car.body, 50, skillK) + abilityMore,
@@ -266,7 +264,7 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
   const take: Record<string, number> = {};
   const dealt: Record<string, number> = {};
   if (carnage) {
-    // the one who goes for the hits makes them (ram, spikes and mass count); everybody lands a few, and a driver who never fights is marked FEGIS and bleeds
+    // the one who goes for the hits makes them (ram, spikes and mass count); everybody lands a few (FEGIS exists only in the derby, so a quiet driver here just scores less)
     const power = (stats.ram - 1) * 1.1 + 0.5 * (stats.mass - 1) + 0.4 * (stats.mass > 2 ? 1 : 0);
     // a poor driver misses more of the hits he goes for
     const aim = AIM[m.skill];
@@ -281,8 +279,6 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
     }
     const hunt = field.rivals.reduce((a, sp) => a + Math.max(0.3, sp.aggro) * sp.ram, 0);
     myWrecks = poisson(rg, ((0.15 + 0.2 * hunt * (stats.tough / Math.pow(stats.hp, 0.6))) / (0.7 + 0.3 * stats.mass)) * WRECKED[m.skill]);
-    // FEGIS: a quiet driver loses health to the clock as well as to the rivals
-    if (m.aggression < 0.25) myWrecks += poisson(rg, 1.4 * (0.25 - m.aggression) / 0.25);
     for (let k = 0; k < myWrecks && field.rivals.length; k++) {
       const sp = field.rivals[rg.int(0, field.rivals.length - 1)]!;
       take[`ai${sp.slot}`] = (take[`ai${sp.slot}`] ?? 0) + 1;

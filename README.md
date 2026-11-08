@@ -36,8 +36,8 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 - **Fordon** (`CAR_BODY_DEFS` i `src/shared/rally.ts`, modeller i `src/rally/vehicles.ts`): varje kropp har en `feel` som
   `car.ts` läser (massa, styrning, tröghet, toppfart, grepp på grus och gräs, lutning, två hjul).
   🛞 **Fyrhjuling**: lätt och yr, älskar grus och hopp. 🏍️ **Motorcykel**: väldigt snabb, lutar sig i kurvorna, har mindre grepp
-  och ramlar på ett komiskt sätt vid en stor smäll (föraren gör en volt, sen är man på hjulen igen). 🛵 **Moppe**: långsam men
-  vig, med korg och en hög ring-ring-klocka (H tutar, och den ringer själv bakom andra bilar). 🚜 **Traktor**: seg, tung och
+  och ramlar på ett komiskt sätt vid en stor smäll (föraren gör en volt, sen är man på hjulen igen). 🛵 **Moppe**: liten och
+  vig, med korg och en hög ring-ring-klocka (H tutar, och den ringer själv bakom andra bilar). 🚜 **Traktor**: tung och
   oåterkallelig: puttar undan andra bilar och bryr sig knappt om bananskal och höbalar. 🛋️ **Soffbil**: en soffa på hjul med kuddar,
   lampa och kaffekopp. Förarna sitter ovanpå. Varje fordon har egen motorklang (`audio.ts`) och egen tuta, och
   datorförarna kör dem ibland också.
@@ -152,21 +152,20 @@ så motorljudet och mätaren visar växlar i båda lägena. Slumpväxeln kan sl�
 | Monstertruck | 5 | 50 / 90 / 130 / 173 / 223 | 0,20 s |
 | Fyrhjuling | 5 | 47 / 83 / 119 / 158 / 209 | 0,15 s |
 | Motorcykel | 6 | 58 / 94 / 130 / 169 / 212 / 270 | 0,08 s |
-| Moppe | 3 | 32 / 59 / 101 | 0,13 s |
-| Traktor | 6 | 16 / 29 / 41 / 54 / 67 / 86 | 0,28 s |
-| EPA-traktor | 5 | 11 / 20 / 31 / 45 / 72 | 0,30 s |
+| Moppe | 4 | 47 / 86 / 133 / 191 | 0,13 s |
+| Traktor | 6 | 32 / 58 / 86 / 119 / 155 / 194 | 0,26 s |
+| EPA-traktor | 5 | 32 / 58 / 86 / 130 / 194 | 0,22 s |
 | Glassbil | 4 | 43 / 79 / 122 / 173 | 0,25 s |
-| Sopbil | 6 | 18 / 32 / 49 / 65 / 83 / 108 | 0,30 s |
+| Sopbil | 6 | 29 / 54 / 83 / 115 / 151 / 194 | 0,26 s |
 | Snöskoter | 3 | 65 / 122 / 202 | 0,06 s |
-| Gokart | 4 | 50 / 90 / 130 / 173 | 0,05 s |
-| Golfbil | 3 | 29 / 49 / 86 | 0,10 s |
-| Åkgräsklippare | 4 | 22 / 40 / 61 / 97 | 0,20 s |
-| Husbil | 5 | 29 / 50 / 72 / 94 / 119 | 0,32 s |
+| Gokart | 4 | 54 / 97 / 144 / 194 | 0,05 s |
+| Golfbil | 4 | 40 / 72 / 119 / 191 | 0,10 s |
+| Åkgräsklippare | 5 | 36 / 65 / 104 / 148 / 187 | 0,16 s |
+| Husbil | 5 | 40 / 76 / 115 / 155 / 194 | 0,28 s |
 | Limousin | 5 | 58 / 104 / 151 / 202 / 259 | 0,18 s |
-| Raketvagnen | 1 | 162 | 0,10 s |
+| Raketvagnen | 1 | 209 | 0,10 s |
 
-Farten och varvtiden är i stort sett som förut (kontrollerat mot den gamla lådan: varvtider inom 0,3 %), så `pace.ts` behövde inte ändras. I `gears.test.ts` är en skicklig
-manuell förare lite snabbare än automaten (ca 1-4 % på en start) och en slarvig klart långsammare.
+Sedan fas 18 når alla fordon ungefär samma toppfart (se "Alla tjugo fordon är jämna" nedan), så de långsamma har fått växlar upp till 190 km/h och mer; en skicklig manuell förare är fortfarande lite snabbare än automaten (ca 1-4 % på en start) och en slarvig klart långsammare.
 
 ## Utveckling
 
@@ -277,16 +276,16 @@ en starttalisman och en utmaning. Tre nya körkänslor finns i `Feel`: `loose` (
 
 | Fordon | Lutning | Passiv | Aktiv (F) | Nedkylning | Växellåda | Starttalisman | Medalj |
 |---|---|---|---|---|---|---|---|
-| ⚠️ EPA-traktor | Blandat | Spärr 30: topp ca 40 km/h, men inget bromsar (gräs, lera, olja, höbalar) | ⚠️ Gasa på EPA: spärren av, kraftig fartstöt | 8 s | 5, långsam | Pensionärsrabatten | Slå en akt 1-boss |
+| ⚠️ EPA-traktor | Blandat | Spärr 30: spärren sitter högt på asfalt och släpper på gräset, och inget bromsar (gräs, lera, olja, höbalar) | ⚠️ Gasa på EPA: spärren av i 4 sekunder, lång fartstöt | 6 s | 5, seg men lång | Pensionärsrabatten | Slå en akt 1-boss |
 | 🍦 Glassbil | Blandat | Glassmelodin: bilar inom 15 m saktar ner och en melodi spelas | 🍦 Glasskanon: tre glaskulor landar framför dig och gör vägen hal | 13 s | 4, lat | Lördagsgodiset | Samla 150 mynt i en runda |
 | 🗑️ Sopbil | Ram | Plockar upp: fällor du kör på plockas upp, varje bit ger lite pansar (max 6) | 🗑️ Tömning: en hög skräp bakom dig, större ju mer du plockat | 12 s | 6, tung | Pantmotorn | Samla ihop 12 talismaner i en runda |
 | ❄️ Snöskoter | Race | Allt grepp: full grepp på is, snö och sand | ❄️ Pudersvans: snömoln som gör bilarna bakom blinda och långsamma | 11 s | 3, snabb | Bastu på taket | Slå en akt 2-boss |
 | 🏁 Gokart | Race | Sugen i rygg: slipströmmen fylls dubbelt så fort, fullt ger en gratis fartstöt | 🏁 Gokartsladd: en perfekt sladd direkt, ger nitro | 10 s | 4, blixtsnabb | Frityroljan | Sladda i 40 sekunder i en runda |
-| ⛳ Golfbil | Blandat | Tyst som en mus: rivalerna går inte på dig och blockerar dig inte | ⛳ Hole in one: en golfboll slår ledaren i sidan | 15 s | 3, eldrift | Pappas pokal | Kom till akt 2 på Söndagsåkare |
-| 🌿 Åkgräsklippare | Blandat | Gräsälskare: snabbare på gräs än på vägen | 🌿 Gräsklippning: ett gräsregn som klipper bort allt farligt framför dig | 9 s | 4, små | Kon från ovan | Använd förmågan 20 gånger i en runda |
+| ⛳ Golfbil | Blandat | Tyst som en mus: rivalerna går inte på dig och blockerar dig inte | ⛳ Hole in one: en golfboll slår ledaren i sidan | 10 s | 4, eldrift | Pappas pokal | Kom till akt 2 på Söndagsåkare |
+| 🌿 Åkgräsklippare | Blandat | Gräsälskare: snabbare på gräs än på vägen | 🌿 Gräsklippning: ett gräsregn som klipper bort allt farligt framför dig | 8 s | 5, små | Kon från ovan | Använd förmågan 20 gånger i en runda |
 | ⛺ Husbil | Ram | Hemma på hjul: plåten lagas medan du kör, i Blodbad kommer hälsan tillbaka | ⛺ Utfällt tält: ett markistält bakom dig som snurrar följarna | 14 s | 5, klonkig | Begagnat hjärta | Kör klart 5 rundor |
 | 🕶️ Limousin | Race | Rutschkana: lång sladd, och sladdturbon fylls 35 % fortare | 🕶️ VIP-fil: rakt genom bilar i drygt 3 sekunder | 13 s | 5, mjuk | Källarfest-discot | Spendera 900 kronor i en runda |
-| 🛒 Raketvagnen | Race | Skranglig: vagnen vinglar slumpmässigt | 🛒 Raketen: gigantisk fart i knappt 3 sekunder, svår att styra | 15 s | 1 + raket | Chilikorven | Vinn en runda med moppen eller traktorn |
+| 🛒 Raketvagnen | Race | Skranglig: vagnen vinglar slumpmässigt | 🛒 Raketen: gigantisk fart i knappt 4 sekunder, styrbar nog | 7 s | 1 + raket | Chilikorven | Vinn en runda med moppen eller traktorn |
 
 Tre av dem är lätta för en tioåring: golfbilen (nå akt 2 på Söndagsåkare), husbilen (spela fem rundor) och gräsklipparen (tryck på knappen). Raketvagnen är den svåraste.
 Medaljerna räknar sådant som rundan redan sparar (`RunStats`), så rundsparningen är oförändrad.
@@ -296,8 +295,39 @@ Medaljerna räknar sådant som rundan redan sparar (`RunStats`), så rundsparnin
 - **Bilvalet** har ett filter (Alla, Ram, Race, Blandat) över ett rutnät med alla tjugo fordon som rullar i höjdled i stället för att svämma över. Alla knappar är minst 44 px på telefon, surfplatta och dator, och sidan scrollar aldrig.
   Skrytlådan och resultatskärmen listar fordonen på samma sätt som förut.
 - **Balans** (`src/shared/pace.ts`, `src/run/racesim.ts`, `src/rally/bodypace.test.ts`): varje nytt fordon har en uppmätt varvfaktor mot rallybilen (`BODY_LAP`, medelvärde över fyra banor med den riktiga fysiken och datorföraren;
-  EPA-traktorn och raketvagnen mäts med sin fartstöt använd). Simuleringen räknar med den (uppgraderingar av grepp och kraft ovanpå) och `balance.test.ts` kör alla tjugo fordonen genom akt 3: inget nytt fordon vinner oftare än det bästa av de gamla,
-  raketvagnen är aldrig bäst, och inget är sämre än moppen. De långsamma (EPA-traktor, golfbil, gräsklippare, raketvagn) är långsamma med flit, som moppen och traktorn: de är till för att skratta åt, och de är roligast i Söndagsåkare.
+  EPA-traktorn och raketvagnen mäts med sin fartstöt använd). Sedan fas 18 gäller det alla tjugo fordon och ingen är längre ett skämtval, se nästa avsnitt.
+
+## Alla tjugo fordon är jämna (fas 18)
+
+Efter en spelomgång med EPA-traktorn ("helt omöjlig, de andra körde ifrån") och med traktorn ("racen handlar om att vinna") är regeln nu att **varje fordon är ett riktigt val**. Sedan fas 15 är alla fordon öppna från början och variationen i en runda ska komma från belöningarna, så ingen får vara ett skämtval med stora varvtidsunderskott.
+
+- **Toppfart**: på en rak väg (`topSpeed` i `src/rally/bodylap.ts`, 15 sekunder för fullt och 40 sekunder för det som går att nå) ligger alla fordon inom 15 % av det snabbaste, både på kort och lång raksträcka. De långsamma har fått högre tak (`feel.top`), mer kraft och växellådor som går upp till 190 km/h eller mer (`gears.ts`, tabellen ovan). De snabbaste (sportbil, motorcykel, limousin, snöskoter) är neddragna till samma nivå. De tunga behåller sin personlighet genom massa, seghet, ramstyrka, skjuts (vridmoment) och förmågor, inte genom att vara långsamma.
+- **Varvtid**: `BODY_LAP` i `src/shared/pace.ts` finns nu för alla tjugo och är uppmätt mot den riktiga fysiken på sex banor (gård, öken, is, stad, äng, berg) med datorföraren; ingen ligger mer än 5 % från rallybilen (bodypace.test.ts kontrollerar det, och att modellen är inom 2 % av fysiken). EPA-traktorn och raketvagnen mäts med sin fartstöt använd, men bara på raksträckor (en förare som tänder raketen i en kurva krockar). Att en rival i vilket fordon som helst är lika snabb kontrolleras också (±6 %).
+- **Vinstandelen**: `balance.test.ts` låter en bra spelare (Blandat, Normal, 250 rundor) spela med vart och ett av de tjugo fordonen: ingen får under 70 % eller över 140 % av medianen. Förut fanns åtta fordon med 0-2 % (EPA-traktor, golfbil, gräsklippare, raketvagn, moppe, limousin, sopbil, traktor).
+- `bot.ts` kan spela en runda med valfritt fordon (`playRun(…, body)`), och simuleringen räknar gripet och kraften mot kroppens egna tak (mjuka tak, `capGrip`/`capPower`).
+
+| Fordon | Toppfart km/h före → efter | `BODY_LAP` före → efter | Vinst per runda före → efter | Vad ändrades |
+|---|---|---|---|---|
+| 🚗 Rallybil | 162 → 162 | 1,000 → 1,000 | 0,29 → 0,29 | oförändrad (måttstocken) |
+| 🏖️ Sandbuggy | 160 → 159 | 0,959 → 0,979 | 0,43 → 0,42 | lite mindre grepp (1,1 → 1,0), annars samma |
+| 🛻 Pickup | 158 → 159 | 1,019 → 0,995 | 0,19 → 0,29 | mer grepp (0,95 → 1,02) |
+| 🏎️ Sportbil | 179 → 165 | 0,976 → 1,003 | 0,47 → 0,31 | tas ner: mindre kraft (1,2 → 1,0), mindre grepp, luftmotstånd 0,78 → 0,92 |
+| 🦖 Monstertruck | 151 → 151 | 1,032 → 0,999 | 0,22 → 0,43 | mer grepp (0,9 → 0,98) |
+| 🛞 Fyrhjuling | 162 → 161 | 0,963 → 0,976 | 0,27 → 0,36 | lite mindre grepp |
+| 🏍️ Motorcykel | 185 → 165 | 1,061 → 0,999 | 0,06 → 0,27 | tas ner: kraft 1,35 → 1,05, luftmotstånd 0,72 → 1,0, mer grepp (0,84 → 0,97) |
+| 🛵 Moppe | 85 → 160 | 1,157 → 0,985 | 0,00 → 0,30 | tak 24 → 49 m/s, kraft 0,62 → 0,95, tåligare (0,75 → 1,0), Väj! var 6:e sekund och sparar tid |
+| 🚜 Traktor | 74 → 146 | 1,295 → 1,037 | 0,04 → 0,38 | kraft 0,7 → 1,2 och skjuts 0,85 → 1,4 (vridmoment), tak 21 → 50 m/s, ny växellåda; kvar: massa 3,6, seghet 2,2, ram 1,8, Rammbock var 11:e sekund |
+| 🛋️ Soffbil | 159 → 161 | 1,032 → 0,992 | 0,12 → 0,31 | mer grepp (0,92 → 1,03) |
+| ⚠️ EPA-traktor | 39 → 155 | 1,163 → 0,987 | 0,00 → 0,35 | spärren från 11 till 49 m/s på asfalt men 12 % högre på gräs, kraft 0,7 → 1,0, skjuts 0,9 → 1,3, grepp 0,92 → 0,97, snabbare att styra; Gasa på EPA 2,4 → 4 s, nedkylning 8 → 6 s och går att kombinera med full fart på hela raksträckan |
+| 🍦 Glassbil | 141 → 154 | 1,050 → 0,993 | 0,06 → 0,31 | kraft 0,9 → 1,05, grepp 0,92 → 1,05, mindre luftmotstånd |
+| 🗑️ Sopbil | 88 → 147 | 1,165 → 1,030 | 0,02 → 0,36 | kraft 0,95 → 1,2, skjuts 0,9 → 1,35, tak 25 → 50 m/s; kvar: massa 3,0, seghet 1,8, ram 1,5, plockar upp |
+| ❄️ Snöskoter | 172 → 166 | 0,999 → 0,985 | 0,28 → 0,39 | lite mer luftmotstånd |
+| 🏁 Gokart | 125 → 151 | 0,965 → 0,989 | 0,24 → 0,29 | tak 36 → 50 m/s, kraft 0,95 → 0,75 (mer grepp, 1,3), tåligare (0,55 → 1,2) |
+| ⛳ Golfbil | 78 → 159 | 1,231 → 0,972 | 0,00 → 0,39 | tak 22 → 49 m/s, kraft 0,6 → 0,95, skjuts 0,8 → 1,1, lite kvickare styrning; Hole in one var 10:e sekund |
+| 🌿 Åkgräsklippare | 71 → 160 | 1,322 → 0,976 | 0,00 → 0,38 | tak 20 → 48 m/s, kraft 0,65 → 1,15; på gräs fortfarande snabbast (gräsfaktor 1,45 → 1,4 av ett högre tak) och klipper genvägar över ängen |
+| ⛺ Husbil | 99 → 146 | 1,144 → 1,042 | 0,06 → 0,44 | kraft 0,85 → 1,2, skjuts 0,85 → 1,3, tak 29 → 50 m/s, mer grepp |
+| 🕶️ Limousin | 172 → 164 | 1,120 → 1,000 | 0,01 → 0,44 | tas ner på raksträckan (luftmotstånd 0,72 → 0,97) men styr och greppar bättre i kurvor (styrning 0,68 → 1,0, tröghet 1,75 → 1,2, grepp 0,88 → 1,08) |
+| 🛒 Raketvagnen | 64 → 161 | 1,324 → 0,992 | 0,00 → 0,31 | tak 18 → 52 m/s, grepp 0,8 → 0,97, tåligare (0,45 → 1,1); raketen oftare (var 7:e sekund), längre (3,8 s) och lättare att styra (55 → 75 %), vinglandet halverat |
 
 ## Bilen som växer (fas 11)
 
@@ -510,10 +540,10 @@ Reglerna är gjorda om så att den som slåss vinner och den som kryssar runt f�
   Var på bilen det träffar mäts mellan bilarnas mittpunkter (`HitInfo.faceA/faceB`), så en sidosmäll blir en sidosmäll vilken stötfångarring som än rörde vid. Smällens storlek kapas först (högst 40 hälsopoäng) och zonen räknas efter, så en sidosmäll tar sina ×1,5 även i den största krocken. Massa och rammarkraft skalar som förr (lätta bilar ändrar fart mer, tunga och pansrade tar mindre, rammarkraft ×1–2,5), och en ramm-bil är härdad i fronten (upp till −30 %).
   **Rammaren tar aldrig mer än 40 %** av vad bilen den träffar tar i samma smäll, vad massa och pansar än säger (`capRammer`, bara när man kör in med nosen, inte i en frontalkrock). Däckväggen och staketen tar litet (40 % mindre än förut, och en kollision med väggen går alltid under en bilsmäll). Ett rammat bakifrån-sidled-bygge vrakar en bil på 4–5 smällar medan rammaren klarar 15+ (`combat.test.ts`).
 - **Poäng** (`carnagePoints`, `damagePoints`): 0,5 p per procent av en bils hela hälsa som en träff tar bort (en hel bil på träffar = 50 p), **20 p per vrak** och en mindre del för placeringen: 20 / 14 / 10 / 6 / 4 / 2. I Blodbad är placeringen ordningen över mållinjen, i derbyt hur länge man höll (sista bilen, sedan de som vrakades sist). Rangen på poäng avgör vem som vann. I derbyt avgör **poängen** när tiden går ut, inte kvarvarande hälsa (`DerbyBoard.deal`, `standings`). En bil som aldrig slåss kan bara få placeringspoängen och vinner aldrig.
-- **FEGIS!** (`fegisTick`, `fegisDrain`, `FEGIS_AFTER` 10 s, `FEGIS_DRAIN`): en bil som inte gjort någon skada på tio sekunder får en röd blinkande **FEGIS!**-skylt över sig, publiken bua:r (`audio.boo`) och bilen tappar hälsa långsamt (2,2–2,4 % av full hälsa i sekunden, ungefär 45 s till vrak) tills den träffar någon. Alla har sex sekunders respit i början så ingen märks innan bilarna mötts. I Blodbad går klockan bara när en rival finns inom 45 m (ledaren långt före fältet har ingen att slå), i derbyt alltid efter uppvärmningen. Spelaren får en stor banderoll och en toast, datorbilar med FEGIS jagar utan paus och en ledare utan någon framför sig bromsar in och låter klungan komma ikapp.
+- **FEGIS! (bara i Rivningsderbyt, aldrig i Blodbad)** (`fegisTick`, `fegisDrain`, `FEGIS_AFTER` 10 s, `FEGIS_DRAIN`): en bil som inte gjort någon skada på tio sekunder får en röd blinkande **FEGIS!**-skylt över sig, publiken bua:r (`audio.boo`) och bilen tappar hälsa långsamt (2,2 % av full hälsa i sekunden, ungefär 45 s till vrak) tills den träffar någon. Alla har sex sekunders respit i början så ingen märks innan bilarna mötts. Klockan går alltid efter uppvärmningen. Blodbad är ett lopp: där finns ingen FEGIS-klocka, ingen buning och ingen 🐔, och den som inte slåss får bara färre poäng (men datorförarna slåss ändå när det passar och kör fortfarande racet). Spelaren får en stor banderoll och en toast, datorbilar med FEGIS jagar utan paus och en ledare utan någon framför sig bromsar in och låter klungan komma ikapp.
 - **Datorförarna slåss alltid**: i Blodbad har alla minst aggressionen 0,5 (`FIGHT_MIN`), derbyförarna jagar 60–100 % av tiden och siktar på flanken eller bakändan.
-- **Syns på skärmen**: "+12" (poäng) stiger över bilen du träffar, ett litet rött "−6" över dig när du blir träffad, poängtavlan visar poäng per bil (🐔 vid FEGIS; på en mobil i liggande en liten tavla med de tre bästa och du), och under platsen ligger dina vrak 💥, din skada 🔨 och dina poäng. Resultatkortet räknar upp: "= 42 för skada + 2 vrak × 20 = 40 + 14 för 2:a plats".
-- **Simuleringen** (`racesim.ts`) modellerar träffar och skada (en dålig förare träffar färre), en tyst förare får FEGIS-straff, och derbyt rangordnar på poäng. Boten (`bot.ts`) kör Race med aggressionen 0,6, Ram 1 och Blandat 0,5. Se balanstesterna.
+- **Syns på skärmen**: "+12" (poäng) stiger över bilen du träffar, ett litet rött "−6" över dig när du blir träffad, poängtavlan visar poäng per bil (🐔 vid FEGIS i derbyt; på en mobil i liggande en liten tavla med de tre bästa och du), och under platsen ligger dina vrak 💥, din skada 🔨 och dina poäng. Resultatkortet räknar upp: "= 42 för skada + 2 vrak × 20 = 40 + 14 för 2:a plats".
+- **Simuleringen** (`racesim.ts`) modellerar träffar och skada (en dålig förare träffar färre), en tyst förare i derbyt får FEGIS-straff, och derbyt rangordnar på poäng. Boten (`bot.ts`) kör Race med aggressionen 0,6, Ram 1 och Blandat 0,5. Se balanstesterna.
 - Dev-krokar: `__rallyDebug.strike(n, 'rear'|'side'|'front', fart)` och `still(n)`.
 
 ## Fas 17: pengarna (ekonomin)

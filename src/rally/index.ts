@@ -11,7 +11,7 @@ import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { AWNING, CHAOS_TEXT, DODGE, DRAFT, EPA_BURST, HOLE_IN_ONE, HOP, ICE_CANNON, JINGLE, KART_SLIDE, KICKSTART, MOW, PASSIVE_RAM, POUND, POWDER, RAMMER, REPAIR, ROCKET, SCAVENGE, SLINGSHOT, SOFTLAND, VIP, WHEELIE_ROCKET, WOBBLE, chaosPick, chargeOf, draftTarget, kitOf, pivotDir, type ActiveDef, type VehicleKit } from '../shared/abilities.ts';
 import { rivalById, rivalCast } from '../shared/rivals.ts';
 import { LASTLAP_BOOST, archetypeBodies, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
-import { FEGIS_AFTER, FEGIS_REACH, KIND_AGGRO, carnagePoints, damagePoints, pointsTable, type RaceKind } from '../shared/kinds.ts';
+import { FEGIS_REACH, KIND_AGGRO, carnagePoints, damagePoints, pointsTable, type RaceKind } from '../shared/kinds.ts';
 import { DERBY_DAMAGE, DERBY_HP, DERBY_SECONDS, DERBY_WARMUP, DerbyBoard, derbyHeadline } from '../shared/derby.ts';
 import { BIG_HIT, RESPAWN_HP, capRammer, TakedownLedger, WRECK_SECONDS, fegisDealt, fegisDrain, fegisTick, impactDamage, maxHpOf, ramPowerOf, zoneOf } from './combat.ts';
 import type { GameContext, GameInstance } from '../arcade/types.ts';
@@ -299,13 +299,14 @@ const rally = (ctx: GameContext): GameInstance => {
   const hud = new Hud(ctx.root, track, ctx.dpr, ctx.touch);
   if (derby) hud.setArena(arenaC!.shape.hw);
   // on touch screens the third round button is the camera when there is no nitro (info.ts): no second 🎥 then
-  // with the pedals the camera button lives in the top bar, beside pause (and follows a change of scheme from the pause menu)
+  // otherwise the camera button lives in the top bar, beside pause, in every scheme (easy to find, never under the thumbs)
   let lastPedals: boolean | null = null;
   const placeCamBtn = (pedals: boolean): void => {
     if (pedals === lastPedals) return;
     lastPedals = pedals;
-    hud.camBtn.classList.toggle('show', ctx.touch && (nitroSlots() > 0 || pedals));
-    hud.setCamTop(pedals);
+    const show = ctx.touch && (nitroSlots() > 0 || pedals);
+    hud.camBtn.classList.toggle('show', show);
+    hud.setCamTop(show);
   };
   placeCamBtn(!!ctx.controls?.pedals);
   hud.setTrinkets(mods.items);
@@ -3025,7 +3026,7 @@ const rally = (ctx: GameContext): GameInstance => {
     else if (ev === 'end') endFegis(e);
     if (e.fegis) {
       // slow bleeding: no takedown credit for anybody, the car is simply giving out
-      e.hp = Math.max(0, e.hp - fegisDrain(e.maxHp, dt, derby));
+      e.hp = Math.max(0, e.hp - fegisDrain(e.maxHp, dt));
       e.model.setDamage(100 * (1 - e.hp / e.maxHp) * 0.9);
       if (e.hp <= 0) wreck(e);
     }
@@ -3111,7 +3112,8 @@ const rally = (ctx: GameContext): GameInstance => {
     if (!carnage) return;
     if (e.wreckT <= 0) {
       e.calmT += dt;
-      fegisStep(e, dt);
+      // FEGIS is for the derby only: Blodbad is a race, a quiet driver there simply scores less
+      if (derby) fegisStep(e, dt);
       // a boss with the right to heal does so when nobody has hit it for a while
       if (e.spec?.rules.includes('regen') && e.calmT > 3 && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + 6 * dt);
       return;
@@ -3181,8 +3183,6 @@ const rally = (ctx: GameContext): GameInstance => {
     }
     if (!best) return;
     const ds = track.wrapDist(best.car.proj.s - e.car.proj.s);
-    // a car that must fight with nobody ahead of it lets the pack catch up instead of leading it round
-    if (carnage && ds <= -3 && (e.fegis || e.idleT > FEGIS_AFTER * 0.5)) e.eager = true;
     if (ds > -3) {
       d.aim = { car: best.car, mode: 'ram' } as Aim;
       dbg.aims++;
@@ -3431,7 +3431,7 @@ const rally = (ctx: GameContext): GameInstance => {
           e.car.power = e.basePower * (1 + boost * 0.9 + lastLap) * (1 - ease * 0.4) * damagePower(e.damage) * (e.squashT > 0 ? 0.4 : 1) * (e.hp < e.maxHp * 0.25 && carnage ? 0.85 : 1);
           if (e.ai) {
             e.ai.surge = e.rivalBoostT > 0 ? 0.1 : 0;
-            // every car in Blodbad fights: the racers too go for the opportunity, and a FEGIS car goes for anybody
+            // every car in Blodbad fights: the racers too go for the opportunity, and (derby) a FEGIS car goes for anybody
             if (carnage) e.ai.p.aggro = e.fegis ? 1 : Math.max(FIGHT_MIN, e.spec!.aggro * (e.spec!.rules.includes('regen') && e.hp < e.maxHp * 0.5 ? 1.3 : 1));
             if (racing && !e.finished && e.wreckT <= 0) aimStep(e, dt);
             else e.ai.aim = null;

@@ -20,7 +20,7 @@ describe('the gearboxes', () => {
       const top = CAR_BODY_DEFS[b].feel.top;
       if (top > 0) expect(box.v[box.v.length - 1]!, b).toBeGreaterThan(top);
     }
-    expect(GEARBOXES.moped.v.length).toBe(3);
+    expect(GEARBOXES.moped.v.length).toBeGreaterThanOrEqual(3);
     expect(GEARBOXES.tractor.v.length).toBeGreaterThanOrEqual(6);
     expect(GEARBOXES.tractor.v.length).toBeLessThanOrEqual(8);
     expect(GEARBOXES.moto.v.length).toBe(6);
@@ -144,7 +144,7 @@ function launch(body: CarBody, policy: 'auto' | 'skilled' | 'sloppy'): number {
   car.manual = policy !== 'auto';
   const drv = new Driver({ skill: 1, bias: 0, lineUse: 1, wobble: 0, phase: 0 });
   const ctl: Controls = { throttle: 0, brake: 0, steer: 0, handbrake: false, shift: 0 };
-  const goal = body === 'tractor' ? 15 : body === 'moped' ? 19 : 29;
+  const goal = 29;
   const top = car.box.v.length;
   let t = 0;
   const dt = 1 / 60;

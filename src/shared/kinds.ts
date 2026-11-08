@@ -14,7 +14,7 @@ export const KIND_EMOJI: Record<RaceKind, string> = { rally: '🏁', mixed: '⚖
 export const KIND_TEXT: Record<RaceKind, string> = {
   rally: 'Ren racing. Lätt plåtskada, rivalerna håller sig på sin sida. Först i mål vinner.',
   mixed: 'Racing med knuffar. Några rivaler går på dig, men ingen åker ut. Först i mål vinner.',
-  carnage: 'Smällar och vrak! Poäng för skada du gör och vrakade bilar, lite för placeringen. Mest poäng vinner. Den som aldrig slåss blir FEGIS och tappar hälsa.',
+  carnage: 'Smällar och vrak! Poäng för skada du gör och vrakade bilar, lite för placeringen. Mest poäng vinner.',
 };
 
 /** Where a race kind leans when rewards are drawn (see TrinketDef.path). */
@@ -71,8 +71,8 @@ export function pointsTable(entries: readonly PointsEntry[]): PointsRow[] {
   return rows;
 }
 
-/** Seconds without dealing any damage before a car is marked FEGIS, and how fast it then loses health (percent of its full health per second). */
+/** Rivningsderby only: seconds without dealing any damage before a car is marked FEGIS, and how fast it then loses health (percent of its full health per second). */
 export const FEGIS_AFTER = 10;
-export const FEGIS_DRAIN = { carnage: 2.4, derby: 2.2 } as const;
+export const FEGIS_DRAIN = { derby: 2.2 } as const;
 /** In a race with laps the clock only runs while a rival is this close (m): the leader far ahead of the pack has nobody to hit. */
 export const FEGIS_REACH = 45;

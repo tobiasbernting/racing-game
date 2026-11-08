@@ -134,7 +134,7 @@ const CSS = `
   font: 800 calc(16px * var(--s)) var(--body, system-ui), system-ui, sans-serif; padding: calc(6px * var(--s)) calc(12px * var(--s)); display: none; cursor: pointer; }
 .rl-btn.show { display: block; }
 .rl-hud.camtop .rl-btns { top: max(8px, env(safe-area-inset-top)); right: calc(max(8px, env(safe-area-inset-right)) + 56px); }
-.rl-hud.camtop .rl-btn { width: 48px; height: 48px; padding: 0; font-size: 20px; line-height: 1; }
+.rl-hud.camtop .rl-btn { width: 44px; height: 44px; padding: 0; font-size: 20px; line-height: 1; }
 .rl-hud.camtop .rl-trinkets { right: max(calc(76px * var(--s) + 56px), calc(env(safe-area-inset-right) + 120px)); }
 .rl-trinkets { position: absolute; right: max(calc(76px * var(--s)), calc(env(safe-area-inset-right) + 64px)); top: max(calc(8px * var(--s)), env(safe-area-inset-top)); display: flex; flex-wrap: nowrap; justify-content: flex-end;
   gap: calc(3px * var(--s)); max-width: 34%; }

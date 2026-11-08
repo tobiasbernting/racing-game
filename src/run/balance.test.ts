@@ -501,7 +501,7 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
   });
 });
 
-describe('every vehicle in the balance simulation', { timeout: 120_000 }, () => {
+describe('every vehicle in the balance simulation', { timeout: 300_000 }, () => {
   /** A run as a plain player has it in act 3: some parts and the trinkets that come with the vehicle. */
   const plainRun = (body: CarBody): RunState => {
     const r = newRun({ seed: 77, calm: false, body, paint: '#e8412c' });
@@ -524,41 +524,56 @@ describe('every vehicle in the balance simulation', { timeout: 120_000 }, () => 
     return { wins: wins / plans.length, place: place / plans.length };
   };
 
-  it('no vehicle dominates, none is worse than the moppe, and the rocket cart is wild but not the best', () => {
-    const table: Record<string, { plain: number; strong: number; place: number }> = {};
+  it('no vehicle dominates and none is left behind: in the last act every one of the twenty places within about two thirds of a place of the median, with a plain build and a strong one', () => {
+    const table: Record<string, { plain: number; strong: number; place: number; strongPlace: number }> = {};
     for (const b of CAR_BODIES) {
       const plain = rate(plainRun(b), 'good');
       const strong = rate(strongRun(2, b), 'good');
-      table[b] = { plain: plain.wins, strong: strong.wins, place: plain.place };
+      table[b] = { plain: plain.wins, strong: strong.wins, place: plain.place, strongPlace: strong.place };
     }
-    console.log(CAR_BODIES.map((b) => `${b}: plain wins ${table[b]!.plain.toFixed(2)} (place ${table[b]!.place.toFixed(2)}), strong wins ${table[b]!.strong.toFixed(2)}`).join('\n'));
-    const NEW = ['epa', 'icecream', 'garbage', 'snowmobile', 'kart', 'golf', 'mower', 'camper', 'limo', 'cart'] as const;
-    const OLD = CAR_BODIES.filter((b) => !(NEW as readonly string[]).includes(b));
-    // no new vehicle wins more than the best of the old ones (a hair of noise aside), with a plain build or with a strong one
-    for (const key of ['plain', 'strong'] as const) {
-      const oldBest = Math.max(...OLD.map((b) => table[b]![key]));
-      for (const b of NEW) expect(table[b]![key], `${b} ${key}`).toBeLessThanOrEqual(oldBest + 0.05);
-      expect(Math.max(...CAR_BODIES.map((b) => table[b]![key]))).toBeLessThan(0.93);
-    }
-    // the cart is not the best vehicle in either build
-    for (const key of ['plain', 'strong'] as const) {
-      const best = Math.max(...CAR_BODIES.filter((b) => b !== 'cart').map((b) => table[b]![key]));
-      expect(table.cart![key]).toBeLessThanOrEqual(best);
-    }
-    // the slow ones are slow on purpose, like the moppe, but not worse than it: nobody is hopelessly last
-    for (const b of NEW) expect(table[b]!.place, b).toBeLessThanOrEqual(table.moped!.place + 0.2);
-    // and the quick ones (kart, snowmobile) are in the pack of the quick old ones, not above it
-    for (const b of ['kart', 'snowmobile'] as const) expect(table[b]!.place, b).toBeGreaterThanOrEqual(Math.min(...OLD.map((o) => table[o]!.place)) - 0.15);
+    console.log(CAR_BODIES.map((b) => `${b}: plain wins ${table[b]!.plain.toFixed(2)} (place ${table[b]!.place.toFixed(2)}), strong wins ${table[b]!.strong.toFixed(2)} (place ${table[b]!.strongPlace.toFixed(2)})`).join('\n'));
+    const median = (xs: number[]): number => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
+    for (const key of ['plain', 'strong'] as const) expect(Math.max(...CAR_BODIES.map((b) => table[b]![key]))).toBeLessThan(0.93);
+    const medPlace = median(CAR_BODIES.map((b) => table[b]!.place));
+    for (const b of CAR_BODIES) expect(Math.abs(table[b]!.place - medPlace), b).toBeLessThan(0.75);
+    // the slow-top-speed jokes of old (EPA tractor, golf cart, mower, rocket cart, moped, tractor) win about as often as the rest
+    const medPlain = median(CAR_BODIES.map((b) => table[b]!.plain));
+    for (const b of ['epa', 'golf', 'mower', 'cart', 'moped', 'tractor'] as const) expect(table[b]!.plain, b).toBeGreaterThan(medPlain * 0.6);
   });
 
-  it('the ten newest vehicles race a lap in a believable time: none is faster than the sportbil by more than 3 percent or slower than 1.4 times the car', () => {
-    const plain = (b: CarBody): number => playerStats(plainRun(b), { skill: 'good', aggression: 0.5 }).lap('farm');
-    const hatch = plain('hatch');
-    for (const b of ['epa', 'icecream', 'garbage', 'snowmobile', 'kart', 'golf', 'mower', 'camper', 'limo', 'cart'] as const) {
-      expect(plain(b) / hatch, b).toBeGreaterThan(plain('coupe') / hatch - 0.03);
-      expect(plain(b) / hatch, b).toBeLessThan(1.45);
+  it('every vehicle is a real choice: a good player wins a whole normal run with each of the twenty about as often as with the median one (70 to 140 percent of it)', () => {
+    const N = 250;
+    const wins: Record<string, number> = {};
+    for (const b of CAR_BODIES) {
+      let w = 0;
+      for (let i = 0; i < N; i++) if (playRun(1000 + i, profile('good', 'mixed'), false, {}, b).run.status === 'won') w++;
+      wins[b] = w / N;
+    }
+    const sorted = CAR_BODIES.map((b) => wins[b]!).sort((a, b) => a - b);
+    const median = (sorted[9]! + sorted[10]!) / 2;
+    console.log('run win rate per vehicle (good, mixed, normal), median', median.toFixed(3), '\n' + CAR_BODIES.map((b) => `${b} ${wins[b]!.toFixed(3)}`).join(', '));
+    for (const b of CAR_BODIES) {
+      expect(wins[b]!, `${b} is hopeless`).toBeGreaterThanOrEqual(0.7 * median);
+      expect(wins[b]!, `${b} is too good`).toBeLessThanOrEqual(1.4 * median);
+    }
+    // and the EPA-traktor in particular is a scrappy underdog that really can win
+    expect(wins.epa!).toBeGreaterThan(0.2);
+  });
+
+  it('every vehicle races a lap within 5 percent of the rallybil on every course on average, kit included (the owner rule: nobody is hopeless)', () => {
+    const lap = (b: CarBody, c: Parameters<PlayerStatsLap>[0]): number => {
+      const st = playerStats(plainRun(b), { skill: 'good', aggression: 0.5 });
+      return st.lap(c) - st.driftSaved;
+    };
+    for (const course of ['farm', 'desert', 'ice', 'city'] as const) {
+      const hatch = lap('hatch', course);
+      for (const b of CAR_BODIES) {
+        expect(lap(b, course) / hatch, `${b} on ${course}`).toBeGreaterThan(0.93);
+        expect(lap(b, course) / hatch, `${b} on ${course}`).toBeLessThan(1.07);
+      }
     }
   });
 });
+type PlayerStatsLap = ReturnType<typeof playerStats>['lap'];
 void ACTS;
 void HUMAN_FACTOR;
