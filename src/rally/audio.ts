@@ -415,9 +415,12 @@ export class RallyAudio {
     }
   }
 
-  boost(): void {
-    tone(this.a, this.out, 300, 0.5, { type: 'sawtooth', to: 900, vol: 0.06 });
-    noiseShot(this.a, this.out, 0.5, { freq: 1800, q: 0.7, vol: 0.08 });
+  /** A whoosh whose pitch climbs; `power` 1 is a nitro, less is a pad or a mini-turbo. */
+  boost(power = 1): void {
+    const k = Math.max(0.5, Math.min(1.3, power));
+    tone(this.a, this.out, 220, 0.9 * k, { type: 'sawtooth', to: 1500, vol: 0.07 * k });
+    tone(this.a, this.out, 110, 0.7 * k, { type: 'square', to: 520, vol: 0.04 * k, at: 0.03 });
+    noiseShot(this.a, this.out, 0.9 * k, { freq: 900, to: 3600, q: 0.8, vol: 0.1 * k });
   }
 
   /** Rubber duck: a squeaky two-part kvack. */

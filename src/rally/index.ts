@@ -22,7 +22,7 @@ import { DerbyBrain, freeSpot, type DerbyFoe } from './derbyai.ts';
 import { SHORTCUT_MIN_SPEED, SHORTCUT_SKIP, liftFor, lipOf, placeRamps, shortcutLanded, type RampSpec } from './ramps.ts';
 import { buildRampMeshes, type RampMeshes } from './rampmesh.ts';
 import { RallyAudio } from './audio.ts';
-import { BASE_POWER, Car, collideCars, Ground_, type Controls, type HitInfo } from './car.ts';
+import { BASE_POWER, BOOST_MAX, Car, PAD_BOOST, collideCars, Ground_, type Controls, type HitInfo } from './car.ts';
 import { courseFor } from './variant.ts';
 import { canRain, variationFor } from '../shared/variation.ts';
 import { Coins } from './coins.ts';
@@ -290,7 +290,8 @@ const rally = (ctx: GameContext): GameInstance => {
   };
   // however many charges, a race never has more than MAX_NITRO_SECONDS of nitro in all
   const nitroLen = Math.min(NITRO_SECONDS * mt.nitroSeconds, MAX_NITRO_SECONDS / Math.max(1, myTune.charges));
-  const nitroPush = 1 + 0.45 * mt.nitroPower;
+  // the nitro is the strongest boost: about a third more top speed and a hard push (car.ts turns the strength into both)
+  const nitroPush = Math.min(BOOST_MAX, 1 + 0.5 * mt.nitroPower);
 
   const track = arenaC ? arenaC.track : new Track(course, rainGrip);
   // stunt ramps on the road (a few kickers and one shortcut jump), or the ramps on the arena's floor
@@ -723,7 +724,10 @@ const rally = (ctx: GameContext): GameInstance => {
         scene,
         at: (s: number, d = 0, speed = 0) => {
           const me = meE!;
+          const gear = me.car.gear;
           me.car.place(s, d, ground);
+          // keep the gear when it is rolling, so a straight-line speed test can re-centre the car without dropping to first
+          if (speed > 0) me.car.gear = gear;
           const h = me.car.heading;
           me.car.vx = Math.sin(h) * speed;
           me.car.vz = Math.cos(h) * speed;
@@ -999,6 +1003,11 @@ const rally = (ctx: GameContext): GameInstance => {
   let wasAirborne = false;
   const drift = { on: false, t: 0, grace: 0, pts: 0, tier: 0 };
   let driftBoostT = 0;
+  /** The strength of the drift mini-turbo that is running (it grows with the tier). */
+  let driftBoostK = 1.3;
+  /** How strongly the player's boost is felt right now, 0..1 (smoothed): the camera, speed lines, flame and speedometer follow it. */
+  let boostFeel = 0;
+  let boostFeelPrev = 0;
   let stylePts = 0;
   /** The drift boost and style points only count when the race has options (rules and a car). */
   const tricksOn = !!opts;
@@ -1269,7 +1278,7 @@ const rally = (ctx: GameContext): GameInstance => {
         nitroT = nitroLen;
         mods.bus.boost('nitro');
         stats.boosts++;
-        audio.boost();
+        audio.boost(1.3);
         hud.toast('🔥 Nitro!');
         hud.pop('boost:nitro', '🔥', 'Nitro!', 'boost');
       } else hud.toast('Nitron är slut');
@@ -1320,8 +1329,9 @@ const rally = (ctx: GameContext): GameInstance => {
       const over = drift.grace > 0.35 || c.speed < 5 || c.wallHit > 2.5 || me.finished;
       if (over) {
         if (drift.tier > 0 && !c.wallHit) {
-          driftBoostT = [0, 0.55, 0.9, 1.3][drift.tier]!;
-          audio.boost();
+          driftBoostT = [0, 0.7, 1.1, 1.5][drift.tier]!;
+          driftBoostK = [1, 1.22, 1.32, 1.42][drift.tier]!;
+          audio.boost(0.6 + 0.2 * drift.tier);
           hud.pop('boost:drift', '🌀', ['', 'Turbo!', 'Superturbo!', 'Megaturbo!'][drift.tier]!, 'boost');
           stats.boosts++;
           mods.bus.boost('drift');
@@ -1342,9 +1352,13 @@ const rally = (ctx: GameContext): GameInstance => {
     hud.setNitro(Math.floor(nitroLeft), nitroSlots(), nitroT > 0);
     hud.setStyle(opts ? stylePts : 0);
     // flames and speed lines while the nitro burns
-    const burn = nitroT > 0 || rocketT > 0 && kit?.active.id === 'rocket' || burstT > 0 ? 1 : driftBoostT > 0 ? 0.5 : 0;
+    // (any boost feels the same way: the more the car is really boosted, the bigger the flame, the wider the camera and the more streaks)
+    boostFeel = damp(boostFeel, racing ? clamp((c.boostEff - 1) / 0.5, 0, 1) : 0, c.boostEff > 1.02 ? 10 : 3, dt);
+    if (boostFeel > 0.45 && boostFeelPrev <= 0.45) buzz('boost', !!ctx.controls?.haptics);
+    boostFeelPrev = boostFeel;
+    const burn = nitroT > 0 || rocketT > 0 && kit?.active.id === 'rocket' || burstT > 0 ? 1.5 : boostFeel > 0.05 ? 0.35 + 1.1 * boostFeel : 0;
     me.model.setNitro(burn);
-    hud.speedLines(nitroT > 0 ? 0.8 : driftBoostT > 0 ? 0.35 : 0);
+    hud.speedLines(boostFeel > 0.04 ? 0.25 + 0.7 * boostFeel : 0, high);
     if (burn > 0 && Math.random() < (high ? 1 : 0.6)) {
       const sinH = Math.sin(c.heading);
       const cosH = Math.cos(c.heading);
@@ -1365,8 +1379,13 @@ const rally = (ctx: GameContext): GameInstance => {
       if (pk?.kind === 'boost' && e.padT <= 0) {
         c.launch = Math.max(c.launch, 1.5);
         e.padT = 1.6;
+        // a pad is a punchy boost: a real push for a moment (the rivals get the same one)
         if (isMe) {
-          audio.boost();
+          extraBoostT = Math.max(extraBoostT, PAD_BOOST.seconds);
+          extraBoostK = Math.max(extraBoostK, PAD_BOOST.strength);
+        } else e.rivalBoostT = Math.max(e.rivalBoostT, PAD_BOOST.seconds);
+        if (isMe) {
+          audio.boost(0.8);
           hud.toast('⚡ Fart!');
         }
         if (isMe) {
@@ -1401,7 +1420,7 @@ const rally = (ctx: GameContext): GameInstance => {
     if (!isMe) c.boost = e.rivalBoostT > 0 ? 1.35 : 1;
     if (isMe) {
       c.power = e.basePower * damagePower(d) * (loose ? mt.offroad : 1) * (e.squashT > 0 ? 0.4 : 1);
-      let b = Math.max(nitroT > 0 ? nitroPush : 1, driftBoostT > 0 ? 1.3 : 1, extraBoostT > 0 ? extraBoostK : 1, chargeT > 0 ? RAMMER.strength : 1);
+      let b = Math.max(nitroT > 0 ? nitroPush : 1, driftBoostT > 0 ? driftBoostK : 1, extraBoostT > 0 ? extraBoostK : 1, chargeT > 0 ? RAMMER.strength : 1);
       // the motorbike pops a wheelie on boost and goes a little faster for it
       if (kit?.passive.id === 'wheelieBoost' && b > 1.05) b *= 1.06;
       c.boost = b;
@@ -3378,8 +3397,10 @@ const rally = (ctx: GameContext): GameInstance => {
         if (on && !thrPrev) {
           boosted = true;
           me.car.launch = 1.6;
+          extraBoostT = Math.max(extraBoostT, 1.1);
+          extraBoostK = Math.max(extraBoostK, 1.35);
           hud.toast('🚀 Raketstart!');
-          audio.boost();
+          audio.boost(0.8);
         }
         thrPrev = on;
       }
@@ -4058,7 +4079,7 @@ const rally = (ctx: GameContext): GameInstance => {
       let target = c.heading;
       if (c.speed > 4 && c.vLong > 0) target = c.heading + wrapAngle(velYaw - c.heading) * 0.4;
       camYaw += wrapAngle(target - camYaw) * (1 - Math.exp(-dt * (far ? 3.5 : 5)));
-      const dist = ((far ? 13 : 6.6) + c.speed * (far ? 0.05 : 0.035)) * sz;
+      const dist = ((far ? 13 : 6.6) + c.speed * (far ? 0.05 : 0.035) + 1.3 * boostFeel) * sz;
       const hgt = (far ? 5.4 : 2.45) * sz;
       tmpV.set(c.x - Math.sin(camYaw) * dist, c.y + hgt, c.z - Math.cos(camYaw) * dist);
       const gy = terrain.visual(tmpV.x, tmpV.z) + 1.2;
@@ -4069,7 +4090,7 @@ const rally = (ctx: GameContext): GameInstance => {
       camLook.lerp(tmpV2, 1 - Math.exp(-dt * 14));
       fov = (far ? 56 : 60) + smooth(6, 48, c.speed) * (far ? 8 : 16);
     }
-    if (nitroT > 0 && phase === 'race') fov += 7;
+    if (phase === 'race') fov += 12 * boostFeel;
     camFov = dt === 0 ? fov : damp(camFov, fov, 3, dt);
     camera.position.copy(camPos);
     if (shake > 0 && settings.shake) {
@@ -4170,6 +4191,7 @@ const rally = (ctx: GameContext): GameInstance => {
         gears: c.box.v.length,
         limiter: c.limiterT > 0,
         bog: c.manual && c.throttleIn > 0.6 && c.gear > 1 && c.revFrac < 0.3,
+        glow: boostFeel,
       });
       hud.drawMap(runners().filter((r) => !r.gone).map(toRacer), timeU.value);
     }

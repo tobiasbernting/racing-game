@@ -1,10 +1,10 @@
 // Haptics: a short buzz on a gear shift and on big hits, where the browser has navigator.vibrate (Android Chrome and
 // Firefox). iPhones and iPads have no vibration in the browser and nothing is faked there: the sound and the shift
 // light carry the same information. Everything is a quiet no-op when it cannot buzz or the player switched it off.
-export type Buzz = 'shift' | 'perfect' | 'hit' | 'crash';
+export type Buzz = 'shift' | 'perfect' | 'hit' | 'crash' | 'boost';
 
 /** The patterns in milliseconds (a number is one buzz, an array alternates buzz and pause). */
-export const PATTERNS: Record<Buzz, number | number[]> = { shift: 12, perfect: [14, 40, 22], hit: 28, crash: [45, 30, 60] };
+export const PATTERNS: Record<Buzz, number | number[]> = { shift: 12, perfect: [14, 40, 22], hit: 28, crash: [45, 30, 60], boost: [30, 25, 45] };
 
 export interface Buzzer {
   vibrate?(pattern: number | number[]): boolean;
