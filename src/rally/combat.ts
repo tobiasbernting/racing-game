@@ -147,5 +147,5 @@ export function fegisDealt(s: FegisState): boolean {
   return was;
 }
 
-/** Health a FEGIS car loses in `dt` seconds (a slow bleed: about half a minute to a minute to wreck it). */
-export const fegisDrain = (maxHp: number, dt: number, derby: boolean): number => (maxHp * (derby ? FEGIS_DRAIN.derby : FEGIS_DRAIN.carnage) * dt) / 100;
+/** Health a FEGIS car (Rivningsderby only) loses in `dt` seconds (a slow bleed: about half a minute to a minute to wreck it). */
+export const fegisDrain = (maxHp: number, dt: number): number => (maxHp * FEGIS_DRAIN.derby * dt) / 100;

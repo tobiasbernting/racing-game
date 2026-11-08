@@ -266,7 +266,7 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
   const take: Record<string, number> = {};
   const dealt: Record<string, number> = {};
   if (carnage) {
-    // the one who goes for the hits makes them (ram, spikes and mass count); everybody lands a few, and a driver who never fights is marked FEGIS and bleeds
+    // the one who goes for the hits makes them (ram, spikes and mass count); everybody lands a few (FEGIS exists only in the derby, so a quiet driver here just scores less)
     const power = (stats.ram - 1) * 1.1 + 0.5 * (stats.mass - 1) + 0.4 * (stats.mass > 2 ? 1 : 0);
     // a poor driver misses more of the hits he goes for
     const aim = AIM[m.skill];
@@ -281,8 +281,6 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
     }
     const hunt = field.rivals.reduce((a, sp) => a + Math.max(0.3, sp.aggro) * sp.ram, 0);
     myWrecks = poisson(rg, ((0.15 + 0.2 * hunt * (stats.tough / Math.pow(stats.hp, 0.6))) / (0.7 + 0.3 * stats.mass)) * WRECKED[m.skill]);
-    // FEGIS: a quiet driver loses health to the clock as well as to the rivals
-    if (m.aggression < 0.25) myWrecks += poisson(rg, 1.4 * (0.25 - m.aggression) / 0.25);
     for (let k = 0; k < myWrecks && field.rivals.length; k++) {
       const sp = field.rivals[rg.int(0, field.rivals.length - 1)]!;
       take[`ai${sp.slot}`] = (take[`ai${sp.slot}`] ?? 0) + 1;

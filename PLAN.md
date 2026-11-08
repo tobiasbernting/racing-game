@@ -195,7 +195,7 @@ Homelab (in parallel with phase 1): a `racing-game` role like Glantan's (private
 ## Phase 17: playtest fixes
 
 Four things from a full run by the owner and his son (adult and ten-year-old):
-1. **Fighting must pay (Blodbad and Rivningsderby).** Asymmetric damage (the rammer's nose takes 20 %, a head-on 60 % each, a flank x1.5, a tail x1.3), points for damage dealt (0.5 per percent of a car's health) and wrecks (20) with a smaller part for the position (20/14/10/6/4/2), the derby decided on points, FEGIS (ten quiet seconds, a red mark, boos, slow health drain), computer cars that always fight, "+N" numbers and a points board.
+1. **Fighting must pay (Blodbad and Rivningsderby).** Asymmetric damage (the rammer's nose takes 20 %, a head-on 60 % each, a flank x1.5, a tail x1.3), points for damage dealt (0.5 per percent of a car's health) and wrecks (20) with a smaller part for the position (20/14/10/6/4/2), the derby decided on points, FEGIS in the derby only (ten quiet seconds, a red mark, boos, slow health drain; later removed from Blodbad, which is a race), computer cars that always fight, "+N" numbers and a points board.
 2. **Money.** Lower prizes and coins, dearer nodes that rise 7 % per node in the build, the workshop sells a seeded shelf of two or three nodes, the kiosk three or four talismans. A good run ends with a third to half of one tree, never a full one.
 3. **Map.** Every path holds at least three races (race, challenge, elite, derby), at most two other nodes and never a kiosk/workshop right after a kiosk/workshop.
 4. **Rewards.** After every race a pick of three mixed cards (talismans and nodes), quality by placing: plain for the bottom half, normal, win, elite, boss. No tabs, no consolation prize.

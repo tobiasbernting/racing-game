@@ -112,7 +112,7 @@ describe('FEGIS: a car that does not fight', () => {
     expect(st.fegis).toBe(true);
     // half a minute of bleeding takes about two thirds of a derby car's health (a wreck in ~45 s), not all in one go
     let hp = 144;
-    for (let t = 0; t < 30; t += 0.1) hp -= fegisDrain(144, 0.1, true);
+    for (let t = 0; t < 30; t += 0.1) hp -= fegisDrain(144, 0.1);
     expect(hp).toBeLessThan(144 * 0.4);
     expect(hp).toBeGreaterThan(0);
     expect(fegisDealt(st)).toBe(true);

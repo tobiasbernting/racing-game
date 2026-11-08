@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DAMAGE_PER_PERCENT, FEGIS_AFTER, FEGIS_DRAIN, PLACE_POINTS, RACE_KINDS, TAKEDOWN_POINTS, carnagePoints, damagePoints, placePoints, pointsTable } from './kinds.ts';
+import { KIND_TEXT, DAMAGE_PER_PERCENT, FEGIS_AFTER, FEGIS_DRAIN, PLACE_POINTS, RACE_KINDS, TAKEDOWN_POINTS, carnagePoints, damagePoints, placePoints, pointsTable } from './kinds.ts';
 
 describe('Blodbad points', () => {
   it('are made of damage dealt and takedowns first, and 20/14/10/6/4/2 for the position as a smaller part', () => {
@@ -44,9 +44,10 @@ describe('Blodbad points', () => {
     expect(t.find((r) => r.id === 'y')!.rank).toBe(1);
   });
 
-  it('marks a car FEGIS after ten quiet seconds', () => {
+  it('marks a car FEGIS after ten quiet seconds, in the derby only', () => {
+    expect(KIND_TEXT.carnage).not.toMatch(/FEGIS/);
     expect(FEGIS_AFTER).toBe(10);
-    expect(FEGIS_DRAIN.carnage).toBeGreaterThan(0);
+    expect(FEGIS_DRAIN.derby).toBeGreaterThan(0);
   });
 
   it('has three kinds', () => {

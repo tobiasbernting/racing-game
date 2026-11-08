@@ -77,7 +77,7 @@ function runDerby(arena: (typeof ARENA_IDS)[number], seed: number, bodies: CarBo
       }
       if (sim.t >= DERBY_WARMUP) {
         if (fegisTick(marks[i]!, dt, true) === 'start') sim.fegis.add(i);
-        if (marks[i]!.fegis) hp[i] = Math.max(0, hp[i]! - fegisDrain(maxHp[i]!, dt, true));
+        if (marks[i]!.fegis) hp[i] = Math.max(0, hp[i]! - fegisDrain(maxHp[i]!, dt));
         if (hp[i]! <= 0) {
           board.eliminate(ids[i]!, sim.t, null);
           c.ghost = 1e9;
