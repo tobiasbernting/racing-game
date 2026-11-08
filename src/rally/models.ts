@@ -605,6 +605,8 @@ export interface CarModel {
   eye: THREE.Vector3;
   /** Half width, front and back (z) and roof height of the body, in the car's frame. */
   extent: { halfW: number; front: number; back: number; top: number };
+  /** Where each sticker slot, the plate, the driver's head and the spoiler sit, in the root's frame (the garage taps them). */
+  slots: Record<DecalSlot | 'plate' | 'head' | 'spoiler', THREE.Vector3>;
   dispose(): void;
 }
 
@@ -1488,8 +1490,8 @@ function addExtras(P: Parts, s: BodySpec): void {
   }
   if (ex.has('sideskirts')) {
     const f = s.wheels[0]!;
-    const r = s.wheels[2]!;
-    const len = f.z - r.z - f.r - r.r - 0.1;
+    const r = s.wheels[s.wheels.length - 1]!;
+    const len = Math.max(0.2, f.z - r.z - f.r - r.r - 0.1);
     for (const sx of [-1, 1]) tg.box(0.08, 0.12, len, style.paint2, sx * (s.halfW + 0.02), s.sill + 0.02, (f.z - f.r + r.z + r.r) / 2);
   }
   if (ex.has('snorkel')) {
@@ -1526,6 +1528,30 @@ function addExtras(P: Parts, s: BodySpec): void {
       rod(tg, V(dx, y, z), V(dx * 2.2, y - 0.2, z - 0.22), 0.025, '#5a3a22');
       rod(tg, V(dx * 2.2, y - 0.2, z - 0.22), V(dx * 3, y - 0.55 - (i % 2) * 0.06, z - 0.26), 0.022, '#6b4528');
     }
+  }
+  // the roof mascots: they scale with the roof so they read on a moped and on a camper
+  const k = Math.max(0.8, Math.min(1.8, roof.w / 1.1));
+  const topY = roof.y + (ex.has('roofrack') ? 0.34 : 0);
+  if (ex.has('cone')) {
+    tg.box(0.34 * k, 0.03 * k, 0.34 * k, '#2a2c33', 0, topY + 0.015 * k, zm);
+    tg.cone(0.14 * k, 0.42 * k, 10, '#ff6a14', 0, topY + 0.24 * k, zm);
+    tg.cyl(0.085 * k, 0.1 * k, 0.07 * k, 10, '#f4f4ef', 0, topY + 0.2 * k, zm);
+  }
+  if (ex.has('duck')) {
+    const zd = zm + (ex.has('cone') ? 0.45 * k : 0);
+    tg.ball(0.17 * k, '#ffd21f', 0, topY + 0.17 * k, zd, 1, 0.85, 1.2);
+    tg.ball(0.1 * k, '#ffd21f', 0, topY + 0.36 * k, zd + 0.1 * k);
+    tg.box(0.1 * k, 0.04 * k, 0.1 * k, '#ff8a1f', 0, topY + 0.34 * k, zd + 0.2 * k);
+    for (const sx of [-1, 1]) tg.ball(0.018 * k, '#15171c', sx * 0.05 * k, topY + 0.39 * k, zd + 0.16 * k);
+    tg.box(0.1 * k, 0.1 * k, 0.04 * k, '#ffe066', 0, topY + 0.2 * k, zd - 0.2 * k, 0.5);
+  }
+  if (ex.has('korv')) {
+    const zv = zm - (ex.has('cone') || ex.has('duck') ? 0.5 * k : 0);
+    const len = 0.7 * k;
+    tg.cyl(0.075 * k, 0.075 * k, len, 8, '#b5472b', 0, topY + 0.1 * k, zv, Math.PI / 2);
+    for (const sz of [-1, 1]) tg.ball(0.075 * k, '#a23d24', 0, topY + 0.1 * k, zv + (sz * len) / 2);
+    tg.box(0.03 * k, 0.03 * k, len * 0.8, '#f2c230', 0, topY + 0.18 * k, zv);
+    tg.box(0.34 * k, 0.025 * k, 0.1 * k, '#c99a5a', 0, topY + 0.01 * k, zv);
   }
 }
 
@@ -1950,6 +1976,16 @@ export function carModel(opts: CarModelOpts): CarModel {
     riderAt: spec.rider ? v(spec.rider.at) : new THREE.Vector3(),
     eye: v(spec.eye),
     extent: { halfW: spec.halfW * S, front: spec.nose * S, back: spec.tail * S, top: spec.roof.y * S },
+    slots: {
+      hood: v(spec.spots.hood.p),
+      roof: v(spec.spots.roof.p),
+      // the doors are on the left (+x) side and mirrored on the other
+      doors: v(spec.spots.doors.p),
+      back: v(spec.spots.back.p),
+      plate: v(spec.plate),
+      head: v(spec.head),
+      spoiler: v(style.spoiler === 'wing' ? [0, spec.deck.y + 0.5, spec.deck.z] : [0, spec.lip.y, spec.lip.z]),
+    },
     dispose: () => {
       for (const d of disposables) d.dispose();
       shadow.clear();

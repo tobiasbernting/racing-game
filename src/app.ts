@@ -10,6 +10,9 @@ import type { RallyOptions, RallyResult } from './rally/options.ts';
 import { CAR_BODIES, CAR_PAINTS, RALLY_COURSES, RALLY_COURSE_DEFS, defaultRules, newCar, type CarBody, type RallyCourse } from './shared/rally.ts';
 import { CAR_BODY_NAMES, RALLY_COURSE_NAMES } from './shared/names.ts';
 import { loadPrefs, savePrefs, type Prefs } from './prefs.ts';
+import { loadBook, saveBook, styleOf, type StyleBook } from './run/styles.ts';
+import { garageCar, garageView, type GarageView } from './ui/garage.ts';
+import type { CarPreview } from './rally/preview.ts';
 import { fmtTime } from './rally/util.ts';
 import { buildMods } from './run/trinkets.ts';
 import type { RaceKind } from './shared/kinds.ts';
@@ -58,10 +61,12 @@ export class App {
   private prefs: Prefs;
   private opts: RallyOptions | null = null;
   private result: RallyResult | null = null;
-  private preview: { update(car: ReturnType<typeof newCar>): void; dispose(): void } | null = null;
+  private preview: CarPreview | null = null;
   private factory: Promise<GameFactory> | null = null;
   private mode: Mode = 'quick';
   private meta: Meta = loadMeta();
+  /** The look each vehicle has been given in the garage (saved at once). */
+  private book: StyleBook = loadBook();
   private runState: RunState | null = null;
   private fpsEl: HTMLElement | null = null;
   /** How charged the vehicle's ability is, for the ring on its touch button. */
@@ -78,7 +83,7 @@ export class App {
     const small = Math.min(screen.width, screen.height) < 700;
     this.quality = coarse || small ? 'low' : 'high';
     this.prefs = loadPrefs();
-    this.sel = { diff: this.meta.diff, body: this.meta.body, paint: this.meta.paint, helmet: this.meta.helmet, helmetColor: this.meta.helmetColor };
+    this.sel = { diff: this.meta.diff, body: this.meta.body };
     this.root.append(this.stage, this.touchEl, this.bar, this.card, this.rotate);
     parent.append(this.root);
 
@@ -327,7 +332,7 @@ export class App {
     const bodyRow = el('div', 'arc-row');
     const paintRow = el('div', 'arc-row');
     const previewBox = el('div', 'arc-preview');
-    const mkCar = () => this.withHelmet(newCar(1, p.body, CAR_BODY_NAMES[p.body], p.paint));
+    const mkCar = () => garageCar(p.body, styleOf(this.book, p.body));
 
     const chips = <T extends string>(row: HTMLElement, items: readonly T[], label: (t: T) => string, get: () => T, set: (t: T) => void): void => {
       const draw = (): void => {
@@ -340,6 +345,7 @@ export class App {
               set(it);
               savePrefs(p);
               draw();
+              drawPaints();
               this.preview?.update(mkCar());
             });
             return b;
@@ -349,19 +355,21 @@ export class App {
       draw();
     };
     chips(courseRow, RALLY_COURSES, (c: RallyCourse) => `${RALLY_COURSE_DEFS[c].emoji} ${RALLY_COURSE_NAMES[c]}`, () => p.course, (c) => (p.course = c));
-    chips(bodyRow, CAR_BODIES, (b: CarBody) => CAR_BODY_NAMES[b], () => p.body, (b) => (p.body = b));
     const paints = CAR_PAINTS.slice(0, 12);
-    const drawPaints = (): void => {
+    // declared before the vehicle chips, which redraw the colours when another vehicle is picked (each has its own)
+    let drawPaints = (): void => {};
+    chips(bodyRow, CAR_BODIES, (b: CarBody) => CAR_BODY_NAMES[b], () => p.body, (b) => (p.body = b));
+    drawPaints = (): void => {
       paintRow.replaceChildren(
         ...paints.map((c) => {
           const b = el('button', 'arc-chip arc-swatch');
           b.type = 'button';
           b.style.background = c;
           b.setAttribute('aria-label', c);
-          b.setAttribute('aria-pressed', String(p.paint === c));
+          b.setAttribute('aria-pressed', String(this.book[p.body].paint === c));
           b.addEventListener('click', () => {
-            p.paint = c;
-            savePrefs(p);
+            this.book[p.body] = { ...this.book[p.body], paint: c };
+            saveBook(this.book);
             drawPaints();
             this.preview?.update(mkCar());
           });
@@ -375,6 +383,7 @@ export class App {
     go.type = 'button';
     go.addEventListener('click', () => void this.start());
     const back = btn('arc-btn back', '← Titel', () => this.title());
+    const styla = btn('arc-btn', '🎨 Styla bilen', () => this.garage(p.body, () => this.quickMenu()));
     back.setAttribute('aria-label', 'Tillbaka till titeln');
     const how = el('ul', 'arc-how', ...this.howTo().map((l) => el('li', null, l)));
 
@@ -382,7 +391,7 @@ export class App {
       el(
         'div',
         'arc-panel menu-panel',
-        el('div', 'arc-head', back, el('h1', 'arc-title', 'Snabbrace'), el('p', 'arc-sub', 'Ett lopp. Välj bana och bil, sen gas.')),
+        el('div', 'arc-head', back, styla, el('h1', 'arc-title', 'Snabbrace'), el('p', 'arc-sub', 'Ett lopp. Välj bana och bil, sen gas.')),
         el('div', 'arc-picks', el('div', 'arc-h', 'Bana'), courseRow, el('div', 'arc-h', 'Bil'), bodyRow, previewBox, paintRow),
         go,
         how,
@@ -392,13 +401,13 @@ export class App {
     void this.mountPreview(previewBox, mkCar());
   }
 
-  private async mountPreview(box: HTMLElement, car: ReturnType<typeof newCar>, look?: Record<string, number>): Promise<void> {
+  private async mountPreview(box: HTMLElement, car: ReturnType<typeof newCar>, look?: Record<string, number>, quality: 'high' | 'low' = this.quality, zoom = 1): Promise<void> {
     this.disposePreview();
     if (getComputedStyle(box).display === 'none') return;
     try {
       const { mountCarPreview } = await import('./rally/preview.ts');
       if (this.state !== 'menu' || !box.isConnected) return;
-      this.preview = mountCarPreview(box, car, { spin: true, quality: this.quality, look, background: 'radial-gradient(ellipse at 50% 40%, #3a2b63 0%, #1a1233 70%)' });
+      this.preview = mountCarPreview(box, car, { spin: true, quality, zoom, look, background: 'radial-gradient(ellipse at 50% 40%, #3a2b63 0%, #1a1233 70%)' });
     } catch (err) {
       console.warn('car preview unavailable', err);
       box.style.display = 'none';
@@ -410,7 +419,7 @@ export class App {
   private rallyOptions(): RallyOptions {
     if (this.mode === 'run' && this.runState) return this.runOptions(this.runState);
     const p = this.prefs;
-    const car = this.withHelmet(newCar(1, p.body, CAR_BODY_NAMES[p.body], p.paint));
+    const car = garageCar(p.body, styleOf(this.book, p.body));
     return {
       rules: { ...defaultRules(), course: p.course },
       car,
@@ -590,6 +599,8 @@ export class App {
           if (saved) this.resumeRun(saved);
         },
         onQuick: () => this.quickMenu(),
+        onGarage: () => this.garage(this.meta.body, () => this.title()),
+        style: this.book[this.meta.body],
         onCollection: () => this.collection(),
         onSettings: () => this.openSettings(() => this.title()),
         homeHint: this.touch && this.fullscreenState() === null && !matchMedia('(display-mode: standalone)').matches && /iPhone|iPad|iPod/.test(navigator.userAgent),
@@ -616,11 +627,52 @@ export class App {
     this.card.querySelector<HTMLInputElement>('.rg-namein')?.focus({ preventScroll: true });
   }
 
-  /** A garage car with the helmet the player picked (the meta's), for the quick race and its preview. */
-  private withHelmet<T extends { style: { helmet: string; helmetColor: string } }>(car: T): T {
-    car.style.helmet = this.meta.helmet;
-    car.style.helmetColor = this.meta.helmetColor;
-    return car;
+  /** "🎨 Garaget": style any vehicle (it opens on `body`); `back` redraws whatever it was opened from. */
+  private garage(body: CarBody, back: () => void): void {
+    this.disposePreview();
+    this.set('menu');
+    let shown = body;
+    const done = (): void => {
+      this.disposePreview();
+      this.meta.body = shown;
+      this.sel.body = shown;
+      this.prefs.body = shown;
+      savePrefs(this.prefs);
+      saveMeta(this.meta);
+      saveBook(this.book);
+      back();
+    };
+    const view: GarageView = garageView({
+      book: this.book,
+      body,
+      progress: this.meta.progress,
+      onStyle: (b, st) => {
+        saveBook(this.book);
+        if (b === shown) this.preview?.update(garageCar(b, structuredClone(st)));
+      },
+      onBody: (b) => {
+        shown = b;
+        this.preview?.update(garageCar(b, styleOf(this.book, b)));
+      },
+      focus: (what) => this.preview?.focus(what),
+      onNight: (on) => this.preview?.night(on),
+      onHorn: (b, kind) => void this.playHorn(b, kind),
+      onBack: done,
+    });
+    this.showScreen(view.el);
+    this.escape = done;
+    const box = this.card.querySelector<HTMLElement>('.gr-preview');
+    if (box) void this.mountPreview(box, garageCar(body, styleOf(this.book, body)), undefined, 'high', 0.86).then(() => this.preview?.onPick((hit) => view.pick(hit)));
+  }
+
+  private async playHorn(body: CarBody, kind: Parameters<typeof garageCar>[1]['horn']): Promise<void> {
+    this.ensureAudio();
+    try {
+      const { RallyAudio } = await import('./rally/audio.ts');
+      new RallyAudio(this.audio, this.master).horn(body, kind);
+    } catch (err) {
+      console.warn('horn unavailable', err);
+    }
   }
 
   private collection(): void {
@@ -628,16 +680,18 @@ export class App {
   }
 
   private selCar(): ReturnType<typeof newCar> {
-    const car = newCar(1, this.sel.body, CAR_BODY_NAMES[this.sel.body], this.sel.paint);
-    car.style.helmet = this.sel.helmet;
-    car.style.helmetColor = this.sel.helmetColor;
-    return car;
+    return garageCar(this.sel.body, styleOf(this.book, this.sel.body));
   }
 
   private pickScreen(): void {
     this.showScreen(
-      pickView(this.meta, this.sel, {
-        onChange: () => this.preview?.update(this.selCar()),
+      pickView(this.meta, this.sel, this.book, {
+        onChange: () => {
+          // the paint and helmet picked here belong to the vehicle: saved at once
+          saveBook(this.book);
+          this.preview?.update(this.selCar());
+        },
+        onGarage: () => this.garage(this.sel.body, () => this.pickScreen()),
         onStart: (s) => this.beginRun(s),
         onBack: () => this.title(),
       }),
@@ -650,12 +704,11 @@ export class App {
     this.disposePreview();
     this.meta.diff = s.diff;
     this.meta.body = s.body;
-    this.meta.paint = s.paint;
-    this.meta.helmet = s.helmet;
-    this.meta.helmetColor = s.helmetColor;
     saveMeta(this.meta);
+    saveBook(this.book);
     clearRun();
-    this.commit(newRun({ seed: s.seed ?? newSeed(), diff: s.diff, body: s.body, paint: s.paint, helmet: s.helmet, helmetColor: s.helmetColor, progress: this.meta.progress }));
+    const style = styleOf(this.book, s.body);
+    this.commit(newRun({ seed: s.seed ?? newSeed(), diff: s.diff, body: s.body, paint: style.paint, style, progress: this.meta.progress }));
   }
 
   private resumeRun(r: RunState): void {
@@ -773,7 +826,12 @@ export class App {
           workshopView(r, scr, {
             onBuy: (id) => act((c) => workshopBuy(c, id))(),
             onRepair: act(workshopRepair),
-            onPaint: (col) => act((c) => workshopPaint(c, col))(),
+            onPaint: (col) => {
+              // a free repaint in the workshop is a choice about the look: this vehicle keeps it
+              this.book[r.car.body] = { ...this.book[r.car.body], paint: col };
+              saveBook(this.book);
+              act((c) => workshopPaint(c, col))();
+            },
             onLeave: next(finishNode),
           }),
         );
@@ -835,7 +893,10 @@ export class App {
       if (r.end?.gaveUp) this.sel = restartPick(r);
       next();
     };
+    this.disposePreview();
     this.showScreen(overView(r, r.end!, { onAgain: leave(() => this.pickScreen()), onTitle: leave(() => this.title()), name: displayName(this.meta) }));
+    const carBox = this.card.querySelector<HTMLElement>('.rs-carbox');
+    if (carBox) void this.mountPreview(carBox, r.car, lookOf(r.up));
     if (r.end!.won) {
       sfx.win(this.audio, this.master);
       confettiRain(this.card, 160, 3.2);

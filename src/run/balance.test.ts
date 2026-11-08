@@ -541,14 +541,18 @@ describe('every vehicle in the balance simulation', { timeout: 300_000 }, () => 
     for (const b of ['epa', 'golf', 'mower', 'cart', 'moped', 'tractor'] as const) expect(table[b]!.plain, b).toBeGreaterThan(medPlain * 0.6);
   });
 
+  // The run win rate per vehicle is measured one vehicle per test: all twenty in one synchronous test blocks the test
+  // worker for over a minute on a slow CI runner, long enough for vitest's worker RPC to time out.
+  const N = 250;
+  const wins: Record<string, number> = {};
+  it.each([...CAR_BODIES])('measures how often a good player wins a whole normal run in the %s', (b) => {
+    let w = 0;
+    for (let i = 0; i < N; i++) if (playRun(1000 + i, profile('good', 'mixed'), false, {}, b).run.status === 'won') w++;
+    wins[b] = w / N;
+  });
+
   it('every vehicle is a real choice: a good player wins a whole normal run with each of the twenty about as often as with the median one (70 to 140 percent of it)', () => {
-    const N = 250;
-    const wins: Record<string, number> = {};
-    for (const b of CAR_BODIES) {
-      let w = 0;
-      for (let i = 0; i < N; i++) if (playRun(1000 + i, profile('good', 'mixed'), false, {}, b).run.status === 'won') w++;
-      wins[b] = w / N;
-    }
+    expect(Object.keys(wins).length, 'the per-vehicle measurements above must run first').toBe(CAR_BODIES.length);
     const sorted = CAR_BODIES.map((b) => wins[b]!).sort((a, b) => a - b);
     const median = (sorted[9]! + sorted[10]!) / 2;
     console.log('run win rate per vehicle (good, mixed, normal), median', median.toFixed(3), '\n' + CAR_BODIES.map((b) => `${b} ${wins[b]!.toFixed(3)}`).join(', '));
