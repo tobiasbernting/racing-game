@@ -21,7 +21,7 @@ export const SIDE_MUL = 1.5;
 export const REAR_MUL = 1.3;
 /** The share of a full hit a car takes when it drives nose-first into another (a head-on is 0.6 each: an even split). */
 export const NOSE_MIN = 0.2;
-/** The most one hit can take. */
+/** The most a crash can do before the zone, the ram power and the armour are counted. */
 export const HIT_MAX = 40;
 
 /** Health a car starts with: heavier bodies take more, then the rival's own multiplier. */
@@ -71,7 +71,8 @@ export function exposure(facing: number, blame: number, ownRam = 1): number {
 export function impactDamage(i: ImpactIn): number {
   const over = i.dv - HIT_MIN_DV;
   if (over <= 0) return 0;
-  return Math.min(HIT_MAX, DAMAGE_K * over * exposure(i.facing, i.blame, i.ownRam) * Math.max(0.3, i.ram) * Math.max(0.1, i.dmgTaken));
+  // the size of the crash is capped first, and where on the car it landed is applied after: a flank still takes its x1.5 in the biggest smash
+  return Math.min(HIT_MAX, DAMAGE_K * over) * exposure(i.facing, i.blame, i.ownRam) * Math.max(0.3, i.ram) * Math.max(0.1, i.dmgTaken);
 }
 
 /** The ram power of a car from its trinkets' shove: 1 is a plain bumper, and nothing goes past 2.5. */

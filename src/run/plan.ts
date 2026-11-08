@@ -160,7 +160,7 @@ export const BOSS_DEFS: Record<BossId, BossDef> = {
     archetype: 'mixed',
     intro: '“Jag är Kapten Kanin, krigsherre över månen. Jag äter morötter och förlorare. Knäpp med öronen: ni är mina!”',
     trick: 'Månen har låg tyngdkraft. Kanin kör soffa och studsar i jättehopp. De andra gör likadant och drar på nitron.',
-    derbyTrick: 'Kanin har byggt en rivningsarena med månens tyngdkraft. Ingen mållinje: sista bilen som rullar vinner. Soffan studsar och hoppar mellan hoppen.',
+    derbyTrick: 'Kanin har byggt en rivningsarena med månens tyngdkraft. Ingen mållinje: mest poäng vinner. Soffan studsar och hoppar mellan hoppen.',
     twist: { boss: { name: 'Kapten Kanin', body: 'sofa', color: '#6a4fd8', trim: '#f4c20d', helmet: 'ears', power: 1.05, skill: 1.0 }, rivalHop: 4.5, rivalNitro: 10 },
   },
 };

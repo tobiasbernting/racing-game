@@ -862,7 +862,8 @@ const rally = (ctx: GameContext): GameInstance => {
         takedowns: 0,
         wrecks: 0,
         dealt: 0,
-        idleT: 0,
+        // a few seconds of grace at the start so nobody is marked before the cars have met
+        idleT: -6,
         fegis: false,
         slickT: 0,
         oilNext: 6 + Math.random() * 8,
@@ -2993,7 +2994,6 @@ const rally = (ctx: GameContext): GameInstance => {
     dbg.fegisStarts++;
     if (e === meE) {
       hud.pop('fegis', '🐔', 'FEGIS!', 'hit');
-      hud.toast('🐔 FEGIS! Du slåss inte. Träffa någon, annars tappar du hälsa', 'dead');
       audio.boo(1);
     } else if (Math.hypot(e.car.x - player().car.x, e.car.z - player().car.z) < 70) {
       hud.toast(`🐔 ${e.name} är FEGIS och tappar hälsa`, 'dead');
@@ -3268,7 +3268,7 @@ const rally = (ctx: GameContext): GameInstance => {
       finishAdj = mods.bus.finish(info);
     }
     const won = finishPlace === 1;
-    hud.msg(won ? 'SISTA BILEN!' : mine.alive ? 'TIDEN UTE!' : 'UTSLAGEN', 1900, won ? 'gold' : 'small');
+    hud.msg(won ? 'MEST POÄNG!' : derbyTimeUp ? 'TIDEN UTE!' : 'DERBYT SLUT', 1900, won ? 'gold' : 'small');
     hud.subtitle(derbyHeadline({ place: mine.place, n: entrants.length, alive: mine.alive, timeUp: derbyTimeUp }));
     hud.wrongWay(false);
     audio.fanfare(won);

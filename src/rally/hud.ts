@@ -27,6 +27,8 @@ const CSS = `
 .rl-board { list-style: none; margin: 0; padding: calc(5px * var(--s)) calc(10px * var(--s)); font-size: calc(13px * var(--s)); line-height: 1.5; }
 .rl-board li { display: flex; align-items: center; gap: calc(6px * var(--s)); white-space: nowrap; }
 .rl-nm { overflow: hidden; text-overflow: ellipsis; max-width: calc(150px * var(--s)); }
+.rl-board.compact { padding: calc(3px * var(--s)) calc(8px * var(--s)); font-size: calc(12px * var(--s)); line-height: 1.35; }
+.rl-board.compact li:nth-child(n+4):not(.me) { display: none; }
 .rl-board li.me { font-weight: 900; color: #ffe27a; }
 .rl-board li.done { opacity: 0.75; }
 .rl-dot { width: calc(10px * var(--s)); height: calc(10px * var(--s)); border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.8); flex: none; }
@@ -360,13 +362,21 @@ export class Hud {
     this.fit();
   }
 
+  /** Blodbad and the derby keep a small points board even on a phone (the top three and you); the other races only show one when there is room. */
+  private pointsOn = false;
+  private fitBoard(): void {
+    const r = this.root.getBoundingClientRect();
+    const roomy = r.height > 520 && r.width > 700;
+    this.board.style.display = roomy || this.pointsOn ? '' : 'none';
+    this.board.classList.toggle('compact', !roomy);
+  }
+
   private fit(): void {
     const r = this.root.getBoundingClientRect();
     const s = clamp(Math.min(r.width / 980, r.height / 620), 0.58, 1.25);
     this.scale = s;
     this.root.style.setProperty('--s', s.toFixed(3));
-    // the board only when there is room
-    this.board.style.display = r.height > 520 && r.width > 700 ? '' : 'none';
+    this.fitBoard();
     const mw = Math.round(156 * s * this.dpr);
     this.map.width = mw;
     this.map.height = mw;
@@ -413,6 +423,10 @@ export class Hud {
   setScore(points: number | null, takedowns: number, dealt = 0): void {
     if (this.same('score', points === null ? '-' : `${points}/${takedowns}/${Math.round(dealt)}`)) return;
     this.scoreEl.classList.toggle('show', points !== null);
+    if (this.pointsOn !== (points !== null)) {
+      this.pointsOn = points !== null;
+      this.fitBoard();
+    }
     if (points !== null) this.scoreEl.innerHTML = `<span>💥 <b>${takedowns}</b></span><span>🔨 <b>${Math.round(dealt)}</b></span><span><b>${points}</b> p</span>`;
   }
 

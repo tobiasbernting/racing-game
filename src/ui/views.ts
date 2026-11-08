@@ -420,7 +420,7 @@ export function mapView(o: MapOpts): HTMLElement {
   }
   const legend = el('div', 'rg-legend');
   for (const t of ['race', 'challenge', 'elite', 'shop', 'workshop', 'event', 'boss'] as NodeType[]) legend.append(el('span', null, `${NODE_EMOJI[t]} ${NODE_NAMES[t]}`));
-  if (nodes.some((n) => n.derby)) legend.append(el('span', 'rg-lg-derby', `${DERBY_EMOJI} ${DERBY_NAME}`, el('small', null, ' arena, sista bilen vinner')));
+  if (nodes.some((n) => n.derby)) legend.append(el('span', 'rg-lg-derby', `${DERBY_EMOJI} ${DERBY_NAME}`, el('small', null, ' arena, mest poäng vinner')));
   const kinds = el('div', 'rg-legend rg-kinds', ...RACE_KINDS.map((k) => el('span', `k-${k}`, `${KIND_EMOJI[k]} ${KIND_NAMES[k]}`, el('small', null, k === 'rally' ? ' ren racing' : k === 'mixed' ? ' racing med knuffar' : ' vrak och poäng'))));
   const menu = btn('rg-icon', '☰', o.onMenu);
   menu.setAttribute('aria-label', 'Meny');

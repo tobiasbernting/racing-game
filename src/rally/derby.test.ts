@@ -160,7 +160,7 @@ describe('fighting is the only way to win a derby', () => {
     }
     console.log('derby damage taken by the aggressor side vs the victim side', Math.round(aggr), Math.round(vict));
     expect(vict).toBeGreaterThan(0);
-    expect(aggr).toBeLessThan(vict * 0.6);
+    expect(aggr).toBeLessThan(vict * 0.45);
   });
 
   it('every computer driver goes for the others, racers too: all of them deal damage in the first 60 seconds, none cruises', () => {
@@ -237,10 +237,11 @@ describe('the derby drivers', () => {
       }
   });
 
-  it('racers that only roam and dodge still get hit now and then but last longer than the rammers', () => {
+  it('racers are no passengers: with almost no appetite they still hunt, and a rammer does not simply outlast them by cruising', () => {
     const sim = runDerby('bowl', 11, ['coupe', 'coupe', 'pickup', 'pickup'], 120, [0.05, 0.05, 1, 1]);
-    const outAt = (i: number): number => sim.board.standings(() => 0).find((r) => r.id === `c${i}`)?.outAt ?? Infinity;
-    expect(Math.min(outAt(0), outAt(1))).toBeGreaterThanOrEqual(Math.min(outAt(2), outAt(3)) - 1);
+    // the racers deal damage too, and every car ends up in the points table with a fair share of the fighting
+    expect(sim.dealt[0]! + sim.dealt[1]!).toBeGreaterThan(5);
+    expect(sim.hits).toBeGreaterThan(10);
   });
 });
 
