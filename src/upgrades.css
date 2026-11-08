@@ -136,8 +136,8 @@
 .up-open { opacity: 0.8; font-size: 12px; }
 .up-combo-tag { background: #15120d; color: #ffd23f; border-radius: 4px; padding: 2px 6px; font-size: 12px; }
 .up-hint { font-size: 13px; opacity: 0.8; padding: 4px; }
-.up-buy.rg-go { min-height: 46px; padding: 4px 12px 4px 26px; font-size: 15px; letter-spacing: 0; flex: none; white-space: nowrap; }
-.up-buy.rg-go:disabled { opacity: 0.5; filter: grayscale(0.6); box-shadow: none; }
+.up-take.rg-go { min-height: 46px; padding: 4px 12px 4px 26px; font-size: 15px; letter-spacing: 0; flex: none; white-space: nowrap; }
+.up-take.rg-go:disabled { opacity: 0.5; filter: grayscale(0.6); box-shadow: none; }
 
 .up-combos { display: flex; flex-direction: column; gap: 6px; }
 .up-combocard { display: flex; gap: 10px; align-items: center; padding: 6px 10px; border-radius: 4px; background: rgba(255, 255, 255, 0.07); border: 2px dashed rgba(255, 255, 255, 0.25); opacity: 0.75; }
@@ -197,7 +197,7 @@
   .up-d-t b { font-size: 14px; }
   .up-d-t span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .up-d-a { max-width: 150px; font-size: 12px; }
-  .up-buy.rg-go { min-height: 44px; font-size: 14px; padding: 2px 8px 2px 24px; }
+  .up-take.rg-go { min-height: 44px; font-size: 14px; padding: 2px 8px 2px 24px; }
   .up-preview { min-height: 90px; }
   .up-vehicle { font-size: 11px; }
   .up-mix { min-height: 26px; }

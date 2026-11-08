@@ -134,7 +134,7 @@ export function treePanel(run: RunState, o: TreePanelOpts): HTMLElement {
       const free = workshopFree(run, u.id);
       const price = free ? 0 : upgradePrice(run, u.id);
       const poor = run.kronor < price;
-      const b = btn('rg-go up-buy', free ? 'Ta gratis' : poor ? `${price} kr (för dyr)` : `Köp ${price} kr`, () => o.onBuy?.(u.id));
+      const b = btn('rg-go up-take', free ? 'Ta gratis' : poor ? `${price} kr (för dyr)` : `Köp ${price} kr`, () => o.onBuy?.(u.id));
       b.disabled = poor;
       act.append(b);
     } else act.append(el('span', 'up-open', 'Öppen: dyker upp efter en vinst eller i Skruvhörnan'));
