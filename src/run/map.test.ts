@@ -4,7 +4,8 @@ import { BOSS_KIND, ACTS, ACT_COURSES, MAX_NON_RACE, MIN_RACES, NON_RACE, ROWS, 
 
 const seeds = Array.from({ length: 150 }, (_, i) => i * 7919 + 1);
 
-describe('a run of racing before every boss', () => {
+// Walks every path of 1500 seeded maps: several seconds on a slow CI runner, so not the 5 s default.
+describe('a run of racing before every boss', { timeout: 60_000 }, () => {
   const many = Array.from({ length: 1500 }, (_, i) => i * 104729 + 3);
   it('every path from the start to the boss passes at least 3 races (race, challenge, elite or derby) and at most 2 other nodes', () => {
     for (const seed of many)
