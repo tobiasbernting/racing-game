@@ -527,8 +527,8 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void; na
   const info: Node[] = [
     el('div', 'rg-chips', ...chips),
     arena
-      ? el('div', 'rg-kindbox rg-derbybox k-carnage', el('b', null, `${DERBY_EMOJI} ${DERBY_NAME}: `), DERBY_TEXT.replace(`${DERBY_NAME}: `, ''), el('small', null, ` Placeringen är i vilken ordning bilarna åker ut, och varje vrak ger ${TAKEDOWN_POINTS} p. ${arena.text}`))
-      : el('div', `rg-kindbox k-${kind}`, el('b', null, `${KIND_EMOJI[kind]} ${KIND_NAMES[kind]}: `), KIND_TEXT[kind], kind === 'carnage' ? el('small', null, ` Poäng för placering: ${PLACE_POINTS.join('/')} och ${TAKEDOWN_POINTS} per vrak. Placeringen på poäng avgör priset och hjärtat.`) : null),
+      ? el('div', 'rg-kindbox rg-derbybox k-carnage', el('b', null, `${DERBY_EMOJI} ${DERBY_NAME}: `), DERBY_TEXT.replace(`${DERBY_NAME}: `, ''), el('small', null, ` Poäng: skada du gör (en hel bil är 50 p), ${TAKEDOWN_POINTS} p per vrak och ${PLACE_POINTS[0]} till 2 p för hur länge du håller. ${arena.text}`))
+      : el('div', `rg-kindbox k-${kind}`, el('b', null, `${KIND_EMOJI[kind]} ${KIND_NAMES[kind]}: `), KIND_TEXT[kind], kind === 'carnage' ? el('small', null, ` Poäng: skada du gör (en hel bil är 50 p), ${TAKEDOWN_POINTS} per vrak och ${PLACE_POINTS.join('/')} för placeringen. Placeringen på poäng avgör priset och hjärtat.`) : null),
   ];
   if (plan.boss) {
     const rules = plan.field.rivals[0]?.rules.filter((x) => (x === 'lastlap' && !arena) || (x === 'regen' && kind === 'carnage')) ?? [];
@@ -566,11 +566,9 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
   const head = dv
     ? s.place === 1
       ? '🏆 DU VANN DERBYT!'
-      : dv.alive
-        ? `${s.place}:a på klockan. Tiden tog slut.`
-        : s.place === s.n
-          ? 'Först ut. Det gick fort.'
-          : `${s.place}:a. Du blev utslagen som bil nummer ${s.n - s.place + 1}.`
+      : s.place === s.n
+        ? `${s.place}:a på poäng. Slåss mer!`
+        : `${s.place}:a på poäng${dv.alive ? '' : '. Du blev utslagen'}.`
     : !s.finished
       ? 'Du kom aldrig i mål. Aj.'
       : s.place === 1
@@ -591,14 +589,14 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
       el(
         'div',
         'rg-points rg-derbyres',
-        el('b', null, `🏟️ Plats ${s.place} av ${s.n}`),
-        el('small', null, ` efter utslagsordningen${dv.timeUp ? ' (de som rullade till slutet rangordnas på hälsa)' : ''} · 💥 ${td} vrak × ${TAKEDOWN_POINTS} p = ${td * TAKEDOWN_POINTS} p${s.wrecked ? ' · du blev vrakad' : ''}`),
+        el('b', null, `🏟️ Plats ${s.place} av ${s.n} på poäng · ${s.points ?? 0} p`),
+        el('small', null, ` = ${s.dealt ?? 0} för skada du gjorde + ${td} vrak × ${TAKEDOWN_POINTS} p = ${td * TAKEDOWN_POINTS} + ${PLACE_POINTS[Math.min(PLACE_POINTS.length, s.survival ?? s.n) - 1]!} för hur länge du höll${s.wrecked ? ' (du blev vrakad)' : ''}. Mest poäng vinner, inte mest hälsa.`),
       ),
       el(
         'ol',
         'rg-dtable',
         ...dv.table.map((r) =>
-          el('li', `${r.me ? 'me' : ''} ${r.alive ? 'alive' : 'out'}`, el('b', null, `${r.place}.`), el('span', 'rg-dn', r.name), el('small', null, r.alive ? `rullade kvar · ${r.hp} % hälsa` : `ute efter ${clock(r.outAt ?? 0)}`), r.takedowns ? el('em', null, `💥 ${r.takedowns}`) : null),
+          el('li', `${r.me ? 'me' : ''} ${r.alive ? 'alive' : 'out'}`, el('b', null, `${r.place}.`), el('span', 'rg-dn', r.name), el('small', null, `${r.points} p · ${r.alive ? `rullade kvar · ${r.hp} % hälsa` : `ute efter ${clock(r.outAt ?? 0)}`}`), el('em', null, `🔨 ${r.dealt}${r.takedowns ? ` · 💥 ${r.takedowns}` : ''}`)),
         ),
       ),
     );
@@ -608,7 +606,7 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
     const pp = s.roadPlace ? PLACE_POINTS[Math.min(PLACE_POINTS.length, s.roadPlace) - 1]! : 0;
     const td = s.takedowns ?? 0;
     lines.push(
-      el('div', 'rg-points', el('b', null, `💥 Blodbad: ${s.points} p`), el('small', null, ` = ${pp} för ${s.roadPlace ?? '?'}:a plats på vägen + ${td} vrak × ${TAKEDOWN_POINTS} p${s.wrecked ? ` · du blev vrakad ${s.wrecked} ${s.wrecked === 1 ? 'gång' : 'gånger'}` : ''}. Plats ${s.place} av ${s.n} på poäng.`)),
+      el('div', 'rg-points', el('b', null, `💥 Blodbad: ${s.points} p`), el('small', null, ` = ${s.dealt ?? 0} för skada du gjorde + ${td} vrak × ${TAKEDOWN_POINTS} p = ${td * TAKEDOWN_POINTS} + ${pp} för ${s.roadPlace ?? '?'}:a plats på vägen${s.wrecked ? ` · du blev vrakad ${s.wrecked} ${s.wrecked === 1 ? 'gång' : 'gånger'}` : ''}. Plats ${s.place} av ${s.n} på poäng.`)),
     );
   }
   const kr = el('b', null, `+${s.total} kr`);

@@ -130,6 +130,9 @@ export interface RaceSummary {
   /** Rally, Blandat or Blodbad; in Blodbad also the points, takedowns and wrecks of the player. */
   kind?: RaceKind;
   points?: number;
+  /** The part of the points that came from damage dealt, and (derby) the survival order the position part came from. */
+  dealt?: number;
+  survival?: number;
   /** Where the player crossed the line on the road (Blodbad is scored on points, not on this). */
   roadPlace?: number;
   takedowns?: number;

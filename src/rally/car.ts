@@ -605,13 +605,16 @@ export interface HitInfo {
   /** How fast each car was driving into the other (m/s). */
   closeA: number;
   closeB: number;
+  /** Where each car was hit: the cosine between its nose and the direction to the other car (1 = on the nose, -1 = on the tail). */
+  faceA: number;
+  faceB: number;
   /** Where they met. */
   x: number;
   z: number;
   y: number;
 }
 
-const hitInfo: HitInfo = { j: 0, closeA: 0, closeB: 0, x: 0, z: 0, y: 0 };
+const hitInfo: HitInfo = { j: 0, closeA: 0, closeB: 0, faceA: 0, faceB: 0, x: 0, z: 0, y: 0 };
 
 /**
  * Bump cars apart: two circles per car, impulses weighted by mass (a tractor shoves, a moped bounces off), a
@@ -713,6 +716,12 @@ export function collideCars(cars: Car[], onHit: (a: number, b: number, j: number
             hitInfo.j = j;
             hitInfo.closeA = closeA;
             hitInfo.closeB = closeB;
+            // where on each car: measured between the car centres, so a flank hit reads as a flank whichever bumper circle touched
+            const cdx = b.x - a.x;
+            const cdz = b.z - a.z;
+            const cd = Math.hypot(cdx, cdz) || 1;
+            hitInfo.faceA = (Math.sin(a.heading) * cdx + Math.cos(a.heading) * cdz) / cd;
+            hitInfo.faceB = -(Math.sin(b.heading) * cdx + Math.cos(b.heading) * cdz) / cd;
             hitInfo.x = cx;
             hitInfo.z = cz;
             hitInfo.y = (a.y + b.y) / 2;

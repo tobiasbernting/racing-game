@@ -16,7 +16,7 @@ const ids = ['me', 'a', 'b', 'c', 'd', 'e'];
 const full = (): number => 1;
 
 describe('the derby board', () => {
-  it('ranks the cars by the order they were wrecked in: the first out is last, the last one standing wins', () => {
+  it('ranks the survival order by elimination (first out is last), then the placing by points', () => {
     const b = new DerbyBoard(ids);
     expect(b.aliveCount()).toBe(6);
     b.eliminate('b', 10, 'me');
@@ -27,11 +27,13 @@ describe('the derby board', () => {
     b.eliminate('e', 80, 'c');
     expect(b.isOver(80)).toBe(true);
     const st = b.standings(full);
-    expect(st.map((r) => r.id)).toEqual(['c', 'e', 'a', 'me', 'd', 'b']);
+    // nobody dealt any damage: takedowns and the survival order decide
+    expect(st.map((r) => r.id)).toEqual(['c', 'a', 'me', 'e', 'd', 'b']);
     expect(st.map((r) => r.place)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(st[0]!.alive).toBe(true);
-    expect(st[5]!.outAt).toBe(10);
-    expect(b.place('me', full)).toBe(4);
+    expect(st[0]!.survival).toBe(1);
+    expect(st.find((r) => r.id === 'b')!.outAt).toBe(10);
+    expect(b.place('me', full)).toBe(3);
   });
 
   it('counts a takedown for whoever dealt the blow, never for the car itself or a stranger', () => {
@@ -49,7 +51,7 @@ describe('the derby board', () => {
     expect(b.aliveCount()).toBe(2);
   });
 
-  it('ends when one car is left or the clock runs out, and then ranks the cars still running by health', () => {
+  it('ends when one car is left or the clock runs out, and the winner is decided by points, not by health', () => {
     const b = new DerbyBoard(ids);
     expect(b.isOver(DERBY_SECONDS - 1)).toBe(false);
     expect(b.isOver(DERBY_SECONDS)).toBe(true);
@@ -58,35 +60,45 @@ describe('the derby board', () => {
     b.eliminate('a', 20);
     b.eliminate('b', 50, 'me');
     const hp: Record<string, number> = { me: 0.4, c: 0.9, d: 0.65, e: 0.65 };
+    // with no damage dealt by anybody the healthiest car has the best survival and so the most points
     const st = b.standings((id) => hp[id] ?? 0);
-    // alive: c (0.9), then d and e tied (the board order breaks it), then me; then the wrecks, the later one first
-    expect(st.map((r) => r.id)).toEqual(['c', 'd', 'e', 'me', 'b', 'a']);
-    expect(st.filter((r) => r.alive).map((r) => r.place)).toEqual([1, 2, 3, 4]);
-    // more takedowns break a tie in health
-    b.eliminate('c', 60, 'e');
+    expect(st.filter((r) => r.alive).map((r) => r.id)).toEqual(['me', 'c', 'd', 'e']);
+    // the car with the least health but the most damage dealt wins the clock
+    b.deal('me', 70);
+    b.deal('c', 10);
     const st2 = b.standings((id) => hp[id] ?? 0);
-    expect(st2[0]!.id).toBe('e');
+    expect(st2[0]!.id).toBe('me');
+    expect(st2[0]!.survival).toBe(4);
+    expect(st2[0]!.points).toBe(carnagePoints(4, 1, 70));
+    // a car that sits in the corner at full health cannot win: it only has the survival part
+    const sitter = st2.find((r) => r.id === 'c')!;
+    expect(sitter.survival).toBe(1);
+    expect(sitter.points).toBe(carnagePoints(1, 0, 10));
+    expect(sitter.place).toBeGreaterThan(1);
   });
 
-  it('turns the placing and the takedowns into points, and a wreck keeps its points', () => {
+  it('turns damage, takedowns and survival into points, and a wreck keeps its points', () => {
     const b = new DerbyBoard(ids);
+    b.deal('me', 41.6);
+    b.deal('a', 30);
     b.eliminate('a', 5, 'me');
     b.eliminate('b', 9, 'me');
     b.eliminate('c', 12, 'd');
     const st = b.standings(full);
     const me = st.find((r) => r.id === 'me')!;
-    expect(me.points).toBe(carnagePoints(me.place, 2));
+    expect(me.points).toBe(carnagePoints(me.survival, 2, 42));
+    expect(me.dealt).toBe(42);
     expect(me.takedowns).toBe(2);
     const wreck = st.find((r) => r.id === 'a')!;
     expect(wreck.alive).toBe(false);
-    expect(wreck.points).toBe(carnagePoints(wreck.place, 0));
+    expect(wreck.points).toBe(carnagePoints(wreck.survival, 0, 30));
   });
 
   it('says how it went in words a ten-year-old gets', () => {
-    expect(derbyHeadline({ place: 1, n: 5, alive: true, timeUp: false })).toMatch(/Sista bilen/);
-    expect(derbyHeadline({ place: 1, n: 5, alive: true, timeUp: true })).toMatch(/Mest hälsa/i);
-    expect(derbyHeadline({ place: 5, n: 5, alive: false, timeUp: false })).toMatch(/Först ut/);
-    expect(derbyHeadline({ place: 3, n: 5, alive: false, timeUp: false })).toMatch(/nummer 3/);
+    expect(derbyHeadline({ place: 1, n: 5, alive: true, timeUp: false })).toMatch(/flest poäng/i);
+    expect(derbyHeadline({ place: 1, n: 5, alive: true, timeUp: true })).toMatch(/flest poäng/i);
+    expect(derbyHeadline({ place: 5, n: 5, alive: false, timeUp: false })).toMatch(/minst poäng/);
+    expect(derbyHeadline({ place: 3, n: 5, alive: false, timeUp: false })).toMatch(/plats 3/);
   });
 });
 
@@ -201,11 +213,11 @@ describe('the run rules for a derby', () => {
       medal: null,
       damage: 10,
       kind: 'carnage' as const,
-      points: carnagePoints(place, td),
+      points: carnagePoints(place, td, 30),
       takedowns: td,
       wrecked: place === 1 ? 0 : 1,
       roadPlace: place,
-      derby: { arena: plan.arena!, seconds: 90, limit: 150, alive: place === 1, timeUp: false, table: [{ name: 'Du', place, alive: place === 1, takedowns: td, hp: 50, outAt: place === 1 ? null : 40, me: true }] },
+      derby: { arena: plan.arena!, seconds: 90, limit: 150, alive: place === 1, timeUp: false, table: [{ name: 'Du', place, alive: place === 1, takedowns: td, dealt: 30, points: carnagePoints(place, td, 30), survival: place, hp: 50, outAt: place === 1 ? null : 40, me: true }] },
     });
     const won = submitRace(run, res(1, 5, 2));
     expect(won.screen?.kind === 'postrace' && won.screen.summary.heartLost).toBe(false);
@@ -255,7 +267,7 @@ describe('the run rules for a derby', () => {
       expect(r.rank).toBeGreaterThanOrEqual(1);
       expect(r.rank).toBeLessThanOrEqual(r.n);
       expect(r.n).toBe(plan.rules.ai + 1);
-      expect(r.points).toBe(carnagePoints(r.rank, r.takedowns));
+      expect(r.points).toBeGreaterThanOrEqual(carnagePoints(6, r.takedowns));
       expect(r.lapped).toBe(false);
       expect(asRallyResult(plan, r).place).toBe(r.rank);
     }

@@ -17,7 +17,7 @@ export interface Profile extends PlayerModel {
   strategy: Strategy;
 }
 
-export const profile = (skill: HumanSkill, strategy: Strategy = 'mixed', aggression = strategy === 'ram' ? 1 : strategy === 'race' ? 0.15 : 0.5): Profile => ({ skill, strategy, aggression });
+export const profile = (skill: HumanSkill, strategy: Strategy = 'mixed', aggression = strategy === 'ram' ? 1 : strategy === 'race' ? 0.6 : 0.5): Profile => ({ skill, strategy, aggression });
 
 /** The upgrade lines each kind of made-up player goes for, best first. */
 const LINE_ORDER: Record<Strategy, string[]> = {

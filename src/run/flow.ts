@@ -124,6 +124,8 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     rewardKind,
     kind: plan.kind,
     points: res.points,
+    dealt: res.dealt,
+    survival: res.survival,
     roadPlace: res.roadPlace,
     takedowns: res.takedowns,
     wrecked: res.wrecked,
