@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type FegisState, fegisDealt, fegisDrain, fegisTick, BIG_HIT, HIT_MIN_DV, NOSE_MIN, TAKEDOWN_WINDOW, TakedownLedger, exposure, hitsToWreck, impactDamage, maxHpOf, ramPowerOf, zoneOf } from './combat.ts';
+import { capRammer, isRammer, type FegisState, fegisDealt, fegisDrain, fegisTick, BIG_HIT, HIT_MIN_DV, NOSE_MIN, TAKEDOWN_WINDOW, TakedownLedger, exposure, hitsToWreck, impactDamage, maxHpOf, ramPowerOf, zoneOf } from './combat.ts';
 
 const hit = { dv: 8, blame: 1, facing: -1, ram: 1, dmgTaken: 1 };
 
@@ -83,6 +83,20 @@ describe('who takes the damage: the nose that rams or the flank that is rammed',
     expect(impactDamage({ ...flank, ram: 2 })).toBeCloseTo(impactDamage({ ...flank, ram: 1 }) * 2);
     // a lighter victim changes speed more in the same hit
     expect(impactDamage({ ...flank, ram: 1, dv: 4 })).toBeGreaterThan(impactDamage({ ...flank, ram: 1, dv: 2.5 }));
+  });
+});
+
+describe('the rammer is never hurt more than 40 % of what it hits', () => {
+  it('caps the nose that rams, leaves head-ons and the victim alone', () => {
+    expect(capRammer(21, 8, 1, 0.05)).toBeCloseTo(3.2);
+    expect(capRammer(2, 8, 1, 0.05)).toBe(2);
+    // head-on: split as before
+    expect(capRammer(21, 8, 1, 0.5)).toBe(21);
+    // a flank or tail takes its own damage
+    expect(capRammer(21, 8, 0, 1)).toBe(21);
+    expect(capRammer(21, 8, -1, 1)).toBe(21);
+    expect(isRammer(0.9, 0.2)).toBe(true);
+    expect(isRammer(0.9, 0.6)).toBe(false);
   });
 });
 

@@ -75,6 +75,12 @@ export function impactDamage(i: ImpactIn): number {
   return Math.min(HIT_MAX, DAMAGE_K * over) * exposure(i.facing, i.blame, i.ownRam) * Math.max(0.3, i.ram) * Math.max(0.1, i.dmgTaken);
 }
 
+/** A car that drives into another with its nose (not a head-on) never takes more than this share of what the other takes in the same hit. */
+export const RAMMER_SHARE = 0.4;
+export const isRammer = (facing: number, blame: number): boolean => facing > 0.5 && blame < 0.4;
+/** Caps the damage of the nose that rams at 40 % of the victim's, whatever the mass and armour. Head-ons and other hits are left alone. */
+export const capRammer = (own: number, other: number, facing: number, blame: number): number => (isRammer(facing, blame) ? Math.min(own, RAMMER_SHARE * other) : own);
+
 /** The ram power of a car from its trinkets' shove: 1 is a plain bumper, and nothing goes past 2.5. */
 export const ramPowerOf = (shove: number): number => Math.min(2.5, 1 + 0.35 * Math.max(0, shove));
 

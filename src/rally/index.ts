@@ -13,7 +13,7 @@ import { rivalById, rivalCast } from '../shared/rivals.ts';
 import { LASTLAP_BOOST, archetypeBodies, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
 import { FEGIS_AFTER, FEGIS_REACH, KIND_AGGRO, carnagePoints, damagePoints, pointsTable, type RaceKind } from '../shared/kinds.ts';
 import { DERBY_DAMAGE, DERBY_HP, DERBY_SECONDS, DERBY_WARMUP, DerbyBoard, derbyHeadline } from '../shared/derby.ts';
-import { BIG_HIT, RESPAWN_HP, TakedownLedger, WRECK_SECONDS, fegisDealt, fegisDrain, fegisTick, impactDamage, maxHpOf, ramPowerOf, zoneOf } from './combat.ts';
+import { BIG_HIT, RESPAWN_HP, capRammer, TakedownLedger, WRECK_SECONDS, fegisDealt, fegisDrain, fegisTick, impactDamage, maxHpOf, ramPowerOf, zoneOf } from './combat.ts';
 import type { GameContext, GameInstance } from '../arcade/types.ts';
 import { Driver, steerTo, type Aim } from './ai.ts';
 import { arenaCourse, arenaStart } from './arena.ts';
@@ -2929,15 +2929,19 @@ const rally = (ctx: GameContext): GameInstance => {
       if (!fresh || !racingNow() || derbyOver) return;
       const tot = info.closeA + info.closeB + 0.001;
       let any = false;
-      for (const [x, o, closeO, face] of [[ea, eb, info.closeB, info.faceA], [eb, ea, info.closeA, info.faceB]] as const) {
-        if (x.finished || x.wreckT > 0) continue;
-        // where it was hit and who drove into whom decide the share: the rammer's nose takes little, the flank and the tail the bulk
-        const dmg = impactDamage({ dv: info.j / x.car.feel.mass, blame: closeO / tot, facing: face, ram: o.car.ram * (o === me ? mt.spike : 1), ownRam: x.car.ram, dmgTaken: x.tune.dmgMul }) * (derby ? DERBY_DAMAGE : 1);
+      // where it was hit and who drove into whom decide the share: the rammer's nose takes little, the flank and the tail the bulk
+      const sides = [[ea, eb, info.closeB, info.faceA], [eb, ea, info.closeA, info.faceB]] as const;
+      const raw = sides.map(([x, o, closeO, face]) =>
+        x.finished || x.wreckT > 0 ? 0 : impactDamage({ dv: info.j / x.car.feel.mass, blame: closeO / tot, facing: face, ram: o.car.ram * (o === me ? mt.spike : 1), ownRam: x.car.ram, dmgTaken: x.tune.dmgMul }) * (derby ? DERBY_DAMAGE : 1),
+      );
+      sides.forEach(([x, o, closeO, face], n) => {
+        // whatever the mass or armour, the nose that rams never takes more than 40 % of what the car it hits takes
+        const dmg = capRammer(raw[n]!, raw[1 - n]!, face, closeO / tot);
         if (dmg > 0) {
           damageHp(x, dmg, o, zoneOf(face));
           any = true;
         }
-      }
+      });
       if (any) pairCd.set(key, now);
     } else if (hit > 2) {
       hurt(ea, (hit - 2) * 1.2);
