@@ -11,10 +11,16 @@ import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { AWNING, CHAOS_TEXT, DODGE, DRAFT, EPA_BURST, HOLE_IN_ONE, HOP, ICE_CANNON, JINGLE, KART_SLIDE, KICKSTART, MOW, PASSIVE_RAM, POUND, POWDER, RAMMER, REPAIR, ROCKET, SCAVENGE, SLINGSHOT, SOFTLAND, VIP, WHEELIE_ROCKET, WOBBLE, chaosPick, chargeOf, draftTarget, kitOf, pivotDir } from '../shared/abilities.ts';
 import { rivalById, rivalCast } from '../shared/rivals.ts';
 import { LASTLAP_BOOST, archetypeBodies, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
-import { KIND_AGGRO, pointsTable, type RaceKind } from '../shared/kinds.ts';
+import { KIND_AGGRO, carnagePoints, pointsTable, type RaceKind } from '../shared/kinds.ts';
+import { DERBY_DAMAGE, DERBY_HP, DERBY_SECONDS, DERBY_WARMUP, DerbyBoard, derbyHeadline } from '../shared/derby.ts';
 import { BIG_HIT, RESPAWN_HP, TakedownLedger, WRECK_SECONDS, impactDamage, maxHpOf, ramPowerOf } from './combat.ts';
 import type { GameContext, GameInstance } from '../arcade/types.ts';
 import { Driver, steerTo, type Aim } from './ai.ts';
+import { arenaCourse, arenaStart } from './arena.ts';
+import { buildArenaWorld, type ArenaWorld } from './arenabuild.ts';
+import { DerbyBrain, freeSpot, type DerbyFoe } from './derbyai.ts';
+import { SHORTCUT_MIN_SPEED, SHORTCUT_SKIP, liftFor, lipOf, placeRamps, shortcutLanded, type RampSpec } from './ramps.ts';
+import { buildRampMeshes, type RampMeshes } from './rampmesh.ts';
 import { RallyAudio } from './audio.ts';
 import { BASE_POWER, Car, collideCars, Ground_, type Controls, type HitInfo } from './car.ts';
 import { courseFor } from './variant.ts';
@@ -112,10 +118,16 @@ interface Entrant {
   wheelie: number;
   /** Seconds left blinded by a snow cloud: slower and wandering. */
   blindT: number;
+  /** Derby: the computer driver's brain, seconds since it was wrecked for good, and whether the hulk has been cleared away. */
+  brain: DerbyBrain | null;
+  wreckAge: number;
+  gone: boolean;
 }
 
 /** Anyone on the track, for the standings, the minimap and the name tags. */
 interface Runner {
+  /** Derby: wrecked and cleared away (no dot on the minimap). */
+  gone?: boolean;
   id: string;
   name: string;
   color: string;
@@ -197,10 +209,13 @@ const rally = (ctx: GameContext): GameInstance => {
   const field = opts?.field ?? null;
   /** Blodbad: health bars, wrecks and takedowns. */
   const carnage = !!opts && kind === 'carnage';
+  /** Rivningsderby: an enclosed arena, no laps, wrecks are out for good and the last car running wins. */
+  const arenaC = opts && rules?.arena ? arenaCourse(rules.arena, opts.seed ?? 20261030, opts.twist?.boss?.body === 'sofa' ? 0.55 : 1) : null;
+  const derby = !!arenaC && carnage;
   // the same course never plays the same twice: the seed mirrors it, turns it round, thins or crowds the props
-  const vary = opts && rules ? variationFor(rules.course, opts.seed ?? 20261030) : null;
-  const course = courseFor(rules?.course ?? 'farm', vary, field?.narrow ?? 1);
-  const LAPS = rules ? rules.laps : LAPS_Q;
+  const vary = opts && rules && !arenaC ? variationFor(rules.course, opts.seed ?? 20261030) : null;
+  const course = arenaC ? arenaC.def : courseFor(rules?.course ?? 'farm', vary, field?.narrow ?? 1);
+  const LAPS = derby ? 999 : rules ? rules.laps : LAPS_Q;
   const rain = rules?.weather === 'rain' && canRain(course.id);
   const timeOfDay = rules?.time ?? 'day';
   const night = course.theme.alwaysNight || timeOfDay === 'night';
@@ -247,8 +262,12 @@ const rally = (ctx: GameContext): GameInstance => {
   const nitroLen = Math.min(NITRO_SECONDS * mt.nitroSeconds, MAX_NITRO_SECONDS / Math.max(1, myTune.charges));
   const nitroPush = 1 + 0.45 * mt.nitroPower;
 
-  const track = new Track(course, rainGrip);
+  const track = arenaC ? arenaC.track : new Track(course, rainGrip);
+  // stunt ramps on the road (a few kickers and one shortcut jump), or the ramps on the arena's floor
+  const ramps: RampSpec[] = arenaC ? arenaC.ramps : opts ? placeRamps(track, opts.seed ?? 20261030, course.ctrl.flatMap((c, k) => (c.bump && c.bump > 0 ? [track.ctrlS[k]!] : []))) : [];
+  const shortcut = ramps.find((r) => r.kind === 'shortcut') ?? null;
   const hud = new Hud(ctx.root, track, ctx.dpr, ctx.touch);
+  if (derby) hud.setArena(arenaC!.shape.hw);
   // on touch screens the third round button is the camera when there is no nitro (info.ts): no second 🎥 then
   // with the pedals the camera button lives in the top bar, beside pause (and follows a change of scheme from the pause menu)
   let lastPedals: boolean | null = null;
@@ -317,11 +336,13 @@ const rally = (ctx: GameContext): GameInstance => {
 
   // ---- the world, built over a few frames behind a loading card ----
   let sky: Sky;
-  let terrain: Terrain;
-  let road: Road;
-  let water: Water;
-  let scenery: Scenery;
-  let attitude: Attitude;
+  let terrain: { height(x: number, z: number): number; visual(x: number, z: number): number; dispose(): void };
+  let road: Pick<Road, 'setLights' | 'update'>;
+  let water: Pick<Water, 'update'>;
+  let scenery: Pick<Scenery, 'crowds' | 'update'> & { group?: THREE.Group };
+  let attitude: Pick<Attitude, 'smokers' | 'update'> & { group: { visible: boolean } };
+  let arenaWorld: ArenaWorld | null = null;
+  let rampMeshes: RampMeshes | null = null;
   let particles: Particles;
   /** The green gas clouds: never faded out in front of the chase camera, so the cloud behind your own car shows. */
   let gasFx: Particles;
@@ -342,7 +363,7 @@ const rally = (ctx: GameContext): GameInstance => {
   /** Every car on the track this frame (refilled each frame). */
   const carsBuf: Car[] = [];
   const disposers: (() => void)[] = [];
-  const ground = { height: (x: number, z: number): number => terrain.height(x, z) };
+  const ground = { height: (x: number, z: number): number => terrain.height(x, z), lift: liftFor(ramps, track) };
   let meE: Entrant | null = null;
   const headlights: THREE.SpotLight[] = [];
 
@@ -372,57 +393,85 @@ const rally = (ctx: GameContext): GameInstance => {
     hud.progress(0.15);
     await nextFrame();
     if (destroyed) return;
-    terrain = new Terrain(track, ctx.quality, course);
-    scene.add(terrain.mesh);
-    disposers.push(() => terrain.dispose());
-    hud.progress(0.4);
-    await nextFrame();
-    if (destroyed) return;
-    const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-    road = buildRoad(track, terrain, ctx.quality, aniso, course, { wet: rain || course.theme.lit, envMap: sky.env, grid: Math.max(6, 1 + nAi) });
-    scene.add(road.group);
-    disposers.push(() => road.dispose());
-    for (const m of buildFields(terrain, ctx.quality)) {
-      scene.add(m);
-      disposers.push(() => {
-        m.geometry.dispose();
-        const mt = m.material as THREE.MeshLambertMaterial;
-        mt.map?.dispose();
-        mt.dispose();
-      });
+    if (arenaC) {
+      // the arena: a floor, an island, tyre walls, stands, floodlights and ramps (arenabuild.ts); the rest of the world stands aside
+      const aw = (arenaWorld = buildArenaWorld(arenaC, track, ctx.quality, night));
+      scene.add(aw.group);
+      disposers.push(() => aw.dispose());
+      terrain = { height: () => 0, visual: () => 0.03, dispose: () => undefined };
+      road = { setLights: () => undefined, update: () => undefined };
+      water = { update: () => undefined };
+      scenery = { crowds: aw.crowds, update: (t, f, cheer) => aw.update(t, cheer, f) };
+      attitude = { group: aw.group, smokers: [], update: () => undefined };
+      hud.progress(0.6);
+      await nextFrame();
+      if (destroyed) return;
+    } else {
+      const terr = new Terrain(track, ctx.quality, course);
+      terrain = terr;
+      scene.add(terr.mesh);
+      disposers.push(() => terr.dispose());
+      hud.progress(0.4);
+      await nextFrame();
+      if (destroyed) return;
+      const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      const rd = buildRoad(track, terr, ctx.quality, aniso, course, { wet: rain || course.theme.lit, envMap: sky.env, grid: Math.max(6, 1 + nAi) });
+      road = rd;
+      scene.add(rd.group);
+      disposers.push(() => rd.dispose());
+      for (const m of buildFields(terr, ctx.quality)) {
+        scene.add(m);
+        disposers.push(() => {
+          m.geometry.dispose();
+          const mt = m.material as THREE.MeshLambertMaterial;
+          mt.map?.dispose();
+          mt.dispose();
+        });
+      }
+      const wt = buildWater(sky.env, course.layout);
+      water = wt;
+      for (const m of wt.meshes) scene.add(m);
+      disposers.push(() => wt.dispose());
+      hud.progress(0.6);
+      await nextFrame();
+      if (destroyed) return;
+      const sc = course.id === 'farm' ? buildScenery(track, terr, ctx.quality, timeU) : buildThemeScenery(track, terr, course, ctx.quality, timeU, course.theme.lit || night, vary);
+      scenery = sc;
+      scene.add(sc.group);
+      disposers.push(() => sc.dispose());
+      const at = buildAttitude(track, terr, course, ctx.quality, timeU, course.theme.lit || night, vary, sc.crowds);
+      attitude = at;
+      scene.add(at.group);
+      disposers.push(() => at.dispose());
+      // the stunt ramps: kickers beside the racing line and the shortcut jump
+      if (ramps.length) {
+        const rm = (rampMeshes = buildRampMeshes(track, ramps, ctx.quality));
+        scene.add(rm.group);
+        disposers.push(() => rm.dispose());
+      }
     }
-    water = buildWater(sky.env, course.layout);
-    for (const m of water.meshes) scene.add(m);
-    disposers.push(() => water.dispose());
-    hud.progress(0.6);
-    await nextFrame();
-    if (destroyed) return;
-    scenery = course.id === 'farm' ? buildScenery(track, terrain, ctx.quality, timeU) : buildThemeScenery(track, terrain, course, ctx.quality, timeU, course.theme.lit || night, vary);
-    scene.add(scenery.group);
-    disposers.push(() => scenery.dispose());
-    attitude = buildAttitude(track, terrain, course, ctx.quality, timeU, course.theme.lit || night, vary, scenery.crowds);
-    scene.add(attitude.group);
-    disposers.push(() => attitude.dispose());
     if (rain || course.theme.snow) {
       const w = (weather = new Weather(rain ? 'rain' : 'snow', ctx.quality));
       scene.add(w.object);
       disposers.push(() => w.dispose());
     }
-    if (opts?.coins) {
+    if (opts?.coins && !derby) {
       coins = new Coins(track, opts.seed ?? 20261030);
       scene.add(coins.mesh);
       disposers.push(() => coins?.dispose());
     }
     scene.add(obstacles.group, shots.group);
     disposers.push(() => obstacles.dispose(), () => shots.dispose());
-    if (twist?.hay) obstacles.placeHay(track, twist.hay, opts?.seed ?? 20261030);
-    else if (field && field.hazards.hay) obstacles.placeHay(track, field.hazards.hay, opts?.seed ?? 20261030);
-    if (field) obstacles.placeHazards(track, field.hazards, opts?.seed ?? 20261030);
-    if (rules?.pickups) {
-      pickups = placePickups(track, opts?.seed ?? 20261030);
-      const pm = (pickupMeshes = buildPickups(track, pickups));
-      scene.add(pm.group);
-      disposers.push(() => pm.dispose());
+    if (!derby) {
+      if (twist?.hay) obstacles.placeHay(track, twist.hay, opts?.seed ?? 20261030);
+      else if (field && field.hazards.hay) obstacles.placeHay(track, field.hazards.hay, opts?.seed ?? 20261030);
+      if (field) obstacles.placeHazards(track, field.hazards, opts?.seed ?? 20261030);
+      if (rules?.pickups) {
+        pickups = placePickups(track, opts?.seed ?? 20261030);
+        const pm = (pickupMeshes = buildPickups(track, pickups));
+        scene.add(pm.group);
+        disposers.push(() => pm.dispose());
+      }
     }
     hud.progress(0.85);
     await nextFrame();
@@ -568,7 +617,7 @@ const rally = (ctx: GameContext): GameInstance => {
         /** Hide a part of the world to see what it costs: 'attitude', 'fx', 'scenery'. */
         hide: (what: string) => {
           if (what === 'attitude') attitude.group.visible = false;
-          if (what === 'scenery') scenery.group.visible = false;
+          if (what === 'scenery' && scenery.group) scenery.group.visible = false;
           if (what === 'fx') glow.points.visible = debris.mesh.visible = false;
         },
         /** A fixed camera (x, y, z looking at x, y, z); no arguments puts the chase camera back. */
@@ -583,6 +632,21 @@ const rally = (ctx: GameContext): GameInstance => {
           return warp(pr.s - back);
         },
         abilityState: () => ({ cd: abilCd, kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, nitro: nitroLeft, uses: stats.abilityUses, junk, burst: burstT }),
+        /** The ramps of this course (road coordinates), and the player put at (s, d) on the road, rolling at `speed` along it. */
+        ramps: () => ramps,
+        scene,
+        at: (s: number, d = 0, speed = 0) => {
+          const me = meE!;
+          me.car.place(s, d, ground);
+          const h = me.car.heading;
+          me.car.vx = Math.sin(h) * speed;
+          me.car.vz = Math.cos(h) * speed;
+          me.lastS = me.car.proj.s;
+          camPos.set(me.car.x - Math.sin(h) * 7, me.car.y + 2.5, me.car.z - Math.cos(h) * 7);
+          camYaw = h;
+        },
+        /** The derby board: who is out, how long is left. */
+        board: () => ({ alive: board.alive(), left: board.timeLeft(raceT), over: derbyOver, standings: board.standings(hpFrac) }),
         /** Wreck the n-th rival at once, crediting the player with the takedown. */
         takedown: (n = 0) => {
           const v = entrants.filter((e) => e !== meE)[n];
@@ -610,8 +674,9 @@ const rally = (ctx: GameContext): GameInstance => {
     const mySlot = Math.min(4, nAi);
     let ai = 0;
     for (let slot = 0; slot < total; slot++) {
-      const s = -11 - slot * 9;
-      const d = slot % 2 ? -3.4 : 3.4;
+      const st = derby ? arenaStart(track, arenaC!.shape, arenaC!.cx, arenaC!.cz, slot, total, 0.03) : null;
+      const s = st ? st.s : -11 - slot * 9;
+      const d = st ? st.d : slot % 2 ? -3.4 : 3.4;
       const isMe = slot === mySlot;
       const k = isMe ? -1 : ai++;
       const boss = !isMe && k === 0 ? twist?.boss : undefined;
@@ -631,6 +696,7 @@ const rally = (ctx: GameContext): GameInstance => {
       const car = new Car(track);
       car.setBody(body, feelOf(body, isMe, spec));
       car.place(s, d, ground);
+      if (st) car.heading = st.heading;
       car.offroadAt = offroad();
       // touch screens get a kinder field in Söndagsåkare only; normal mode is the same on every device
       const kid = ctx.touch && !!field?.calm;
@@ -716,12 +782,17 @@ const rally = (ctx: GameContext): GameInstance => {
         abilNext: 9 + Math.random() * 10,
         wheelie: 0,
         blindT: 0,
+        brain: derby && !isMe && spec ? new DerbyBrain({ aggro: spec.aggro, skill: clamp(spec.skill * (kid ? 0.93 : 1), 0.7, 1.06), phase: k * 1.7 }) : null,
+        wreckAge: 0,
+        gone: false,
       };
       e.maxHp = maxHpOf(car.feel.mass, spec?.hp ?? 1) * (isMe ? mt.hp * (1 + 0.08 * (myCar.parts.armour ?? 0)) : 1);
+      if (derby) e.maxHp = Math.round(e.maxHp * DERBY_HP);
       e.hp = e.maxHp;
       if (isMe) meE = e;
       entrants.push(e);
     }
+    board = new DerbyBoard(entrants.map((e) => e.id), DERBY_SECONDS);
   }
 
   function addHeadlights(): void {
@@ -765,6 +836,15 @@ const rally = (ctx: GameContext): GameInstance => {
   const tauntIds = new Map<string, number>();
   let tauntAt = -99;
   let ended = false;
+  /** Derby: the board of who is still running, the clock after the player is wrecked, whether it is over, and the outcome to report. */
+  let board = new DerbyBoard([], DERBY_SECONDS);
+  let derbyOver = false;
+  let playerOutT = 0;
+  let derbyTimeUp = false;
+  let derbyTable: { name: string; place: number; alive: boolean; takedowns: number; hp: number; outAt: number | null; me: boolean }[] = [];
+  /** The shortcut jump: the take-off in flight, and whether the player has taken it. */
+  let scTake = false;
+  let scDone = false;
   let finishPlace = 0;
   let finishTime = 0;
   let slowNote = 0;
@@ -888,6 +968,7 @@ const rally = (ctx: GameContext): GameInstance => {
       r.finished = e.finished;
       r.finishTime = e.finishTime;
       r.me = e === meE;
+      r.gone = e.gone;
     }
     return runnerList;
   }
@@ -949,7 +1030,8 @@ const rally = (ctx: GameContext): GameInstance => {
     }
     thrIn = thr > thrIn ? Math.min(thr, thrIn + dt * 6) : thr;
     // a gentle hand keeping the car on the road (strong for the little ones)
-    const w = ctx.touch ? 0.55 : 0.14;
+    // (not in a derby: the floor is a free-for-all and the road-keeping hand would only steer you round the ring)
+    const w = derby ? 0 : ctx.touch ? 0.55 : 0.14;
     const v = Math.max(0, car.vLong);
     const off = clamp(p.d, -(hw - 2.6), hw - 2.6);
     const assist = w > 0 ? steerTo(car, track, 6 + v * 0.45, off) : 0;
@@ -966,13 +1048,19 @@ const rally = (ctx: GameContext): GameInstance => {
   // ---- respawn ----
   function respawn(e: Entrant): void {
     const c = e.car;
-    const s = c.proj.s - 4;
+    let s = c.proj.s - 4;
     let d = 0;
-    for (const cand of [0, 3.6, -3.6, 0]) {
-      d = cand;
-      const p = track.point(s, cand);
-      if (!runners().some((o) => o.car !== c && Math.hypot(o.car.x - p.x, o.car.z - p.z) < 5)) break;
-    }
+    if (derby) {
+      // a free spot of the floor, not the scrum it got stuck in
+      const spot = freeSpot(track, entrants.filter((o) => o !== e && o.wreckT <= 0).map((o) => o.car));
+      s = spot.s;
+      d = spot.d;
+    } else
+      for (const cand of [0, 3.6, -3.6, 0]) {
+        d = cand;
+        const p = track.point(s, cand);
+        if (!runners().some((o) => o.car !== c && Math.hypot(o.car.x - p.x, o.car.z - p.z) < 5)) break;
+      }
     poof(c.x, c.y, c.z);
     c.place(s, d, ground);
     c.ghost = 2.2;
@@ -2620,12 +2708,12 @@ const rally = (ctx: GameContext): GameInstance => {
     } else if (hit > 4 && Math.hypot(ea.car.x - me.car.x, ea.car.z - me.car.z) < 30 && fresh) audio.crunch(hit * 0.5, ea.car.feel.mass);
     if (hit > 2 && fresh) impactFx(info, ea, eb, hit);
     if (carnage) {
-      if (!fresh || !racingNow()) return;
+      if (!fresh || !racingNow() || derbyOver) return;
       const tot = info.closeA + info.closeB + 0.001;
       let any = false;
       for (const [x, o, closeO] of [[ea, eb, info.closeB], [eb, ea, info.closeA]] as const) {
         if (x.finished || x.wreckT > 0) continue;
-        const dmg = impactDamage({ dv: info.j / x.car.feel.mass, blame: closeO / tot, ram: o.car.ram * (o === me ? mt.spike : 1), dmgTaken: x.tune.dmgMul });
+        const dmg = impactDamage({ dv: info.j / x.car.feel.mass, blame: closeO / tot, ram: o.car.ram * (o === me ? mt.spike : 1), dmgTaken: x.tune.dmgMul }) * (derby ? DERBY_DAMAGE : 1);
         if (dmg > 0) {
           damageHp(x, dmg, o);
           any = true;
@@ -2640,7 +2728,7 @@ const rally = (ctx: GameContext): GameInstance => {
 
   /** Health lost: from another car (who may get a takedown if this wrecks it) or from the road (null). */
   function damageHp(x: Entrant, dmg: number, from: Entrant | null): void {
-    if (!carnage || x.wreckT > 0 || x.finished || dmg <= 0 || !racingNow() || (x === meE && dodgeT > 0)) return;
+    if (!carnage || x.wreckT > 0 || x.finished || dmg <= 0 || !racingNow() || derbyOver || (x === meE && dodgeT > 0)) return;
     x.hp = Math.max(0, x.hp - dmg);
     x.calmT = 0;
     if (from) ledger.hit(x.id, from.id, dmg, timeU.value);
@@ -2681,7 +2769,8 @@ const rally = (ctx: GameContext): GameInstance => {
     if (x.wreckT > 0) return;
     const me = player();
     const c = x.car;
-    x.wreckT = WRECK_SECONDS;
+    x.wreckT = derby ? Infinity : WRECK_SECONDS;
+    x.wreckAge = 0;
     x.wrecks++;
     x.tumbleT = 0;
     c.vy = Math.max(c.vy, 0) + 7;
@@ -2689,7 +2778,7 @@ const rally = (ctx: GameContext): GameInstance => {
     c.yawRate += (Math.random() < 0.5 ? -1 : 1) * (5 + Math.random() * 3);
     c.vx *= 0.7;
     c.vz *= 0.7;
-    c.ghost = WRECK_SECONDS + 0.4;
+    c.ghost = derby ? 1e9 : WRECK_SECONDS + 0.4;
     x.model.setDamage(100);
     explode(c, x.color);
     const by = ledger.credit(x.id, timeU.value);
@@ -2699,15 +2788,21 @@ const rally = (ctx: GameContext): GameInstance => {
     if (attacker === me) mods.bus.takedown();
     if (x === me) mods.bus.wreck();
     if (attacker && attacker !== me) dbg.rivalTake++;
+    if (derby) {
+      board.eliminate(x.id, raceT, attacker?.id ?? null);
+      audio.cheer(0.9);
+      const left = board.aliveCount();
+      if (left > 1 && x !== me && attacker !== me) setTimeout(() => !destroyed && !derbyOver && hud.toast(`${left} bilar kvar`), 900);
+    }
     const near = Math.hypot(c.x - me.car.x, c.z - me.car.z) < 70;
     if (near || x === me || attacker === me) audio.boom();
     if (x === me) {
       shake = Math.max(shake, 0.6);
       drift.on = false;
-      hud.toast(attacker ? `💀 ${attacker.name} vrakade dig` : '💀 Du blev vrak. Snyggt.', 'dead');
+      hud.toast(derby ? (attacker ? `💀 ${attacker.name} slog ut dig. Du är ute ur derbyt` : '💀 Du blev vrak och är ute ur derbyt') : attacker ? `💀 ${attacker.name} vrakade dig` : '💀 Du blev vrak. Snyggt.', 'dead');
     } else if (attacker === me) {
       shake = Math.max(shake, 0.3);
-      hud.toast(`💥 TAKEDOWN! ${x.name} är skrot · +3 p`, 'td');
+      hud.toast(derby ? `💥 TAKEDOWN! ${x.name} är ute · ${board.aliveCount()} kvar` : `💥 TAKEDOWN! ${x.name} är skrot · +3 p`, 'td');
     } else if (attacker && near) hud.toast(`${attacker.name} vrakade ${x.name}`, 'dead');
     else if (near && x !== me) hud.toast(`${x.name} körde sönder sig själv`, 'dead');
   }
@@ -2723,6 +2818,7 @@ const rally = (ctx: GameContext): GameInstance => {
     }
     const c = e.car;
     e.wreckT = Math.max(0, e.wreckT - dt);
+    e.wreckAge += dt;
     e.ctl.throttle = 0;
     e.ctl.brake = 0.25;
     e.ctl.steer = 0;
@@ -2734,6 +2830,16 @@ const rally = (ctx: GameContext): GameInstance => {
     }
     if (Math.random() < (high ? 0.7 : 0.35)) particles.emit({ x: c.x + (Math.random() - 0.5), y: c.y + 0.8, z: c.z + (Math.random() - 0.5), vy: 1.5, vx: (Math.random() - 0.5) * 1.5, vz: (Math.random() - 0.5) * 1.5, life: 1.2, size0: 0.8, size1: 2.4, color: colDark, alpha: 0.3, drag: 1.5, gravity: -0.4 });
     if (Math.random() < 0.18) particles.emit({ x: c.x + (Math.random() - 0.5), y: c.y + 0.9, z: c.z + (Math.random() - 0.5), vy: 1.2, life: 0.35, size0: 0.7, size1: 1.4, color: colFire, alpha: 0.8, drag: 2 });
+    // a derby wreck is out for good: a few seconds of smoke, then the tow truck takes it away
+    if (derby && e.wreckAge > 4.2 && !e.gone) {
+      e.gone = true;
+      explode(c, e.color);
+      poof(c.x, c.y, c.z);
+      c.y = -100;
+      c.vx = c.vz = c.vy = 0;
+      e.model.root.visible = false;
+      e.model.shadow.visible = false;
+    }
     if (e.wreckT === 0) {
       e.hp = e.maxHp * RESPAWN_HP;
       e.model.setDamage(35);
@@ -2782,6 +2888,112 @@ const rally = (ctx: GameContext): GameInstance => {
   /** Blodbad points as the race stands now (as if it ended): position points and 3 per takedown. */
   function carnageTable(order: Runner[]): ReturnType<typeof pointsTable> {
     return pointsTable(order.map((r, i) => ({ id: r.id, place: i + 1, takedowns: entrants.find((e) => e.id === r.id)?.takedowns ?? 0 })));
+  }
+
+  // ---- Rivningsderby: who is running, the computer drivers, the end ----
+  /** Health as a share of the full, by car id (the derby ranks the cars still running by it). */
+  const hpFrac = (id: string): number => {
+    const e = entrants.find((x) => x.id === id);
+    return e ? e.hp / e.maxHp : 0;
+  };
+  const foesBuf: DerbyFoe[] = [];
+  /** Controls for one car in a derby: the player's own, a computer driver's brain, or nothing for a wreck. */
+  function derbyControls(e: Entrant, dt: number, racing: boolean): void {
+    const me = player();
+    if (derbyOver || e.wreckT > 0) {
+      e.ctl.throttle = 0;
+      e.ctl.brake = derbyOver ? 0.5 : 0.25;
+      e.ctl.steer = 0;
+      e.ctl.handbrake = false;
+      return;
+    }
+    if (e === me && !AUTO) {
+      if (!me.finished && phase !== 'over') playerControls(dt, e);
+      return;
+    }
+    if (!racing) {
+      // the grid: engines revving
+      e.ctl.throttle = Math.random() < 0.04 ? 0.8 : e.ctl.throttle * 0.9;
+      e.ctl.brake = 0;
+      return;
+    }
+    const brain = e.brain ?? (e.brain = new DerbyBrain({ aggro: 0.9, skill: AUTO || 0.9, phase: 0 }));
+    foesBuf.length = 0;
+    for (const o of entrants) foesBuf.push({ car: o.car, alive: o.wreckT <= 0 && !o.gone, hp: o.hp / o.maxHp, player: o === me });
+    // a blinded driver wanders, a squashed one barely moves
+    brain.think(e.car, foesBuf, dt, raceT < DERBY_WARMUP);
+    brain.drive(e.car, track, foesBuf, timeU.value, dt, e.ctl);
+    // pinned against a fence again and again: the tow truck puts it back on the floor
+    if (brain.gaveUp) {
+      brain.gaveUp = false;
+      if (e !== me || AUTO) respawn(e);
+    }
+    if (e !== me) {
+      e.car.power = e.basePower * damagePower(e.damage) * (e.squashT > 0 ? 0.4 : 1) * (e.hp < e.maxHp * 0.25 ? 0.9 : 1);
+      if (e.ai) e.ai.aim = null;
+      if (e.blindT > 0) e.ctl.steer = clamp(e.ctl.steer + Math.sin(timeU.value * 7 + entrants.indexOf(e)) * 0.32, -1, 1);
+      rivalTricks(e, dt);
+    }
+  }
+
+  /** The derby is over: place everyone, tell the player how it went, and let the finish card run. */
+  function finishDerby(): void {
+    if (derbyOver) return;
+    derbyOver = true;
+    const me = player();
+    derbyTimeUp = board.aliveCount() > 1 && raceT >= board.limit;
+    const stand = board.standings(hpFrac);
+    const mine = stand.find((r) => r.id === me.id)!;
+    derbyTable = stand.map((r) => {
+      const e = entrants.find((x) => x.id === r.id)!;
+      return { name: e.name, place: r.place, alive: r.alive, takedowns: r.takedowns, hp: Math.round(r.hp * 100), outAt: r.outAt, me: e === me };
+    });
+    finishPlace = mine.place;
+    finishTime = raceT;
+    me.finished = true;
+    me.finishTime = raceT;
+    phase = 'finish';
+    phaseT = 0;
+    drift.on = false;
+    if (rules) {
+      const info: FinishInfo = { place: finishPlace, n: entrants.length, finished: true, time: Math.round(finishTime * 1000), laps: [], kronor: racePrize(rules, finishPlace, entrants.length), coins: Math.round(coinKr) };
+      finishAdj = mods.bus.finish(info);
+    }
+    const won = finishPlace === 1;
+    hud.msg(won ? 'SISTA BILEN!' : mine.alive ? 'TIDEN UTE!' : 'UTSLAGEN', 1900, won ? 'gold' : 'small');
+    hud.subtitle(derbyHeadline({ place: mine.place, n: entrants.length, alive: mine.alive, timeUp: derbyTimeUp }));
+    hud.wrongWay(false);
+    audio.fanfare(won);
+    audio.cheer(1);
+    audio.music(0.75);
+    // the survivors stop and wave; the confetti goes off over the winner
+    for (const e of entrants) if (e.wreckT <= 0) e.car.ghost = Math.max(e.car.ghost, 1);
+  }
+
+  /** The shortcut jump: take off at its lip fast enough, land in its window, and you are credited the stretch of road you flew over. */
+  function shortcutStep(me: Entrant): void {
+    if (!shortcut || scDone || phase !== 'race' || me.finished) return;
+    const c = me.car;
+    const lip = lipOf(shortcut);
+    const gap = track.wrapDist(c.proj.s - lip.s);
+    if (c.air && !scTake) {
+      if (gap > -3 && gap < 9 && Math.abs(c.proj.d - shortcut.d) < shortcut.width / 2 + 1.2 && c.speed >= SHORTCUT_MIN_SPEED) scTake = true;
+    } else if (scTake && !c.air) {
+      scTake = false;
+      if (shortcutLanded(shortcut, c.proj.s, track)) {
+        scDone = true;
+        me.u += SHORTCUT_SKIP;
+        stats.shortcuts++;
+        hud.msg('GENVÄG!', 1300, 'small gold');
+        hud.toast(`🚀 Du hoppade över ${SHORTCUT_SKIP} m av banan`);
+        audio.chime();
+        audio.cheer(0.9);
+        sparkleAt(c.x, c.y, c.z, 14, 1.5);
+        confetti.burst(c.x, c.y + 2, c.z, high ? 40 : 20, 6);
+        // the stunt upgrades pay out as for a very long jump
+        mods.bus.trick('air', 2);
+      } else hud.toast('Nästan! Hoppa fortare och längre');
+    }
   }
 
   // ---- the game loop ----
@@ -2878,6 +3090,10 @@ const rally = (ctx: GameContext): GameInstance => {
       packN++;
     }
     for (const e of entrants) {
+      if (derby) {
+        derbyControls(e, dt, racing);
+        continue;
+      }
       if (e === me && !me.finished && phase !== 'over' && !AUTO) playerControls(dt, e);
       else if (e.ai || e === me) {
         const drv = e.ai ?? (me.ai = new Driver({ skill: AUTO && !me.finished ? AUTO : 0.62, bias: 0, lineUse: 0.6, wobble: 0, phase: 0 }));
@@ -2955,6 +3171,7 @@ const rally = (ctx: GameContext): GameInstance => {
     const nLocal = entrants.length;
     for (let k = 0; k < 2; k++) {
       for (const e of entrants) {
+        if (e.gone) continue;
         e.car.step(dt / 2, e.ctl, ground, !racing);
         e.ctl.shift = 0;
       }
@@ -2965,7 +3182,7 @@ const rally = (ctx: GameContext): GameInstance => {
           for (const x of [entrants[a], entrants[b]]) if (x && x.car.feel.two && x.wreckT <= 0) knock(x, j, 7);
         });
     }
-    for (const e of entrants) e.car.settle(dt, ground);
+    for (const e of entrants) if (!e.gone) e.car.settle(dt, ground);
     // ---- race bookkeeping ----
     for (const e of entrants) {
       const c = e.car;
@@ -2974,7 +3191,7 @@ const rally = (ctx: GameContext): GameInstance => {
       if (racing) e.u += ds;
       e.rate = damp(e.rate, ds / dt, 2, dt);
       const done = Math.floor(e.u / track.length);
-      if (racing && done > e.lapsDone && e.u > 0) {
+      if (!derby && racing && done > e.lapsDone && e.u > 0) {
         e.lapsDone = done;
         if (e === me && !me.finished) onPlayerLap();
         if (e.lapsDone >= LAPS && !e.finished) {
@@ -2999,7 +3216,15 @@ const rally = (ctx: GameContext): GameInstance => {
     // positions
     const order = ranking();
     place = order.findIndex((r) => r.me) + 1;
-    if (phase === 'race' && !me.finished && raceT > 4) {
+    if (derby) {
+      // the end of the derby: one car left, the clock out, or the player wrecked a moment ago
+      place = board.place(me.id, hpFrac);
+      if (phase === 'race' && !derbyOver) {
+        if (me.wreckT > 0) playerOutT += dt;
+        if (board.isOver(raceT) || playerOutT > 2.6) finishDerby();
+      }
+    }
+    if (!derby && phase === 'race' && !me.finished && raceT > 4) {
       // cars the player passes (and holds the place against for a few metres)
       for (const e of entrants) {
         if (e === me || e.finished) continue;
@@ -3057,7 +3282,7 @@ const rally = (ctx: GameContext): GameInstance => {
     }
 
     // wrong way
-    if (phase === 'race' && !me.finished) {
+    if (!derby && phase === 'race' && !me.finished) {
       const th = track.heading(me.car.proj.s);
       const facing = Math.cos(me.car.heading - th);
       const along = me.car.vx * Math.sin(th) + me.car.vz * Math.cos(th);
@@ -3096,7 +3321,8 @@ const rally = (ctx: GameContext): GameInstance => {
           hurt(e, (c.wallHit - 4) * (hay ? 0.5 : 1.4));
           if (!hay) sparks(c.x, c.y, c.z, high ? 10 : 5);
         } else if (carnage && c.wallHit > 5) {
-          damageHp(e, (c.wallHit - 5) * (hay ? 0.6 : 1.5) * Math.max(0.3, e.tune.dmgMul), null);
+          // (the tyre wall of an arena is soft: it hurts a lot less than a stone wall)
+          damageHp(e, (c.wallHit - 5) * (hay ? 0.6 : 1.5) * Math.max(0.3, e.tune.dmgMul) * (derby ? DERBY_DAMAGE * 0.7 : 1), null);
           if (!hay) sparks(c.x, c.y, c.z, high ? 10 : 5);
         }
       }
@@ -3118,7 +3344,7 @@ const rally = (ctx: GameContext): GameInstance => {
         }
         if (c.landed > 5) {
           hurt(e, (c.landed - 5) * 1.5 * (1 - e.tune.assist) * c.feel.landing);
-          if (carnage) damageHp(e, (c.landed - 6) * 1.2 * c.feel.landing * e.tune.dmgMul, null);
+          if (carnage) damageHp(e, (c.landed - 6) * 1.2 * c.feel.landing * e.tune.dmgMul * (derby ? DERBY_DAMAGE : 1), null);
         }
       }
       c.landed = 0;
@@ -3220,6 +3446,7 @@ const rally = (ctx: GameContext): GameInstance => {
       }
       hud.setCoins(Math.round(coinKr), true);
     }
+    rampMeshes?.update(timeU.value);
     scenery.update(timeU.value, tmpV.set(mc.x, mc.y, mc.z), phase === 'finish' || phase === 'over' ? 1 : phase === 'count' || (phase === 'race' && phaseT < 3) ? 0.8 : 0);
     {
       attitude.update(timeU.value, tmpV.set(mc.x, mc.y, mc.z));
@@ -3243,7 +3470,19 @@ const rally = (ctx: GameContext): GameInstance => {
     // ---- HUD ----
     if (racing) {
       const shownLap = Math.min(LAPS, me.lapsDone + 1);
-      if (carnage) {
+      if (derby) {
+        hud.setPosition(place, entrants.length, 0, 0);
+        hud.setScore(null, 0);
+        hud.setHealth(me.hp / me.maxHp, me.hp, 0);
+        hud.setDerby({ alive: board.aliveCount(), total: entrants.length, left: board.timeLeft(raceT), takedowns: me.takedowns });
+        if (hudBoard)
+          hud.setBoard(
+            board.standings(hpFrac).map((r) => {
+              const e = entrants.find((x) => x.id === r.id)!;
+              return { name: e.name, color: e.color, me: e === me, done: false, x: e.car.x, z: e.car.z, out: !r.alive, tag: r.alive ? `${Math.round(r.hp * 100)} %` : 'ute' };
+            }),
+          );
+      } else if (carnage) {
         // Blodbad is decided on points: the big number is the rank by points, the board shows everyone's points
         const table = carnageTable(order);
         const mine = table.find((r) => r.id === me.id)!;
@@ -3261,6 +3500,7 @@ const rally = (ctx: GameContext): GameInstance => {
       hud.setTimes(me.finished ? finishTime : raceT, me.finished ? 0 : raceT - lapStart, bestLap);
     }
     if (damageK > 0) hud.setDamage(me.damage);
+    shortcutStep(me);
 
     // camera input: C (the key), Start, the 🎥 button; the C button is the camera too when there is no nitro
     if (inp.keyPressed('KeyC') || inp.pressed('start') || camPress || (inp.pressed('c') && nitroSlots() === 0)) {
@@ -3283,6 +3523,7 @@ const rally = (ctx: GameContext): GameInstance => {
     lapStart = raceT;
     lapTimes.push(Math.round(lt * 1000));
     coins?.reset();
+    scDone = false;
     mods.bus.lap(me.lapsDone);
     const best = lt < bestLap;
     bestLap = Math.min(bestLap, lt);
@@ -3332,13 +3573,14 @@ const rally = (ctx: GameContext): GameInstance => {
     const total = runners().length;
     const finished = finishPlace > 0;
     // Blodbad: the result is the rank by points (position points and takedowns), not the order across the line
-    const row = carnage ? carnageTable(ranking()).find((r) => r.id === me.id)! : null;
+    // (a derby is decided by the placing alone: the order the cars were wrecked in, with the survivors ranked by health)
+    const row = carnage && !derby ? carnageTable(ranking()).find((r) => r.id === me.id)! : null;
     const placed = finished ? (row ? row.rank : finishPlace) : total;
-    let sc = finished ? score(finishPlace, finishTime) : 1200 + Math.round(1800 * clamp(me.u / (LAPS * track.length), 0, 1));
-    let detail = finished ? (row ? `${ordinal(row.rank)} på poäng · ${row.points} p` : `${ordinal(finishPlace)} plats · ${fmtTime(finishTime)}`) : `Nästan i mål! · ${Math.min(LAPS, me.lapsDone)} av ${LAPS} varv`;
+    let sc = derby ? 2500 + (total - placed) * 1500 + me.takedowns * 700 + (placed === 1 ? 2500 : 0) : finished ? score(finishPlace, finishTime) : 1200 + Math.round(1800 * clamp(me.u / (LAPS * track.length), 0, 1));
+    let detail = derby ? `${ordinal(placed)} i derbyt · ${me.takedowns} vrak` : finished ? (row ? `${ordinal(row.rank)} på poäng · ${row.points} p` : `${ordinal(finishPlace)} plats · ${fmtTime(finishTime)}`) : `Nästan i mål! · ${Math.min(LAPS, me.lapsDone)} av ${LAPS} varv`;
     if (rules) {
       const ms = finished ? Math.round(finishTime * 1000) - finishAdj.time : 0;
-      const medal = ms ? raceMedal(course.id, LAPS, ms) : null;
+      const medal = ms && !derby ? raceMedal(course.id, LAPS, ms) : null;
       const medalTxt = medal === 'gold' ? ' · 🥇' : medal === 'silver' ? ' · 🥈' : medal === 'bronze' ? ' · 🥉' : '';
       // not finishing pays the small taking-part prize
       const kronor = finished ? racePrize(rules, placed, total) : RACE_DNF_PRIZE;
@@ -3348,7 +3590,29 @@ const rally = (ctx: GameContext): GameInstance => {
       sc += styleBonus();
       // a battered car after Blodbad comes out of it a little scratched, not wrecked
       const damage = carnage ? Math.round((1 - me.hp / me.maxHp) * 35) : Math.round(me.damage);
-      opts?.onDone?.({ place: placed, n: total, finished, time: ms, laps: Math.min(LAPS, me.lapsDone), kronor, coins: coinTotal, medal, damage, bonus, timeBonus: finishAdj.time, stats: { ...stats }, bestLap: Number.isFinite(bestLap) ? Math.round(bestLap * 1000) : 0, triggers: { ...triggers }, kind, points: row?.points, takedowns: me.takedowns, wrecked: me.wrecks, roadPlace: finished ? finishPlace : undefined });
+      const mine = derby ? derbyTable.find((r) => r.me) : undefined;
+      opts?.onDone?.({
+        place: placed,
+        n: total,
+        finished,
+        time: ms,
+        laps: derby ? 0 : Math.min(LAPS, me.lapsDone),
+        kronor,
+        coins: coinTotal,
+        medal,
+        damage,
+        bonus,
+        timeBonus: finishAdj.time,
+        stats: { ...stats },
+        bestLap: Number.isFinite(bestLap) ? Math.round(bestLap * 1000) : 0,
+        triggers: { ...triggers },
+        kind,
+        points: derby ? carnagePoints(placed, me.takedowns) : row?.points,
+        takedowns: me.takedowns,
+        wrecked: me.wrecks,
+        roadPlace: finished ? finishPlace : undefined,
+        derby: derby ? { arena: arenaC!.id, seconds: Math.round(finishTime), limit: board.limit, alive: !!mine?.alive, timeUp: derbyTimeUp, table: derbyTable } : undefined,
+      });
     }
     finishEnd(sc, detail);
   }
@@ -3373,8 +3637,9 @@ const rally = (ctx: GameContext): GameInstance => {
     else if (e && e.wobble > 0) roll += Math.sin(time * 34) * 0.16 * e.wobble;
     // a wrecked car flips onto its roof and lies there smoking
     let flip = 0;
+    if (e && e.gone) return;
     if (e && e.wreckT > 0) {
-      flip = smooth(0, 0.6, WRECK_SECONDS - e.wreckT);
+      flip = smooth(0, 0.6, derby ? e.wreckAge : WRECK_SECONDS - e.wreckT);
       roll += Math.PI * flip;
     }
     m.root.position.set(c.x, c.y + 1.4 * flip + (e && e === meE && flipShow !== 0 ? 0.9 * Math.abs(Math.sin(flipShow * 0.5)) : 0), c.z);
@@ -3550,7 +3815,7 @@ const rally = (ctx: GameContext): GameInstance => {
     barList.length = 0;
     const me = player();
     for (const e of entrants) {
-      if (e === me) continue;
+      if (e === me || e.gone || (derby && e.wreckT > 0)) continue;
       const d = Math.hypot(e.car.x - camera.position.x, e.car.z - camera.position.z);
       if (d > 75) continue;
       tmpV.set(e.car.x, e.car.y + 2.5 * e.car.size, e.car.z).project(camera);
@@ -3585,7 +3850,7 @@ const rally = (ctx: GameContext): GameInstance => {
         limiter: c.limiterT > 0,
         bog: c.manual && c.throttleIn > 0.6 && c.gear > 1 && c.revFrac < 0.3,
       });
-      hud.drawMap(runners().map(toRacer), timeU.value);
+      hud.drawMap(runners().filter((r) => !r.gone).map(toRacer), timeU.value);
     }
     renderer.info.reset();
     if (post && postOn) post.render(scene, camera, timeU.value);
@@ -3621,6 +3886,8 @@ const rally = (ctx: GameContext): GameInstance => {
         takedowns: me.takedowns,
         wrecks: me.wrecks,
         rivalHp: entrants.filter((e) => e !== me).map((e) => Math.round(e.hp)),
+        derby: derby ? { alive: board.aliveCount(), over: derbyOver, left: board.timeLeft(raceT), out: entrants.filter((e) => e.wreckT > 0).length, gone: entrants.filter((e) => e.gone).length } : null,
+        shortcut: { done: scDone, taking: scTake, spec: shortcut },
         style: stylePts,
         nitro: nitroLeft,
         ability: { cd: abilCd, kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, burst: burstT, junk, draft: draftT, drafting, vip: vipT, mow: mowT, clouds: clouds.length, blind: entrants.filter((e) => e.blindT > 0).length, shots: shots.count, obstacles: obstacles.count, hp: me.hp, maxHp: me.maxHp, wheelie: me.wheelie, ram: me.car.ram, boost: me.car.boost, ghost: me.car.ghost, vy: me.car.vy, air: me.car.air, heading: me.car.heading, uses: stats.abilityUses, squashed: entrants.filter((e) => e !== me && e.squashT > 0).length },
@@ -3631,6 +3898,7 @@ const rally = (ctx: GameContext): GameInstance => {
         geometries: renderer.info.memory.geometries,
         textures: renderer.info.memory.textures,
         others: entrants.map((e) => ({ name: e.name, laps: e.lapsDone, u: Math.round(e.u), done: e.finished, t: e.finishTime })),
+        cars: derby ? entrants.map((e) => ({ x: Math.round(e.car.x), z: Math.round(e.car.z), v: Math.round(e.car.speed), hp: Math.round(e.hp), out: e.wreckT > 0, tgt: e.brain?.target ? entrants.findIndex((o) => o.car === e.brain!.target!.car) : -1, rev: e.car.reverse })) : null,
       };
     }
   }

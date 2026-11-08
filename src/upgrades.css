@@ -265,3 +265,52 @@
   .rg-bt { display: none; }
   .rg-top .rg-icon.wide { min-width: 48px; padding: 4px 8px; }
 }
+
+/* ---- Rivningsderby (phase 12): the stadium node on the map, its ribbon, the pre-race box and the result table ---- */
+.rg-node.derby {
+  background: radial-gradient(circle at 32% 26%, #fff0c2, #ffb347 62%, #e0701c);
+  box-shadow: 0 0 0 2px #15120d, 3px 5px 0 2px rgba(0, 0, 0, 0.6), 0 0 0 7px rgba(255, 138, 31, 0.6);
+}
+.rg-node.derby.far { filter: grayscale(0.4) brightness(0.72); }
+.rg-node.derby.done { background: radial-gradient(circle at 32% 26%, #fff1b0, #f1c43f 60%, #c9921a); }
+.rg-derby {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 3px);
+  transform: translateX(-50%) rotate(-3deg);
+  padding: 0 6px;
+  border-radius: 3px;
+  background: #15120d;
+  color: #ffb347;
+  border: 2px solid #ffb347;
+  font-size: calc(var(--node) * 0.22);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1.25;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.rg-lg-derby small { opacity: 0.7; }
+.rg-derbybox { --kc: #ffb347; }
+.rg-derbyres { --kc: #ffb347; border-left-color: #ffb347; background: rgba(255, 138, 31, 0.14); }
+.rg-dtable { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-width: 520px; width: 100%; font-size: 15px; }
+.rg-dtable li { display: flex; align-items: baseline; gap: 8px; padding: 3px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.07); }
+.rg-dtable li.me { background: rgba(255, 210, 63, 0.22); font-weight: 900; }
+.rg-dtable li.out small { opacity: 0.6; }
+.rg-dtable li b { width: 1.6em; }
+.rg-dtable .rg-dn { flex: 1; text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rg-dtable small { font-size: 12px; }
+.rg-dtable em { font-style: normal; font-weight: 900; color: #ffd23f; }
+@media (max-height: 460px) {
+  .rg-dtable { font-size: 12px; gap: 1px; }
+  .rg-dtable li { padding: 1px 8px; }
+}
+.rg-scrap { font-size: 14px; font-weight: 800; opacity: 0.85; }
+
+/* the ribbons on the result screen sit low, on the left over the footer, not over the chips in the header's corner */
+.arc-unl.low { top: auto; right: auto; left: max(12px, env(safe-area-inset-left)); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 74px); }
+
+/* the card of the node a run ended on: paper tinted red, not the old dark red under dark ink */
+.rs-tl.fell { background: #f2c3c8 var(--noise); background-blend-mode: multiply; border-color: var(--ink); box-shadow: 3px 3px 0 var(--spray-r); }
+.rs-tl-top { min-width: 0; }
+.rs-kind { max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

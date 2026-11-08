@@ -7,6 +7,8 @@ import { ACTS, actMap, findNode, type ActMap, type BossId, type MapNode, type No
 import { kitOf } from '../shared/abilities.ts';
 import { MAX_STACK, perksOf, stackCap, trinketById, type Owned } from './trinkets.ts';
 import type { RaceKind } from '../shared/kinds.ts';
+import type { ArenaId } from '../shared/derby.ts';
+import type { DerbyOutcome } from '../rally/options.ts';
 import { takeNode } from './upgrades.ts';
 
 export const START_HEARTS = 3;
@@ -59,6 +61,7 @@ export const emptyRunStats = (): RunStats => ({
   overtakes: 0,
   hazards: 0,
   abilityUses: 0,
+  shortcuts: 0,
   podiums: 0,
   totalTime: 0,
   kronorSpent: 0,
@@ -89,6 +92,9 @@ export interface NodeLog {
   takedowns?: number;
   /** Which boss it was (bosses only). */
   boss?: BossId;
+  /** A Rivningsderby: which arena, and the second the player was wrecked (absent when still running at the end). */
+  arena?: ArenaId;
+  outAt?: number;
 }
 
 /** A trinket or an upgrade node that came into the build, and where from (`part` is only in older saves). */
@@ -127,6 +133,11 @@ export interface RaceSummary {
   roadPlace?: number;
   takedowns?: number;
   wrecked?: number;
+  /** A Rivningsderby: how it ended (the final table, whether the clock ran out) and in which arena. */
+  derby?: DerbyOutcome;
+  /** Skrotpant: hearts the wrecks of this race gave back, and the run's wrecks towards the next one (0..3). */
+  scrapHearts?: number;
+  scrapCount?: number;
 }
 
 export interface ShopItem {
@@ -273,6 +284,11 @@ export function healHeart(r: RunState, n = 1): boolean {
   r.hearts = Math.min(r.maxHearts, r.hearts + n);
   return true;
 }
+
+/** Skrotpant: every this many wrecked cars in a run give a lost heart back (a rammer's reward; it never goes past the full hearts). */
+export const SCRAP_PER_HEART = 4;
+/** Hearts that crossing from `before` to `after` takedowns earns. */
+export const scrapHearts = (before: number, after: number): number => Math.max(0, Math.floor(after / SCRAP_PER_HEART) - Math.floor(before / SCRAP_PER_HEART));
 
 /** Kronor are scaled up in later acts and in calm mode. */
 export const KRONOR_SCALE = [1, 1.3, 1.7] as const;

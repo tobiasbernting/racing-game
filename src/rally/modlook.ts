@@ -172,6 +172,37 @@ export function addUpgradeLook(P: Parts, s: BodySpec, look: Look | undefined): v
     tg.add(new THREE.BoxGeometry(0.05, 0.4, 0.8), '#e8412c', mat(0, deckY + 0.42, tailZ + 0.6, 0.45));
   }
 
+  const brakes = L('race.brakes');
+  if (brakes > 0) {
+    // big red calipers on shining discs at every wheel; the second tier has yellow ones and a drilled disc
+    for (const w of s.wheels) {
+      const sx = w.x >= 0 ? 1 : -1;
+      const x = sx * (Math.abs(w.x) + w.w / 2 + 0.02);
+      tg.cyl(w.r * 0.62, w.r * 0.62, 0.025, 12, CHROME, x, w.r, w.z, 0, 0, Math.PI / 2);
+      tg.box(0.07, w.r * 0.5, w.r * 0.55, brakes >= 2 ? '#ffd23f' : '#e8302c', x + sx * 0.02, w.r * 1.15, w.z + w.r * 0.1);
+      if (brakes >= 2) tg.box(0.07, w.r * 0.5, w.r * 0.55, '#ffd23f', x + sx * 0.02, w.r * 0.85, w.z - w.r * 0.1);
+    }
+  }
+  const long = L('race.long');
+  if (long > 0) {
+    // a long blue nitro line along each side of the car with a silver nozzle at the back (a second line with the second tier)
+    const lines = long >= 2 ? [0.08, 0.2] : [0.08];
+    for (const sx of [-1, 1])
+      for (const y of lines) {
+        tg.cyl(0.04, 0.04, span * 0.85, 7, '#3da0ff', sx * (hw + 0.07), s.sill + y, zMid, Math.PI / 2);
+        tg.cyl(0.055, 0.045, 0.1, 7, CHROME, sx * (hw + 0.07), s.sill + y, zRear + (span - span * 0.85) / 2 - 0.02, Math.PI / 2);
+      }
+  }
+  const drift = L('race.drift');
+  if (drift > 0) {
+    // purple canard fins on the front corners, and (second tier) a ducktail lip with a pair of spark plates under the back
+    for (const sx of [-1, 1]) {
+      tg.add(new THREE.BoxGeometry(0.2 + 0.05 * drift, 0.035, 0.22), '#8a4fd8', mat(sx * (s.bumper.w / 2 - 0.02), s.bumper.y + 0.28, noseZ + 0.04, 0, sx * 0.35, 0));
+      if (drift >= 2) tg.box(0.18, 0.025, 0.16, '#ff9a2a', sx * hw * 0.5, s.bumper.y - 0.04, tailZ - 0.1);
+    }
+    if (drift >= 2) tg.add(new THREE.BoxGeometry(s.deck.w * 0.85, 0.05, 0.2), '#8a4fd8', mat(0, deckY + 0.08, tailZ + 0.02, 0.3));
+  }
+
   // ---------------- 🦨 Fuffens ----------------
   const oil = L('fuffens.oil');
   if (oil > 0) {
@@ -204,14 +235,19 @@ export function addUpgradeLook(P: Parts, s: BodySpec, look: Look | undefined): v
     rod(V(hw + 0.05, s.belt + 0.4, zFront - 0.25), V(hw + 0.08, s.belt + 0.18, zFront - 0.25), 0.012, DARK);
   }
   if (L('fuffens.hay') > 0) {
-    tg.box(0.5, 0.3, 0.34, '#e0b84a', topW * 0.55 * (rider ? 0 : 1), topY + 0.2, topZ - 0.1);
-    tg.box(0.51, 0.04, 0.35, '#b08a2e', topW * 0.55 * (rider ? 0 : 1), topY + 0.2, topZ - 0.1);
+    // a bale on the roof; on a bike it is strapped to the very back of the rack, small
+    const hz = rider ? topZ + 0.32 : topZ - 0.1;
+    const k = rider ? 0.7 : 1;
+    tg.box(0.5 * k, 0.3 * k, 0.34 * k, '#e0b84a', topW * 0.55 * (rider ? 0 : 1), topY + 0.2 * k, hz);
+    tg.box(0.51 * k, 0.04 * k, 0.35 * k, '#b08a2e', topW * 0.55 * (rider ? 0 : 1), topY + 0.2 * k, hz);
   }
   if (L('fuffens.cap') > 0) {
-    // a tiny magician's hat on the roof
-    tg.cyl(0.2, 0.2, 0.03, 10, '#14141a', 0, topY + 0.03, topZ + 0.2);
-    tg.cyl(0.13, 0.14, 0.26, 10, '#14141a', 0, topY + 0.17, topZ + 0.2);
-    tg.cyl(0.142, 0.142, 0.05, 10, '#7a2bd9', 0, topY + 0.1, topZ + 0.2);
+    // a tiny magician's hat on the roof, or on the rider's helmet
+    const hy = rider && s.rider ? s.rider.at[1] + 0.72 : topY;
+    const hz = rider && s.rider ? s.rider.at[2] - 0.02 : topZ + 0.2;
+    tg.cyl(0.2, 0.2, 0.03, 10, '#14141a', 0, hy + 0.03, hz);
+    tg.cyl(0.13, 0.14, 0.26, 10, '#14141a', 0, hy + 0.17, hz);
+    tg.cyl(0.142, 0.142, 0.05, 10, '#7a2bd9', 0, hy + 0.1, hz);
   }
 
   // ---------------- 🤸 Stunt ----------------
@@ -223,14 +259,17 @@ export function addUpgradeLook(P: Parts, s: BodySpec, look: Look | undefined): v
   const flip = L('stunt.flip');
   if (flip > 0) {
     // a roll cage over the roof: a hoop or two
-    const w = topW * 0.92;
-    const hoops = flip >= 2 ? [topZ + 0.35, topZ - 0.35] : [topZ];
+    // (on a bike: a tall hoop behind the rider, like a sissy bar, wide enough to clear the seat)
+    const w = rider ? Math.max(topW * 1.1, 0.26) : topW * 0.92;
+    const hh = rider ? 0.62 : 0.36;
+    const z0 = rider ? topZ - 0.05 : topZ;
+    const hoops = flip >= 2 ? [z0 + (rider ? 0.28 : 0.35), z0 - (rider ? 0.1 : 0.35)] : [z0];
     for (const z of hoops) {
-      rod(V(-w, topY, z), V(-w * 0.8, topY + 0.36, z), 0.04, '#e8e8ea');
-      rod(V(w, topY, z), V(w * 0.8, topY + 0.36, z), 0.04, '#e8e8ea');
-      rod(V(-w * 0.8, topY + 0.36, z), V(w * 0.8, topY + 0.36, z), 0.04, '#e8e8ea');
+      rod(V(-w, topY, z), V(-w * 0.8, topY + hh, z), 0.04, '#e8e8ea');
+      rod(V(w, topY, z), V(w * 0.8, topY + hh, z), 0.04, '#e8e8ea');
+      rod(V(-w * 0.8, topY + hh, z), V(w * 0.8, topY + hh, z), 0.04, '#e8e8ea');
     }
-    if (hoops.length > 1) rod(V(-w * 0.8, topY + 0.36, hoops[0]!), V(-w * 0.8, topY + 0.36, hoops[1]!), 0.035, '#e8e8ea');
+    if (hoops.length > 1) rod(V(-w * 0.8, topY + hh, hoops[0]!), V(-w * 0.8, topY + hh, hoops[1]!), 0.035, '#e8e8ea');
   }
   const near = L('stunt.near');
   if (near > 0) {
@@ -248,6 +287,17 @@ export function addUpgradeLook(P: Parts, s: BodySpec, look: Look | undefined): v
       rod(V(sx * hw, s.sill + 0.2, zRear + 0.2), V(sx * (hw + 0.3), s.sill + 0.12, zRear + 0.1), 0.035, '#e8e8ea');
       rod(V(sx * (hw + 0.3), s.sill + 0.12, zRear + 0.1), V(sx * (hw + 0.3), s.sill + 0.12, zFront - 0.1), 0.035, '#e8e8ea');
       rod(V(sx * (hw + 0.3), s.sill + 0.12, zFront - 0.1), V(sx * hw, s.sill + 0.2, zFront - 0.2), 0.035, '#e8e8ea');
+    }
+  }
+  const susp = L('stunt.susp');
+  if (susp > 0) {
+    // yellow coil springs over every wheel, taller with the second tier
+    for (const w of s.wheels) {
+      const sx = w.x >= 0 ? 1 : -1;
+      const x = sx * (Math.abs(w.x) + w.w / 2 + 0.05);
+      const h = w.r * (susp >= 2 ? 1.5 : 1.15);
+      tg.cyl(0.04, 0.04, h, 6, DARK, x, w.r * 1.45, w.z - w.r * 0.1);
+      for (let k = 0; k < 4; k++) tg.cyl(0.075, 0.075, 0.03, 7, susp >= 2 ? GOLD : '#ffd23f', x, w.r * 1.45 - h * 0.38 + (h * 0.76 * k) / 3, w.z - w.r * 0.1);
     }
   }
   if (L('stunt.cap') > 0) {
@@ -269,7 +319,7 @@ export function addUpgradeLook(P: Parts, s: BodySpec, look: Look | undefined): v
   if (interest > 0 || L('girig.ins') > 0) {
     // a money bag lashed to the roof
     const x = rider ? 0 : -topW * 0.3;
-    const z = topZ - 0.15;
+    const z = rider ? topZ - 0.32 : topZ - 0.15;
     tg.ball(0.22, '#b8956a', x, topY + 0.22, z, 1, 1.08, 1, 0);
     tg.cyl(0.07, 0.11, 0.1, 8, '#b8956a', x, topY + 0.46, z);
     tg.cyl(0.1, 0.1, 0.03, 8, '#8a6a3c', x, topY + 0.42, z);
@@ -284,6 +334,18 @@ export function addUpgradeLook(P: Parts, s: BodySpec, look: Look | undefined): v
     rod(V(x, s.belt, z), V(x, s.belt + 0.55, z), 0.015, DARK);
     tg.box(0.02, 0.16, 0.26 + 0.08 * bounty, GOLD, x, s.belt + 0.46, z - 0.14);
     tg.ball(0.045, GOLD2, x, s.belt + 0.58, z, 1, 1, 1, 0);
+  }
+  const disc = L('girig.disc');
+  if (disc > 0) {
+    // a RABATT card hung from the mirror: white with a red band (a second one with the second tier)
+    for (let i = 0; i < Math.min(2, disc); i++) {
+      const x = -(hw + 0.08 + i * 0.06);
+      const y = s.belt + 0.1 - i * 0.04;
+      const z = rider ? noseZ - 0.9 : zFront - 0.25;
+      rod(V(x, y + 0.34, z), V(x, y + 0.2, z), 0.01, DARK);
+      tg.box(0.02, 0.16, 0.22, '#f4f4f0', x, y + 0.1, z);
+      tg.box(0.025, 0.05, 0.22, '#e8302c', x, y + 0.1, z);
+    }
   }
   if (L('girig.cap') > 0) {
     // a gold ornament on the nose

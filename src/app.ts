@@ -13,6 +13,7 @@ import { loadPrefs, savePrefs, type Prefs } from './prefs.ts';
 import { fmtTime } from './rally/util.ts';
 import { buildMods } from './run/trinkets.ts';
 import type { RaceKind } from './shared/kinds.ts';
+import type { ArenaId } from './shared/derby.ts';
 import { chooseEvent, continueAfterRace, currentNode, currentPlan, enterNode, finishNode, pickReward, submitRace, backToMap } from './run/flow.ts';
 import { buyHeart, buyRepair, buyTrinket, reroll, workshopBuy, workshopPaint, workshopRepair } from './run/economy.ts';
 import { activeCombos, buildRunMods, lookOf } from './run/upgrades.ts';
@@ -854,6 +855,21 @@ export class App {
     if (!node) return false;
     // a test can ask for a kind the map did not roll for this node
     if (kind && node.type !== 'boss') node.kind = kind;
+    r.screen = null;
+    r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
+    this.commit(enterNode(r, node.id));
+    return true;
+  }
+
+  /** Puts the run at an elite (or the boss) of this act and turns it into a Rivningsderby in this arena, then enters it. */
+  debugDerby(arena: ArenaId = 'bowl', boss = false): boolean {
+    if (!this.runState) return false;
+    const r = structuredClone(this.runState);
+    const nodes = allNodes(mapOf(r));
+    const node = nodes.find((n) => n.type === (boss ? 'boss' : 'elite')) ?? nodes.find((n) => n.type === 'race');
+    if (!node) return false;
+    node.derby = arena;
+    node.kind = 'carnage';
     r.screen = null;
     r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
     this.commit(enterNode(r, node.id));

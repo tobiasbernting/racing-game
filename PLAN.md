@@ -109,7 +109,7 @@ run strong, which is right; the rivals and courses must keep up. Design directio
   trinket, and leans toward ram or race.
 - **Manual shifting** as an option (default automatic, per device): gear display, rev bar, shift light,
   limiter, a small boost for a perfect shift; each vehicle has its own gearbox.
-- **Heat levels** after a win: undecided, revisit in phase 12.
+- **Heat levels** after a win: undecided (not built in phase 12 either; the owner has not decided).
 
 6. **Two directions + difficulty**: Rally/Blandat/Blodbad nodes and courses, health and takedowns, ramming
    physics, Blodbad points, rival archetypes, rival scaling (upgrades, trinkets, driving, catch-up), harder
@@ -152,9 +152,13 @@ run strong, which is right; the rivals and courses must keep up. Design directio
     upgrades per vehicle, ten named combos shown as a small KOMBO! ribbon and a gold-rimmed icon, a win offers a pick of six (three trinkets or three
     upgrade cards, leaning on the race kind), Skruvhörnan sells nodes, the old part levels migrate into nodes (tested), dirty tricks on the road
     (oil, mines, fake coins, smoke), stunts (air, flips, near misses) that fill the nitro, bolt-on looks for all twenty bodies (`src/rally/modlook.ts`),
-    the Bygget screen and the trees on the result screen, and a steeper rival curve to keep up. Stunt ramps on courses are not built (left for phase 12).
-12. **Derby arena + balance**: last-car-standing arena for elites and bosses, playtest-driven balance, maybe heat
-    levels.
+    the Bygget screen and the trees on the result screen, and a steeper rival curve to keep up. Stunt ramps on courses were left for phase 12.
+12. **Derby arena + balance**: last-car-standing arena for elites and bosses, stunt ramps and shortcuts, playtest-driven balance.
+    Built (see README, "Rivningsderby, stuntramper och balans"): the 🏟️ derby (a round bowl and a long oval with tyre walls, stands, floodlights and ramps; no laps,
+    wrecks out for good, placing by elimination order, the most health when the 2:30 clock runs out), drivers that hunt or dodge, the map badge, pre-race line
+    and result table; three kickers and a shortcut jump on every course (seeded, tested on every mirror and reverse variant); a balance pass that brought Ram up to Race
+    (skrotpant: every fourth wreck gives a heart back, shoving in Blandat and Blodbad, a Blodbad Ingrid) with the numbers in `balance.test.ts`; looks for the five mods
+    that showed nothing. Heat levels are still undecided and not built.
 
 **House rules for all text**: Swedish; no swearing or vulgar words (enforced by src/language.test.ts); toilet
 humour only as an occasional random item, never the focus: the humour is unpredictable chaos.

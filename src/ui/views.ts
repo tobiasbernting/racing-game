@@ -8,14 +8,15 @@ import { rivalById } from '../shared/rivals.ts';
 import { KIND_EMOJI, KIND_NAMES, KIND_TEXT, PLACE_POINTS, RACE_KINDS, TAKEDOWN_POINTS } from '../shared/kinds.ts';
 import { RALLY_COURSE_DEFS } from '../shared/rally.ts';
 import { fmtTime } from '../rally/util.ts';
-import { ACTS, NODE_EMOJI, NODE_NAMES, allNodes, type MapNode, type NodeType } from '../run/map.ts';
+import { ACTS, NODE_EMOJI, NODE_NAMES, allNodes, nodeEmoji, type MapNode, type NodeType } from '../run/map.ts';
+import { ARENAS, DERBY_EMOJI, DERBY_NAME, DERBY_SECONDS, DERBY_TEXT } from '../shared/derby.ts';
 import { isUnlocked, unlockedTrinkets, type Meta } from '../run/meta.ts';
 import { challengeFor, progressText } from '../run/unlocks.ts';
 import { LEANS, LEAN_EMOJI, LEAN_NAMES, LEAN_TEXT, kitOf, type Lean } from '../shared/abilities.ts';
 import { healPrice, repairPrice, rerollPrice, trinketPrice } from '../run/economy.ts';
 import { EVENTS, choiceAllowed, eventById } from '../run/events.ts';
 import { currentNode, currentPlan } from '../run/flow.ts';
-import { mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
+import { SCRAP_PER_HEART, mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
 import { TRINKETS, trinketById } from '../run/trinkets.ts';
 import { btn, el, plural } from './dom.ts';
 import { upgradeCard, workshopPanel } from './upgrades.ts';
@@ -228,6 +229,7 @@ export interface MapOpts {
 
 const nodeLabel = (n: MapNode): string => {
   const kind = n.kind ? ` · ${KIND_NAMES[n.kind]}` : '';
+  if (n.derby) return `${DERBY_NAME} · ${ARENAS[n.derby].name}${n.type === 'boss' ? ' · Bossen' : n.type === 'elite' ? ' · Dödslopp' : ''}${kind}`;
   if (n.type === 'boss') return `Bossen. Den är sur.${kind}`;
   if (n.course && n.type !== 'shop') return `${NODE_NAMES[n.type]} · ${RALLY_COURSE_NAMES[n.course]}${kind}`;
   return NODE_NAMES[n.type];
@@ -293,8 +295,8 @@ export function mapView(o: MapOpts): HTMLElement {
   for (const n of nodes) {
     const p = pos(n);
     const can = reach.has(n.id);
-    const cls = ['rg-node', `t-${n.type}`, can ? 'reach' : '', done.has(n.id) ? 'done' : '', n.id === run.at ? 'here' : '', !can && !done.has(n.id) ? 'far' : ''].filter(Boolean).join(' ');
-    const b = btn(cls, [el('span', 'rg-ne', NODE_EMOJI[n.type]), n.kind ? el('span', `rg-kb k-${n.kind}`, KIND_EMOJI[n.kind]) : null, done.has(n.id) ? el('span', 'rg-tick', '✔') : null], () => o.onEnter(n.id));
+    const cls = ['rg-node', `t-${n.type}`, n.derby ? 'derby' : '', can ? 'reach' : '', done.has(n.id) ? 'done' : '', n.id === run.at ? 'here' : '', !can && !done.has(n.id) ? 'far' : ''].filter(Boolean).join(' ');
+    const b = btn(cls, [el('span', 'rg-ne', nodeEmoji(n)), n.kind ? el('span', `rg-kb k-${n.kind}`, KIND_EMOJI[n.kind]) : null, n.derby ? el('span', 'rg-derby', 'DERBY') : null, done.has(n.id) ? el('span', 'rg-tick', '✔') : null], () => o.onEnter(n.id));
     b.style.left = `${p.x}%`;
     b.style.top = `${p.y}%`;
     b.disabled = !can;
@@ -304,6 +306,7 @@ export function mapView(o: MapOpts): HTMLElement {
   }
   const legend = el('div', 'rg-legend');
   for (const t of ['race', 'challenge', 'elite', 'shop', 'workshop', 'event', 'boss'] as NodeType[]) legend.append(el('span', null, `${NODE_EMOJI[t]} ${NODE_NAMES[t]}`));
+  if (nodes.some((n) => n.derby)) legend.append(el('span', 'rg-lg-derby', `${DERBY_EMOJI} ${DERBY_NAME}`, el('small', null, ' arena, sista bilen vinner')));
   const kinds = el('div', 'rg-legend rg-kinds', ...RACE_KINDS.map((k) => el('span', `k-${k}`, `${KIND_EMOJI[k]} ${KIND_NAMES[k]}`, el('small', null, k === 'rally' ? ' ren racing' : k === 'mixed' ? ' racing med knuffar' : ' vrak och poäng'))));
   const menu = btn('rg-icon', '☰', o.onMenu);
   menu.setAttribute('aria-label', 'Meny');
@@ -330,16 +333,17 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
   const node = currentNode(run)!;
   const r = plan.rules;
   const kind = plan.kind;
+  const arena = plan.arena ? ARENAS[plan.arena] : null;
   const chips = [
     chip(`${KIND_EMOJI[kind]} ${KIND_NAMES[kind]}`, `k-${kind}`),
-    chip(`${RALLY_COURSE_DEFS[plan.course].emoji} ${RALLY_COURSE_NAMES[plan.course]}`),
-    chip(`🔁 ${plural(r.laps, 'varv', 'varv')}`),
+    arena ? chip(`${arena.emoji} ${arena.name}`) : chip(`${RALLY_COURSE_DEFS[plan.course].emoji} ${RALLY_COURSE_NAMES[plan.course]}`),
+    arena ? chip(`⏱️ ${Math.floor(DERBY_SECONDS / 60)}:${String(DERBY_SECONDS % 60).padStart(2, '0')} på klockan`) : chip(`🔁 ${plural(r.laps, 'varv', 'varv')}`),
     chip(`🏎️ ${plural(r.ai, 'rival', 'rivaler')}`),
     r.weather === 'rain' ? chip('🌧️ Regn') : null,
     r.time === 'night' ? chip('🌙 Natt') : r.time === 'sunset' ? chip('🌇 Solnedgång') : null,
     r.difficulty === 'hard' ? chip('💀 Hårt') : r.difficulty === 'easy' ? chip('🛋️ Söndagsåkning') : null,
-    plan.field.hazards.oil + plan.field.hazards.hay + plan.field.hazards.pothole > 0 ? chip('🛢️ Hinder på vägen') : null,
-    plan.field.narrow < 1 ? chip('↔️ Smal väg') : null,
+    !arena && plan.field.hazards.oil + plan.field.hazards.hay + plan.field.hazards.pothole > 0 ? chip('🛢️ Hinder på vägen') : null,
+    !arena && plan.field.narrow < 1 ? chip('↔️ Smal väg') : null,
     chip(`${kitOf(run.car.body).active.emoji} ${kitOf(run.car.body).active.name} (F)`),
   ].filter((x): x is HTMLElement => !!x);
   // the rivals as collector cards: a portrait, the name, how they drive, three stats and a quote
@@ -379,13 +383,18 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
   });
   const talk = talkers.length ? talkers[node.seed % talkers.length]! : null;
   const counts = archetypeCounts(plan.field);
-  const info: Node[] = [el('div', 'rg-chips', ...chips), el('div', `rg-kindbox k-${kind}`, el('b', null, `${KIND_EMOJI[kind]} ${KIND_NAMES[kind]}: `), KIND_TEXT[kind], kind === 'carnage' ? el('small', null, ` Poäng för placering: ${PLACE_POINTS.join('/')} och ${TAKEDOWN_POINTS} per vrak. Placeringen på poäng avgör priset och hjärtat.`) : null)];
+  const info: Node[] = [
+    el('div', 'rg-chips', ...chips),
+    arena
+      ? el('div', 'rg-kindbox rg-derbybox k-carnage', el('b', null, `${DERBY_EMOJI} ${DERBY_NAME}: `), DERBY_TEXT.replace(`${DERBY_NAME}: `, ''), el('small', null, ` Placeringen är i vilken ordning bilarna åker ut, och varje vrak ger ${TAKEDOWN_POINTS} p. ${arena.text}`))
+      : el('div', `rg-kindbox k-${kind}`, el('b', null, `${KIND_EMOJI[kind]} ${KIND_NAMES[kind]}: `), KIND_TEXT[kind], kind === 'carnage' ? el('small', null, ` Poäng för placering: ${PLACE_POINTS.join('/')} och ${TAKEDOWN_POINTS} per vrak. Placeringen på poäng avgör priset och hjärtat.`) : null),
+  ];
   if (plan.boss) {
-    const rules = plan.field.rivals[0]?.rules.filter((x) => x === 'lastlap' || kind === 'carnage') ?? [];
-    info.push(el('div', 'rg-bossbox', el('div', 'rg-bossname', `${plan.boss.emoji} ${plan.boss.name}`), el('div', 'rg-bossnick', plan.boss.nick), el('p', 'rg-quote', plan.boss.intro), el('p', 'rg-trick', `⚠️ ${plan.boss.trick}`), ...rules.map((x) => el('p', 'rg-trick', `${BOSS_RULES[x].emoji} ${BOSS_RULES[x].text}`))));
+    const rules = plan.field.rivals[0]?.rules.filter((x) => (x === 'lastlap' && !arena) || (x === 'regen' && kind === 'carnage')) ?? [];
+    info.push(el('div', 'rg-bossbox', el('div', 'rg-bossname', `${plan.boss.emoji} ${plan.boss.name}`), el('div', 'rg-bossnick', plan.boss.nick), el('p', 'rg-quote', plan.boss.intro), el('p', 'rg-trick', `⚠️ ${arena && plan.boss.derbyTrick ? plan.boss.derbyTrick : plan.boss.trick}`), ...rules.map((x) => el('p', 'rg-trick', `${BOSS_RULES[x].emoji} ${BOSS_RULES[x].text}`))));
   }
   if (plan.goal) info.push(el('div', 'rg-goal', '🎯 ', el('b', null, plan.goal.text), el('small', null, ' Fixar du det får du extra kronor och en pryl.')));
-  if (node.type === 'elite') info.push(el('div', 'rg-goal', '💀 Mördarrivaler. Ett dödslopp ger alltid ett byte, även om du inte vinner.'));
+  if (node.type === 'elite') info.push(el('div', 'rg-goal', arena ? '💀 Dödslopp i arenan. Ger alltid ett byte, även om du inte vinner.' : '💀 Mördarrivaler. Ett dödslopp ger alltid ett byte, även om du inte vinner.'));
   info.push(
     el(
       'div',
@@ -393,8 +402,10 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
       run.calm
         ? '❤️ Sist eller bryter: −❤️'
         : plan.boss
-          ? `❤️ Bossen: förlorar du${kind === 'carnage' ? ' på poäng' : ''} är det −❤️❤️. Vinn och få ❤️ tillbaka.`
-          : `❤️ Hamnar du på nedre halvan${kind === 'carnage' ? ' på poäng' : ''}: −❤️. Bryter du: −❤️❤️.`,
+          ? `❤️ Bossen: ${arena ? 'vinner du inte derbyt' : `förlorar du${kind === 'carnage' ? ' på poäng' : ''}`} är det −❤️❤️. Vinn och få ❤️ tillbaka.`
+          : arena
+            ? '❤️ Åker du ut bland de första (nedre halvan): −❤️. Bryter du: −❤️❤️.'
+            : `❤️ Hamnar du på nedre halvan${kind === 'carnage' ? ' på poäng' : ''}: −❤️. Bryter du: −❤️❤️.`,
     ),
   );
   info.push(el('div', 'rg-winhint', '🎁 Vinn och du får välja ditt byte. Tvåan får ett litet tröstpris.'));
@@ -405,7 +416,7 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
     el(
       'div',
       'rg-prebody',
-      el('div', 'rg-preleft', el('div', 'rg-pretitle', el('span', 'rg-bigem', NODE_EMOJI[node.type]), el('h2', null, plan.title)), ...info),
+      el('div', 'rg-preleft', el('div', 'rg-pretitle', el('span', 'rg-bigem', nodeEmoji(node)), el('h2', null, plan.title)), ...info),
       el('div', 'rg-preright', el('div', 'arc-h', `Motståndare  ${mix}`), rivals, talk ? el('div', 'rg-talk', el('b', null, `${talk.name}:`), ` ”${talk.talk}”`) : null, el('div', 'arc-h', 'Ditt skräp'), run.trinkets.length ? trinketIcons(run.trinkets, 12) : el('small', null, 'Inget än. Fattigt.')),
     ),
     foot(ghost('← Fega ur', o.onBack), go('KÖR! 🏁', o.onGo)),
@@ -416,11 +427,48 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
 
 export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postrace' }>, o: { onNext(): void; onCount?: () => void }): HTMLElement {
   const s = scr.summary;
-  const head = !s.finished ? 'Du kom aldrig i mål. Aj.' : s.place === 1 ? '🏆 DU VANN!' : s.place === 2 ? '2:a. Första förloraren.' : s.place === 3 ? '3:a. Nära pallen, långt från ära.' : `${s.place}:a plats. Fy.`;
+  const dv = s.derby;
+  const head = dv
+    ? s.place === 1
+      ? '🏆 DU VANN DERBYT!'
+      : dv.alive
+        ? `${s.place}:a på klockan. Tiden tog slut.`
+        : s.place === s.n
+          ? 'Först ut. Det gick fort.'
+          : `${s.place}:a. Du blev utslagen som bil nummer ${s.n - s.place + 1}.`
+    : !s.finished
+      ? 'Du kom aldrig i mål. Aj.'
+      : s.place === 1
+        ? '🏆 DU VANN!'
+        : s.place === 2
+          ? '2:a. Första förloraren.'
+          : s.place === 3
+            ? '3:a. Nära pallen, långt från ära.'
+            : `${s.place}:a plats. Fy.`;
   const medal = s.medal ? { gold: '🥇', silver: '🥈', bronze: '🥉' }[s.medal] : '';
   const lines: Node[] = [];
-  if (s.finished) lines.push(el('div', 'rg-time', `⏱️ ${fmtTime(s.time / 1000)} ${medal}`));
-  if (s.kind === 'carnage' && s.points !== undefined) {
+  if (dv) {
+    // a derby: how it ended, and the final table
+    const clock = (sec: number): string => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+    const td = s.takedowns ?? 0;
+    lines.push(
+      el('div', 'rg-time', `⏱️ ${clock(dv.seconds)} av ${clock(dv.limit)}${dv.timeUp ? ' · tiden tog slut' : ''}`),
+      el(
+        'div',
+        'rg-points rg-derbyres',
+        el('b', null, `🏟️ Plats ${s.place} av ${s.n}`),
+        el('small', null, ` efter utslagsordningen${dv.timeUp ? ' (de som rullade till slutet rangordnas på hälsa)' : ''} · 💥 ${td} vrak × ${TAKEDOWN_POINTS} p = ${td * TAKEDOWN_POINTS} p${s.wrecked ? ' · du blev vrakad' : ''}`),
+      ),
+      el(
+        'ol',
+        'rg-dtable',
+        ...dv.table.map((r) =>
+          el('li', `${r.me ? 'me' : ''} ${r.alive ? 'alive' : 'out'}`, el('b', null, `${r.place}.`), el('span', 'rg-dn', r.name), el('small', null, r.alive ? `rullade kvar · ${r.hp} % hälsa` : `ute efter ${clock(r.outAt ?? 0)}`), r.takedowns ? el('em', null, `💥 ${r.takedowns}`) : null),
+        ),
+      ),
+    );
+  } else if (s.finished) lines.push(el('div', 'rg-time', `⏱️ ${fmtTime(s.time / 1000)} ${medal}`));
+  if (!dv && s.kind === 'carnage' && s.points !== undefined) {
     // Blodbad is decided on points: say how the points came about
     const pp = s.roadPlace ? PLACE_POINTS[Math.min(PLACE_POINTS.length, s.roadPlace) - 1]! : 0;
     const td = s.takedowns ?? 0;
@@ -444,6 +492,9 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
       ? el('div', 'rg-heartline lost', s.hearts === 2 ? '💔 −2 hjärtan' : '💔 −1 hjärta', el('small', null, run.status === 'dead' ? ' – det var sista. RIP.' : ` – ${run.hearts} kvar`))
       : el('div', 'rg-heartline', '❤️ Hjärtat klarade sig'),
   );
+  // Skrotpant: wrecks buy hearts back
+  if (s.scrapHearts) lines.push(el('div', 'rg-heartline', '🔩 Skrotpant: ❤️ tillbaka för vraken', el('small', null, ` (${SCRAP_PER_HEART} vrak = ett hjärta)`)));
+  else if ((s.takedowns ?? 0) > 0 && s.scrapCount !== undefined) lines.push(el('div', 'rg-scrap', `🔩 Skrotpant: ${s.scrapCount} av ${SCRAP_PER_HEART} vrak till nästa ❤️`));
   if (s.goal) lines.push(el('div', `rg-goal ${s.goal.met ? 'ok' : 'miss'}`, s.goal.met ? '✅ Utmaning krossad! ' : '❌ Misslyckades. Skärp dig. ', el('small', null, s.goal.text)));
   if (s.reward) lines.push(el('div', 'rg-goal ok', s.rewardKind === 'second' ? '🥈 Tröstpris: välj en av två.' : s.rewardKind === 'win' ? '🏆 Vinst! Välj ditt byte.' : '🎁 Du får välja en pryl.'));
   return screen('rg-post', statusBar(run), el('div', 'rg-postbody', el('h2', 'rg-bigh', head), ...lines), foot(go(run.status === 'dead' ? 'Fortsätt' : s.reward ? (s.rewardKind === 'second' ? 'Ta tröstpriset 🎁' : 'Välj ditt byte 🎁') : 'Till kartan', o.onNext)));

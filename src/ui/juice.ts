@@ -116,11 +116,17 @@ export function pryl(host: HTMLElement, emoji: string, name: string): void {
   setTimeout(() => b.remove(), 2200);
 }
 
+/** The result screen has its chips in the top corner: a ribbon there sits low, over the footer, so it never covers them. */
+function placeRibbon(host: HTMLElement, b: HTMLElement): void {
+  if (host.querySelector('.rs-res')) b.classList.add('low');
+}
+
 /** A small "KOMBO!" ribbon in the corner: two things you own just woke a combo. Like UPPLÅST!, it never blocks anything and goes by itself. */
 export function kombo(host: HTMLElement, emoji: string, name: string, text: string): void {
   host.querySelectorAll('.arc-unl.kombo').forEach((n) => n.remove());
   const b = el('div', 'arc-unl kombo', el('span', 'arc-unl-i', emoji), el('div', 'arc-unl-t', el('b', null, 'KOMBO!'), el('span', null, name), el('small', null, text)));
   b.setAttribute('role', 'status');
+  placeRibbon(host, b);
   host.append(b);
   setTimeout(() => b.remove(), 5200);
 }
@@ -130,6 +136,7 @@ export function upplast(host: HTMLElement, emoji: string, name: string, why: str
   host.querySelectorAll('.arc-unl').forEach((n) => n.remove());
   const b = el('div', 'arc-unl', el('span', 'arc-unl-i', emoji), el('div', 'arc-unl-t', el('b', null, 'UPPLÅST!'), el('span', null, name), el('small', null, why)));
   b.setAttribute('role', 'status');
+  placeRibbon(host, b);
   host.append(b);
   setTimeout(() => b.remove(), 5200);
 }

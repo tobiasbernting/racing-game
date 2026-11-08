@@ -274,7 +274,7 @@ describe('variation per seed', () => {
 describe('the acts and their courses', () => {
   const coursesOf = (act: number): Set<string> => {
     const out = new Set<string>();
-    for (const seed of seeds) for (const n of allNodes(generateAct(seed, act))) if (n.type !== 'boss' && n.course) out.add(planRace(n, false).course);
+    for (const seed of seeds) for (const n of allNodes(generateAct(seed, act))) if (n.type !== 'boss' && n.course && !n.derby) out.add(planRace(n, false).course);
     return out;
   };
 

@@ -4,142 +4,17 @@
 import { describe, expect, it } from 'vitest';
 import { CAR_BODIES, racePrize, type CarBody } from '../shared/rally.ts';
 import { HUMAN_FACTOR, type HumanSkill } from '../shared/pace.ts';
-import { buyHeart, buyTrinket, healPrice, trinketPrice, upgradePrice, workshopBuy } from './economy.ts';
-import { choiceAllowed, EVENTS } from './events.ts';
-import { chooseEvent, continueAfterRace, currentPlan, enterNode, finishNode, pickReward, submitRace } from './flow.ts';
+import { healPrice } from './economy.ts';
+import { continueAfterRace, enterNode, submitRace } from './flow.ts';
 import { asRallyResult, playerStats, simulateRace, type PlayerModel } from './racesim.ts';
+import { playRun, profile, type Profile, type Strategy } from './bot.ts';
 import { Rng } from './rng.ts';
-import { costsHeart, heartsLost, newRun, reachable, type RunState } from './state.ts';
+import { costsHeart, heartsLost, newRun, reachable, scrapHearts, type RunState } from './state.ts';
 import { planRace } from './plan.ts';
 import { actMap, allNodes, ACTS } from './map.ts';
 import { stackCap, trinketById, TRINKETS } from './trinkets.ts';
 import { UPGRADES, available, isUpgrade, partsToNodes, takeNode, upgradeById } from './upgrades.ts';
 import type { RaceKind } from '../shared/kinds.ts';
-
-type Strategy = 'race' | 'ram' | 'mixed';
-interface Profile extends PlayerModel {
-  strategy: Strategy;
-}
-
-const profile = (skill: HumanSkill, strategy: Strategy = 'mixed', aggression = strategy === 'ram' ? 1 : strategy === 'race' ? 0.15 : 0.5): Profile => ({ skill, strategy, aggression });
-
-/** The upgrade lines each kind of made-up player goes for, best first. */
-const LINE_ORDER: Record<Strategy, string[]> = {
-  race: ['race.grip', 'race.engine', 'race.nitro', 'race.long', 'race.drift', 'race.aero', 'race.cap', 'stunt.air', 'race.brakes', 'stunt.near', 'stunt.flip', 'ram.plates'],
-  ram: ['ram.plates', 'ram.spikes', 'race.engine', 'ram.hammer', 'ram.ballast', 'ram.shock', 'race.grip', 'ram.boost', 'ram.cap', 'race.nitro', 'fuffens.mine', 'fuffens.oil'],
-  mixed: ['race.grip', 'race.engine', 'ram.plates', 'race.nitro', 'ram.spikes', 'race.long', 'race.drift', 'ram.hammer', 'ram.shock', 'stunt.air', 'race.cap', 'ram.cap'],
-};
-
-/** How much a made-up player likes an upgrade card (trinkets use `like`). */
-function likeUp(id: string, s: Strategy): number {
-  const u = upgradeById(id)!;
-  const idx = LINE_ORDER[s].indexOf(u.line);
-  return idx < 0 ? (u.tree === 'car' ? 2.6 : 1.8) : 2.4 + 2.6 * (1 - idx / LINE_ORDER[s].length);
-}
-
-/** The next node of the strategy's list that is open, or any open one. */
-function nextNode(run: RunState, s: Strategy, maxTier = 3): string | null {
-  const open = available(run.up, run.car.body).filter((u) => u.tier <= maxTier && !u.cap);
-  for (const line of LINE_ORDER[s]) {
-    const hit = open.find((u) => u.line === line);
-    if (hit) return hit.id;
-  }
-  return open[0]?.id ?? null;
-}
-
-/** How much a made-up player likes a trinket. */
-function like(id: string, s: Strategy): number {
-  const d = trinketById(id)!;
-  const rar = { common: 1, rare: 2, legendary: 3 }[d.rarity];
-  const path = d.path === s ? 2.5 : s === 'mixed' && (d.path === 'race' || d.path === 'ram') ? 1.5 : 0;
-  const speed = d.tune ? 0.5 : 0;
-  return rar + path + speed;
-}
-
-/** One whole run with a made-up player. */
-export function playRun(seed: number, p: Profile, calm: boolean): { run: RunState; races: { act: number; kind: string; place: number; lapped: boolean; roadPlace: number; boss: boolean }[] } {
-  const rng = new Rng(seed * 7919 + 13);
-  let run = newRun({ seed, calm, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
-  const races: { act: number; kind: string; place: number; lapped: boolean; roadPlace: number; boss: boolean }[] = [];
-  for (let guard = 0; guard < 600 && run.status === 'running'; guard++) {
-    if (!run.screen) {
-      const opts = reachable(run);
-      const score = (n: (typeof opts)[number]): number => {
-        let v = rng.float() * 0.5;
-        if (run.hearts < run.maxHearts && n.type === 'shop') v += 2;
-        if (n.type === 'workshop') v += 1.2;
-        if (n.type === 'elite' && run.hearts <= 2) v -= 1.5;
-        if (p.strategy === 'race' && n.kind === 'rally') v += 0.8;
-        if (p.strategy === 'ram' && n.kind === 'carnage') v += 0.8;
-        return v;
-      };
-      const pick = [...opts].sort((a, b) => score(b) - score(a))[0]!;
-      run = enterNode(run, pick.id);
-      continue;
-    }
-    const s = run.screen;
-    switch (s.kind) {
-      case 'prerace': {
-        const plan = currentPlan(run)!;
-        const r = simulateRace(plan, run, p, rng);
-        const res = asRallyResult(plan, r);
-        res.kronor = racePrize(plan.rules, res.place, res.n);
-        races.push({ act: run.act, kind: plan.kind, place: res.place, lapped: r.lapped, roadPlace: r.roadPlace, boss: !!plan.boss });
-        run = submitRace(run, res);
-        break;
-      }
-      case 'postrace':
-        run = continueAfterRace(run);
-        break;
-      case 'reward': {
-        let best = 0;
-        let bestV = -1;
-        [...s.choices, ...(s.ups ?? [])].forEach((id, i) => {
-          const v = isUpgrade(id) ? likeUp(id, p.strategy) : like(id, p.strategy);
-          if (v > bestV) {
-            bestV = v;
-            best = i;
-          }
-        });
-        run = pickReward(run, best);
-        break;
-      }
-      case 'shop': {
-        const c = structuredClone(run);
-        if (c.hearts < c.maxHearts) buyHeart(c);
-        const sh = c.screen as Extract<NonNullable<RunState['screen']>, { kind: 'shop' }>;
-        const order = sh.stock.map((x, i) => ({ i, v: like(x.id, p.strategy) })).sort((a, b) => b.v - a.v);
-        for (const { i } of order) if (c.kronor >= trinketPrice(c, sh.stock[i]!.id) + 60) buyTrinket(c, i);
-        run = finishNode(c);
-        break;
-      }
-      case 'workshop': {
-        const c = structuredClone(run);
-        // the free pick first, then whatever the purse allows (keeping a little for the kiosk)
-        const free = nextNode(c, p.strategy, 2);
-        if (free) workshopBuy(c, free);
-        for (let k = 0; k < 0; k++) {
-          const id = nextNode(c, p.strategy);
-          if (!id || c.kronor < upgradePrice(c, id) + 80) break;
-          workshopBuy(c, id);
-        }
-        run = finishNode(c);
-        break;
-      }
-      case 'event': {
-        if (!s.outcome) {
-          const ev = EVENTS.find((e) => e.id === s.eventId)!;
-          const idx = ev.choices.findIndex((ch) => choiceAllowed(run, ch));
-          run = chooseEvent(run, Math.max(0, idx));
-        } else run = finishNode(run);
-        break;
-      }
-      default:
-        run = finishNode(run);
-    }
-  }
-  return { run, races };
-}
 
 const winRate = (p: Profile, calm: boolean, runs = 100): number => {
   let w = 0;
@@ -191,17 +66,17 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
   it('a normal run: a poor or average player loses it, a good one wins it about as often as not, a strong one usually', () => {
     const poor = winRate(profile('poor'), false);
     const average = winRate(profile('average'), false);
-    const goods = (['race', 'ram', 'mixed'] as Strategy[]).map((st) => winRate(profile('good', st), false));
+    const goods = (['race', 'ram', 'mixed'] as Strategy[]).map((st) => winRate(profile('good', st), false, 300));
     const strongs = (['race', 'ram', 'mixed'] as Strategy[]).map((st) => winRate(profile('expert', st), false));
     console.log('normal: poor', poor, 'average', average, 'good', goods, 'strong', strongs);
     expect(poor).toBeLessThan(0.12);
     expect(average).toBeLessThan(0.2);
-    // race and mixed builds: a good player wins about as often as not; the ram build starts slower but gets there
-    for (const g of [goods[0]!, goods[2]!]) {
-      expect(g).toBeGreaterThan(0.3);
-      expect(g).toBeLessThan(0.65);
+    // a good player wins about as often as not with any of the builds: Race, Ram or a mix (phase 12 brought Ram up to Race)
+    for (const g of goods) {
+      expect(g).toBeGreaterThan(0.37);
+      expect(g).toBeLessThan(0.6);
     }
-    expect(goods[1]!).toBeGreaterThan(0.1);
+    expect(Math.abs(goods[0]! - goods[1]!)).toBeLessThan(0.12);
     for (let i = 0; i < 3; i++) {
       expect(strongs[i]!).toBeGreaterThan(goods[i]!);
       expect(strongs[i]!).toBeLessThan(0.97);
@@ -305,7 +180,7 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
       const win: Record<string, number> = { rally: 0, mixed: 0, carnage: 0 };
       const n: Record<string, number> = { rally: 0, mixed: 0, carnage: 0 };
       let wins = 0;
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 250; i++) {
         const r = playRun(3000 + i, profile('good', st), false);
         if (r.run.status === 'won') wins++;
         for (const x of r.races) {
@@ -314,22 +189,82 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
           if (x.place === 1) win[x.kind]!++;
         }
       }
-      return { win, n, run: wins / 100 };
+      return { win, n, run: wins / 250 };
     };
     const ram = byKind('ram');
     const race = byKind('race');
     const rate = (b: ReturnType<typeof byKind>, k: string): number => b.win[k]! / Math.max(1, b.n[k]!);
     console.log('ram: runs won', ram.run, 'rally', rate(ram, 'rally').toFixed(2), 'mixed', rate(ram, 'mixed').toFixed(2), 'blodbad', rate(ram, 'carnage').toFixed(2), '| race: runs won', race.run, 'rally', rate(race, 'rally').toFixed(2), 'mixed', rate(race, 'mixed').toFixed(2), 'blodbad', rate(race, 'carnage').toFixed(2));
-    // both can win a run, and neither is the only way to win one
-    expect(ram.run).toBeGreaterThan(0.12);
-    expect(ram.run).toBeLessThan(0.7);
-    expect(race.run).toBeGreaterThan(0.3);
-    expect(race.run).toBeLessThan(0.7);
+    // both can win a run about as often as not, and neither is the only way to win one
+    expect(ram.run).toBeGreaterThan(0.35);
+    expect(ram.run).toBeLessThan(0.6);
+    expect(race.run).toBeGreaterThan(0.35);
+    expect(race.run).toBeLessThan(0.6);
     // the ram build is at home in Blodbad, the race build in Rally
     // (Blodbad is the harder race for everybody, so the sign of the comparison is between the builds, not between the kinds)
     expect(rate(ram, 'rally') - rate(ram, 'carnage')).toBeLessThan(rate(race, 'rally') - rate(race, 'carnage') - 0.1);
     expect(rate(ram, 'carnage')).toBeGreaterThan(rate(race, 'carnage') + 0.05);
     expect(rate(race, 'rally')).toBeGreaterThan(rate(ram, 'rally') + 0.05);
+  });
+
+  it('a Rivningsderby suits the Ram build: it wins them more often and places better than a Race build, and a Race build still finishes in the top half a fair share of the time', () => {
+    const stats = (st: Strategy): { win: number; top: number; place: number; n: number; hearts: number } => {
+      let n = 0;
+      let win = 0;
+      let top = 0;
+      let place = 0;
+      let hearts = 0;
+      for (let i = 0; i < 250; i++)
+        for (const r of playRun(5000 + i, profile('good', st), false).races) {
+          if (!r.derby) continue;
+          n++;
+          place += r.place;
+          hearts += r.hearts;
+          if (r.place === 1) win++;
+          if (r.place <= 3) top++;
+        }
+      return { win: win / n, top: top / n, place: place / n, n, hearts: hearts / n };
+    };
+    const ram = stats('ram');
+    const race = stats('race');
+    const mixed = stats('mixed');
+    console.log('derby (good player): ram', JSON.stringify(ram), 'race', JSON.stringify(race), 'mixed', JSON.stringify(mixed));
+    expect(ram.n).toBeGreaterThan(150);
+    expect(ram.win).toBeGreaterThan(race.win + 0.03);
+    expect(ram.place).toBeLessThan(race.place);
+    expect(ram.win).toBeGreaterThan(0.18);
+    expect(ram.win).toBeLessThan(0.7);
+    expect(race.win).toBeGreaterThan(0.05);
+    expect(race.top).toBeGreaterThan(0.3);
+    // a derby is a heavy node but not a death sentence: on average well under one heart for anybody
+    for (const x of [ram, race, mixed]) expect(x.hearts).toBeLessThan(0.95);
+  });
+
+  it('skrotpant: every fourth wreck of a run gives a heart back (never past the full hearts, never on the last breath), so a rammer outlasts a clean racer', () => {
+    expect(scrapHearts(0, 3)).toBe(0);
+    expect(scrapHearts(3, 4)).toBe(1);
+    expect(scrapHearts(2, 10)).toBe(2);
+    expect(scrapHearts(5, 5)).toBe(0);
+    const hurt = newRun({ seed: 11, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
+    hurt.hearts = 1;
+    let seed = 11;
+    while (!reachable({ ...hurt, seed }).some((n) => n.type === 'race')) seed++;
+    const start: RunState = { ...hurt, seed, stats: { ...hurt.stats, takedowns: 3 } };
+    const node = reachable(start).find((n) => n.type === 'race')!;
+    const plan = planRace(node, false);
+    const res = (place: number, takedowns: number): ReturnType<typeof asRallyResult> => ({ ...asRallyResult(plan, { roadPlace: place, rank: place, n: 4, time: 90, points: 0, takedowns, wrecks: 0, lapped: false, margin: 0, winners: [] }), place, n: 4, takedowns });
+    // the fourth wreck of the run heals; third place costs nothing; the heart is back
+    const after = submitRace(enterNode(start, node.id), res(1, 1));
+    expect(after.hearts).toBe(2);
+    expect(after.screen?.kind === 'postrace' && after.screen.summary.scrapHearts).toBe(1);
+    // already at full hearts: nothing to heal, and the wrecks still count towards the next
+    const full = submitRace(enterNode({ ...start, hearts: start.maxHearts }, node.id), res(1, 1));
+    expect(full.hearts).toBe(full.maxHearts);
+    expect(full.screen?.kind === 'postrace' && full.screen.summary.scrapHearts).toBeUndefined();
+    expect(full.stats.takedowns).toBe(4);
+    // a loss that takes the last heart ends the run: no heal on the way out
+    const dead = submitRace(enterNode(start, node.id), { ...res(4, 1), finished: false });
+    expect(dead.status).toBe('dead');
   });
 
   it('the finished builds of the trees, one per path, are a fight in act 3 and nobody is lapped by any of them', () => {
