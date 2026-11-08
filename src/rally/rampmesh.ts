@@ -145,6 +145,13 @@ export function buildRampMeshes(track: Track, ramps: readonly RampSpec[], qualit
       sign.rotation.y = hd + Math.PI;
       sign.frustumCulled = false;
       group.add(sign);
+      // and the back of it, for whoever has just flown through: a plain well done
+      const back = new THREE.Mesh(sign.geometry, keep(new THREE.MeshBasicMaterial({ map: keep(signTex('BRA HOPP!', '#2a1d00', '#ffd23f')), side: THREE.FrontSide, color: new THREE.Color(1.5, 1.5, 1.5) })));
+      back.position.set(mx, topY - 1.25, mz);
+      back.rotation.y = hd;
+      back.frustumCulled = false;
+      group.add(back);
+      (sign.material as THREE.MeshBasicMaterial).side = THREE.FrontSide;
     }
   }
   const solidGeo = keep(solid.build());

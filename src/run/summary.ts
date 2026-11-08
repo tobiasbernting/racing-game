@@ -207,7 +207,7 @@ export function buildTimeline(run: RunState): TimelineAct[] {
     a.items.push({
       nodeId: l.nodeId,
       icon: l.arena ? DERBY_EMOJI : NODE_EMOJI[l.type],
-      kind: l.arena && l.place !== undefined ? { kind: 'carnage', emoji: DERBY_EMOJI, name: DERBY_NAME } : l.kind && l.place !== undefined ? { kind: l.kind, emoji: KIND_EMOJI[l.kind], name: KIND_NAMES[l.kind] } : undefined,
+      kind: l.arena && l.place !== undefined ? { kind: 'carnage', emoji: DERBY_EMOJI, name: 'Derby' } : l.kind && l.place !== undefined ? { kind: l.kind, emoji: KIND_EMOJI[l.kind], name: KIND_NAMES[l.kind] } : undefined,
       typeName: l.arena ? DERBY_NAME : NODE_NAMES[l.type],
       title: l.title,
       result: r.text,

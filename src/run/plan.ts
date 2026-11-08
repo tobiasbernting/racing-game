@@ -191,7 +191,7 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
     // floodlit: night, or dusk now and then (from the node's seed)
     rules.time = node.seed % 3 === 0 ? 'sunset' : 'night';
     if (!boss) title = `${DERBY_NAME}: ${ARENAS[arena].name}`;
-    prize = boss ? 2 : 1.7;
+    prize = boss ? 2 : 1.55;
   }
   if (calm) {
     rules.ai = Math.max(2, rules.ai - 1);

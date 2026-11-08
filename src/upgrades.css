@@ -309,3 +309,8 @@
 
 /* the ribbons on the result screen sit low, on the left over the footer, not over the chips in the header's corner */
 .arc-unl.low { top: auto; right: auto; left: max(12px, env(safe-area-inset-left)); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 74px); }
+
+/* the card of the node a run ended on: paper tinted red, not the old dark red under dark ink */
+.rs-tl.fell { background: #f2c3c8 var(--noise); background-blend-mode: multiply; border-color: var(--ink); box-shadow: 3px 3px 0 var(--spray-r); }
+.rs-tl-top { min-width: 0; }
+.rs-kind { max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

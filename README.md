@@ -78,7 +78,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
   några rivaler går på dig men ingen åker ut) eller 💥 **Blodbad** (hälsa, vrak och poäng). Sorten syns som en liten bricka på kartan,
   i teckenförklaringen och på kortet före loppet med en rad om vad den betyder. Ungefär 35 / 40 / 25 % över en runda: mest Rally i
   akt 1 och mest Blodbad i akt 3. Dödslopp lutar åt Blodbad, "slå klockan" är alltid Rally, och bossarna kör efter humör (Sura Bengt
-  och Kapten Kanin Blodbad, Ingrid Blandat, Frost-Frida Rally).
+  och Kapten Kanin Blodbad, Ingrid Blodbad sedan fas 12 (en älg som aldrig väjer), Frost-Frida Rally).
 - **Blodbad**: alla bilar har hälsa (din syns som en stapel nere till höger, rivalernas som små staplar över huvudet). Smällar tar hälsa
   efter hastighet, vikt och rammarkraft (`src/rally/combat.ts`): traktorn och monstertruck puttar, moppen studsar. Vid 0 är bilen
   **vrak**: den vältar, ryker och ligger ute i ca 3 sekunder och är sedan tillbaka på vägen med det mesta av hälsan (ingen blir utslagen
@@ -187,8 +187,8 @@ GameContext), `src/run/` (rena regler för rundan: karta, prylar, ekonomi, händ
 och `src/app.ts` (skalet: paus, pekkontroller, flödet mellan skärmar och lopp). Ett lopp startas med `RallyOptions`
 (`src/rally/options.ts`) och rapporterar `RallyResult` via `onDone`.
 
-Dev-bygget har också `window.__rallyDebug` (`tumble()`, `honk()`, `swap(kropp)`, `takedown(n)`, `hurt(n, hp)`, `ability()`, `park()`, `freeze()` / `thaw()`, `ahead(n, avstånd, fart)` / `behind(...)` och `hazard(sort, avstånd, sida)`) under ett lopp. För tester finns `window.__app` med `fakeFinish()` (avslutar loppet direkt med ett påhittat resultat), `debugRun()`,
-`debugEnter(typ, sort?)` och `debugMeta()`. I dev-bygget finns dessutom `?rallydebug&rallyauto&rallyturbo=30&rallygo` som låter
+Dev-bygget har också `window.__rallyDebug` (`ramps()`, `at(s, d, fart)`, `board()` för derbyt, `tumble()`, `honk()`, `swap(kropp)`, `takedown(n)`, `hurt(n, hp)`, `ability()`, `park()`, `freeze()` / `thaw()`, `ahead(n, avstånd, fart)` / `behind(...)` och `hazard(sort, avstånd, sida)`) under ett lopp. För tester finns `window.__app` med `fakeFinish()` (avslutar loppet direkt med ett påhittat resultat), `debugRun()`,
+`debugEnter(typ, sort?)`, `debugDerby(arena?, boss?)` (gör ett dödslopp eller bossen till ett rivningsderby och går in i det) och `debugMeta()`. I dev-bygget finns dessutom `?rallydebug&rallyauto&rallyturbo=30&rallygo` som låter
 datorn köra bilen i hög hastighet.
 
 ## Deploy
@@ -345,3 +345,29 @@ delarna nollas, gamla "del"-poster i byggloggen blir noder och ett gammalt belö
 (`partLevel` upp till 4,9, catch-up i akt 3 16 %) för att hänga med. Mätt i `balance.test.ts` med bottar som köper noder (ett kort av sex, den fria noden i verkstaden): en bra spelare vinner ungefär 58 / 28 / 47 % av normala rundor med Race / Ram / Blandat som strategi
 (Ram vinner mest via Blodbad: 0,54 mot 0,35 för en renodlad racer, medan racern tar Rally 0,88 mot 0,69), en stark spelare 77 / 72 / 90 %, Söndagsåkare är kvar över 90 % för en genomsnittlig spelare, och ingen färdig uppsättning (Ram, Race, Stunt, Fuffens, Girig) varvar fältet i akt 3,
 inte ens "alla noder + alla prylar" (bästa spelare vinner under 99 % av loppen).
+
+## Rivningsderby, stuntramper och balans (fas 12)
+
+**💥 Rivningsderby** (`src/shared/derby.ts`, `src/rally/arena.ts`, `arenabuild.ts`, `derbyai.ts`) är en ny sorts plats på kartan: ungefär ett dödslopp per akt (seedat) och ibland sista bossen, Kapten Kanin
+(40 % av rundorna, och då med månens tyngdkraft). Kartan visar en 🏟️ med en liten DERBY-lapp och en rad i teckenförklaringen; kortet före loppet förklarar regeln på en rad.
+
+- **Arenan**: en sluten ring av väldigt bred väg (så fysiken, datorförarna och minikartan funkar som vanligt) runt en fast ö i mitten med en skrothög, en strålkastarmast och en randig kant. Två former: den runda *Skrotskålen* (en stor öppen yta) och den långa *Däckovalen* (ett varv runt en lång ö).
+  Däckvägg på båda staketen, tre läktare med en publik som hoppar när du är nära, sponsorskyltar, strålkastartorn med ljuspölar (och strålar på natten) och ramper på golvet. Seedet sätter åkriktning, ramperna, färgerna och om det är natt eller skymning.
+- **Reglerna**: inga varv och ingen mållinje. Alla bilar har hälsa (×1,8 mot Blodbad och smällarna gör 38 % mindre, så ett derby tar en minut eller två) och en **vrakad bil är ute för gott**: den ligger kvar och ryker i fyra sekunder och forslas sedan bort. **Placeringen är i vilken ordning bilarna åker ut** (först ut är sist),
+  de som rullar när tiden är slut (2:30) rangordnas på hälsa. Varje vrak är en takedown (3 p på kortet, men det är placeringen som styr priset, hjärtat och belöningen). Sista bilen vinner; åker du ut avslutas derbyt två sekunder senare (resten fortsätter i bakgrunden).
+  Hjärtat följer samma regel som annars: nedre halvan efter utslagsordning kostar ❤️ (bossen: vinner du inte, −❤️❤️). Ett vinst-, dödslopps- eller bossbyte delas ut som vanligt och lutar åt Ram (Blodbad).
+- **Datorförarna** (`DerbyBrain`): rammarna jagar (siktar framför bilen de är ute efter, runt ön om den är i vägen), racerna kryssar runt och väjer, de blandade gör lite av varje. De första sex sekunderna cirklar alla och spanar, undviker staketen och ön, backar ut ur hörn, tar en annan bil än den de är fastlåsta i, och en förare som fastnar gång på gång sätts tillbaka på en ledig plats. Fordonens förmågor och dina uppgraderingar funkar som i ett Blodbad.
+- **HUD**: en panel överst med bilar kvar, klockan (röd sista kvarten) och dina takedowns, tavlan med hälsa i procent och 💥 för utslagna, minikartan som en ring med ön som ett hål, hälsostaplar över rivalerna. Resultatkortet säger hur det gick, visar hela tabellen (utslagen efter 1:12, rullade kvar med 84 % hälsa) och tidslinjen har ett derbykort.
+- **Test** (`derby.test.ts` ×2): utslagsordning, klockan, placering och poäng, hjärtan, kartan, planen, belöningarna, en körd derbysimulering med riktig fysik (ingen lämnar golvet, ingen fastnar).
+
+**🤸 Stuntramper och genväg** (`src/rally/ramps.ts`, `rampmesh.ts`, `Ground.lift` i `car.ts`): varje bana får tre kickers (en kil som stiger mot kanten och faller bort, 1,25 m hög) och ett genvägshopp (en stor kil, 2,7 m, med en båge och en lysande GENVÄG-skylt över vägen, "BRA HOPP!" på baksidan).
+Placeringen är seedad och kontrollerad mot banan: på rak, plan, vanlig väg (inte i kurva, på bro eller i tunnel eller på is), inom vägens bredd, på den sida som ligger längst från racinglinjen (rivalerna kör där och struntar i dem), minst 70 m från start och från varandra, och en smalare väg får en smalare ramp.
+En ramp är en upphöjning av marken i vägens egna koordinater (s längs, d tvärs), så fysiken och meshen läser samma siffror; flaggstänger gör dem synliga på långt håll. Hoppar du över genvägen med minst 21 m/s och landar 14-105 m efter kanten får du **45 m av banan skänkta** (en gång per varv) och Stunt-uppgraderingarna
+betalar som för ett jättehopp (Flygtid, Luftburen, Stuntstjärnan). Alla tolv banor i alla spegel- och bakvända varianter har sina ramper (`ramps.test.ts`). I derbyt ligger ramperna (kickers och pukklar) utspridda på golvet åt alla håll.
+
+**⚖️ Balans** (`src/run/bot.ts`, `racesim.ts`, `balance.test.ts`): Ram låg på 28 % mot Race 58 % i normala rundor. Nu vinner en bra spelare ungefär **43 % med Race, 47 % med Ram och 50 % med Blandat** (före: 58 / 28 / 47; 300 rundor, ± 3 pp). Det som flyttade: **skrotpant** (var fjärde vrakad bil under en runda ger ett förlorat ❤️ tillbaka, aldrig över fulla hjärtan och aldrig på sista andetaget; kortet efter loppet visar räknaren),
+tung stötfångare lönar sig i Blandat och Blodbad (modellen: sekunder per varv för ram och vikt, inte i Rally), Ingrid är en Blodbad-boss, en egen derbymodell i simuleringen (utslagsordning med överlevnad, undvikande och slag; en bra Ram-spelare vinner ett derby ungefär en gång av fyra, en renodlad racer var sjätte) och de långsamma skämtfordonens förmågor får kortare nedkylning (golfbilen 12 s, gräsklipparen 8, limousinen 10, husbilen 11, moppen 8, traktorn 13, sopbilen 10).
+Det som hålls: ingen varvas i akt 3, Söndagsåkare går att vinna nästan alltid, ingen fordonsvinnare dominerar.
+
+**Småfixar**: tidslinjens kioskkort och verkstadskort upprepar inte längre sitt namn, "UPPLÅST!"-lappen sitter nere till vänster på resultatskärmen i stället för över chipsen, kortet för platsen där rundan tog slut har läsbar text, och de fem moddar som inte syntes på bilen får en bult-on: Bromsar (röda och gula bromsok på blanka skivor), Nitrolängd (långa blå nitrorör längs sidorna),
+Sladd (lila fenor och en ankstjärt), Stötdämpare (gula spiralfjädrar över hjulen) och Rabattkort (ett RABATT-kort i backspegeln). Tak-prylar på cyklarna sitter på bagagehyllan bakom föraren eller på hjälmen (hatten), rullburet är en hög bygel bakom sadeln.
