@@ -23,7 +23,7 @@ export const HUMAN_FACTOR = { poor: 1.1, average: 1.035, good: 0.975, expert: 0.
 export type HumanSkill = keyof typeof HUMAN_FACTOR;
 
 /** Seconds a nitro second saves, and a mini-turbo's worth per lap for a driver of this skill (s per lap). */
-export const NITRO_SAVE = 0.4;
+export const NITRO_SAVE = 0.5;
 export const driftSaving = (human: number, driftRate: number): number => Math.max(0, (1.08 - human) * 10) * Math.min(2, Math.sqrt(driftRate));
 
 /**

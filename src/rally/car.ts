@@ -43,6 +43,18 @@ const WB = CG_F + CG_R;
 const CG_H = 0.45;
 const G = 9.81;
 const DRAG = 0.95;
+/** Boosts: the share of a boost's strength that turns into extra top speed, the most a boost can add, and the push (m/s² per unit of strength). */
+export const BOOST_SPEED = 0.75;
+export const BOOST_MAX = 1.6;
+export const BOOST_THRUST = 18;
+/** How hard a speed above the boosted cap is eased down (m/s² per m/s over it). */
+export const BOOST_EASE = 0.15;
+/** The top speed (m/s) a plain, unboosted car with the base power reaches on tarmac: a boost lifts the cap from this. */
+export const PLAIN_TOP = 48;
+/** A boost pad's push: seconds and strength (the player and the rivals alike). */
+export const PAD_BOOST = { seconds: 1.2, strength: 1.4 };
+/** The speed factor a boost of this strength (1 = none) lifts the top speed to. */
+export const boostSpeedK = (b: number): number => 1 + BOOST_SPEED * (Math.min(b, BOOST_MAX) - 1);
 export { REDLINE };
 
 const tyre = (alpha: number, b: number): number => Math.sin(1.4 * Math.atan(b * alpha));
@@ -122,6 +134,8 @@ export class Car {
   throttleIn = 0;
   /** Engine boost on top of the power (nitro, a drift boost): 1 = none. */
   boost = 1;
+  /** The boost the car really feels: it rises fast and fades slowly, so a boost ends as a smooth decay, never a brake. */
+  boostEff = 1;
   /** Brake force multiplier (the brakes part). */
   brakeMul = 1;
   /** Gravity multiplier (1 = normal, below floats). */
@@ -292,6 +306,11 @@ export class Car {
     this.limiterT = Math.max(0, this.limiterT - dt);
     this.perfectT = Math.max(0, this.perfectT - dt);
     const va = Math.abs(vLong);
+    // the boost builds fast and fades slowly (a bit under a second and a half), so the speed eases back instead of braking
+    this.boostEff = damp(this.boostEff, this.boost, this.boost > this.boostEff ? 9 : 1.7, dt);
+    if (this.boostEff < 1.003 && this.boost <= 1) this.boostEff = 1;
+    const bEff = Math.min(this.boostEff, BOOST_MAX);
+    const bSpeedK = boostSpeedK(bEff);
     const bx = this.box;
     const top = bx.v.length;
     if (this.reverse) {
@@ -357,12 +376,12 @@ export class Car {
         drive = -c.brake * 3800 * (vLong > -9 ? 1 : 0.15);
         brake = c.throttle * 9000;
       } else {
-        drive = c.throttle * Math.min(7600 * this.boost * F.punch, (this.power * this.boost) / Math.max(4, va));
+        drive = c.throttle * Math.min(7600 * this.boostEff * F.punch, (this.power * this.boostEff) / Math.max(4, va));
         // a heavy body gets going slowly; a top speed (moped, tractor) fades the push out just under it
         if (F.mass > 1) drive *= Math.pow(F.mass, -0.3);
         if (F.top > 0) {
           const top = F.top * (onGrass ? F.grass : 1);
-          drive *= clamp((top * this.topK * this.boost - va) / (top * 0.12), 0, 1);
+          drive *= clamp((top * this.topK * bSpeedK - va) / (top * 0.12), 0, 1);
         }
         if (this.shiftT > 0) drive *= 0.3;
         // the engine: it bogs when the revs are low (a gear too high), is cut by the limiter and kicks after a perfect shift
@@ -427,6 +446,18 @@ export class Car {
       torque = CG_F * ffy - CG_R * fyR;
       // rolling resistance and drag
       fx -= dirSign * Math.min(rollDecel * MASS, stopCap * 0.5);
+      // a boost is a push along the nose that the tyres and the gearbox do not limit: it carries the car well past its
+      // normal top speed and fades out as it nears the boosted one (a car with a top speed is held at that one instead)
+      if (bEff > 1.002 && !this.reverse && c.throttle > 0.05 && vLong > 0) {
+        const plain = F.top > 0 ? F.top * this.topK * (onGrass ? F.grass : 1) : PLAIN_TOP * Math.cbrt(this.power / BASE_POWER) * this.topK;
+        const room = clamp((plain * bSpeedK - vLong) / (plain * 0.1), 0, 1);
+        fx += MASS * BOOST_THRUST * (bEff - 1) * room * c.throttle * (F.mass > 1 ? Math.pow(F.mass, -0.2) : 1);
+      }
+      // above the boosted cap (a boost that has faded): the speed eases down to it, like a long lift, never a brake
+      if (!this.reverse && vLong > 0) {
+        const cap = (F.top > 0 ? F.top * this.topK * (onGrass ? F.grass : 1) : PLAIN_TOP * Math.cbrt(this.power / BASE_POWER) * this.topK) * bSpeedK;
+        if (vLong > cap) fx -= MASS * BOOST_EASE * (vLong - cap);
+      }
       // slopes: gravity along the car
       fx -= MASS * G * Math.sin(this.slopePitch);
       fy -= MASS * G * Math.sin(this.slopeRoll) * 0.6;

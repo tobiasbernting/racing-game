@@ -118,9 +118,13 @@ const CSS = `
 .rl-tag { position: absolute; left: 0; top: 0; padding: calc(2px * var(--s)) calc(8px * var(--s)); border-radius: 999px; white-space: nowrap;
   background: rgba(16, 20, 34, 0.6); font-size: calc(13px * var(--s)); font-weight: 800; transform: translate(-50%, -100%); display: none; }
 .rl-tag i { display: inline-block; width: calc(8px * var(--s)); height: calc(8px * var(--s)); border-radius: 50%; margin-right: calc(4px * var(--s)); }
-.rl-speed { position: absolute; inset: 0; opacity: 0; transition: opacity 0.25s;
+.rl-speed { position: absolute; inset: 0; opacity: 0; transition: opacity 0.12s; pointer-events: none;
+  will-change: opacity;
   background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,255,255,0.0) 0deg 7deg, rgba(255,255,255,0.22) 7.4deg 8deg);
   -webkit-mask: radial-gradient(circle at 50% 50%, transparent 38%, #000 75%); mask: radial-gradient(circle at 50% 50%, transparent 38%, #000 75%); }
+.rl-speed.run { animation: rl-streak 0.28s linear infinite; }
+@keyframes rl-streak { from { transform: scale(1) rotate(0deg); } to { transform: scale(1.12) rotate(2.5deg); } }
+@media (prefers-reduced-motion: reduce) { .rl-speed.run { animation: none; } }
 .rl-result { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); min-width: min(92%, calc(420px * var(--s)));
   background: rgba(16, 20, 34, 0.82); border-radius: calc(18px * var(--s)); padding: calc(14px * var(--s)) calc(18px * var(--s)); display: none; }
 .rl-result.show { display: block; animation: rl-pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
@@ -626,9 +630,10 @@ export class Hud {
   }
 
   /** Speed lines round the edge (nitro): 0..1. */
-  speedLines(k: number): void {
-    if (this.same('speed', k.toFixed(2))) return;
-    this.speedEl.style.opacity = k.toFixed(2);
+  speedLines(k: number, animate = true): void {
+    if (this.same('speed', k.toFixed(2) + animate)) return;
+    this.speedEl.style.opacity = (animate ? k : k * 0.6).toFixed(2);
+    this.speedEl.classList.toggle('run', animate && k > 0);
   }
 
   /** Name tags at screen positions (CSS pixels); the ones not listed are hidden. */
@@ -789,7 +794,7 @@ export class Hud {
   }
 
   /** The speedometer: a rev arc, km/h and the gear. */
-  drawSpeedo(kmh: number, rpm: number, gear: number, maxRpm: number, info: { manual: boolean; light: number; gears: number; limiter: boolean; bog: boolean } = { manual: false, light: 0, gears: 6, limiter: false, bog: false }): void {
+  drawSpeedo(kmh: number, rpm: number, gear: number, maxRpm: number, info: { manual: boolean; light: number; gears: number; limiter: boolean; bog: boolean; glow?: number } = { manual: false, light: 0, gears: 6, limiter: false, bog: false }): void {
     const c = this.speedo;
     const g = c.getContext('2d')!;
     const W = c.width;
@@ -830,8 +835,18 @@ export class Hud {
     g.textAlign = 'center';
     g.textBaseline = 'alphabetic';
     g.font = `900 ${Math.round(R * 0.62)}px Nunito, 'Trebuchet MS', system-ui, sans-serif`;
-    g.shadowColor = 'rgba(0,0,0,0.5)';
-    g.shadowOffsetY = 2 * this.dpr;
+    const glow = info.glow ?? 0;
+    if (glow > 0.03) {
+      // a boost: the number burns orange
+      g.shadowColor = `rgba(255,150,40,${(0.5 + 0.5 * glow).toFixed(2)})`;
+      g.shadowBlur = R * (0.1 + 0.3 * glow);
+      g.shadowOffsetY = 0;
+      g.fillStyle = glow > 0.5 ? '#ffe9b0' : '#fff';
+      g.fillText(String(Math.round(kmh)), cx - R * 0.08, cy - R * 0.12);
+      g.shadowBlur = 0;
+    }
+    g.shadowColor = glow > 0.03 ? 'rgba(255,120,20,0.7)' : 'rgba(0,0,0,0.5)';
+    g.shadowOffsetY = glow > 0.03 ? 0 : 2 * this.dpr;
     g.fillText(String(Math.round(kmh)), cx - R * 0.08, cy - R * 0.12);
     g.shadowColor = 'transparent';
     g.font = `800 ${Math.round(R * 0.17)}px Nunito, 'Trebuchet MS', system-ui, sans-serif`;

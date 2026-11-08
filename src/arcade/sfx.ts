@@ -46,6 +46,8 @@ export interface NoiseOpts {
   freq?: number;
   q?: number;
   at?: number;
+  /** Sweep the centre frequency to this over the burst (a whoosh). */
+  to?: number;
 }
 
 /** A burst of filtered noise: hits, splats, explosions, hi-hats. */
@@ -59,6 +61,7 @@ export function noise(a: AudioContext | null, out: AudioNode | null, dur: number
   f.type = 'bandpass';
   f.frequency.value = o.freq ?? 1200;
   f.Q.value = o.q ?? 0.8;
+  if (o.to) f.frequency.exponentialRampToValueAtTime(o.to, t + dur);
   const g = a.createGain();
   g.gain.setValueAtTime(o.vol ?? 0.15, t);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);

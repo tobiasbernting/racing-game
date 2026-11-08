@@ -98,6 +98,12 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 - **Tak mot skenande staplar** (`capTune` i `src/rally/mods.ts`, `maxStack` på talismanerna): kraft, grepp, nitrolängd och antal, sladdturbo,
   knuff, tålighet, mynt, kronor och bilens totala kraft och grepp har mjuka tak (linjärt till ett knä, sedan mot ett max). Nitro
   räcker högst 12 sekunder per lopp. Talismaner som skenar (Pruttboost, Chilikorven, Dino-Dieseln …) slutar ge mer efter 2-3 exemplar.
+- **Riktiga boostar**: en boost lyfter bilens fartgräns och ger en knuff framåt som varken däck, växellåda eller `feel.top` stoppar (`boostEff`,
+  `boostSpeedK` och `BOOST_*` i `src/rally/car.ts`). Nitron är starkast (cirka +25-35 % topphastighet i 2,2 s), sladdturbon växer med nivån
+  (+15 / +22 / +30 %), farthoppen och förmågornas boostar ger fart i proportion till sin styrka, och rivalerna följer samma regler. När en boost
+  tar slut klingar farten av mjukt, den bromsar aldrig. Känslan: kameran vidgas och backar, fartstrimmor i kanterna (svagare på låg kvalitet),
+  större flamma, ett svisch med stigande ton, en kort vibration där webbläsaren kan och glödande farträknare. Testet `src/rally/boost.test.ts`
+  kör nitron i den riktiga fysiken på en raksträcka.
 - **Byte efter varje lopp** (fas 17, se längst ner): efter VARJE lopp i varje akt får du välja 1 av 3 kort, en slumpad (seedad) blandning av talismaner och uppgraderingar, och placeringen avgör kvaliteten. Ingen flikväljare och inget tröstpris för tvåan längre.
 - **Humor**: kaos, inte toalett. Högst tre talismaner handlar om prutt och bajs (Pruttboost är sällsynt, Bajsraketen legendarisk); bara de pruttar och lämnar det gröna molnet. Resten har egna effekter (konfetti, gnistor, glitter, studsar). Nya slumpade talismaner: Platsbytar-Pelle, Kon från ovan, Slumpväxeln och Tombolan. Inga svordomar: `src/language.test.ts` skannar alla texter.
 - **Talismanernas vägar** (`path` på alla 52): `ram`, `race`, `fuffens`, `stunt`, `girig`, `kaos`. Fas 9 bygger på dem.
