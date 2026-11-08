@@ -44,8 +44,10 @@ describe('the styling options on all twenty bodies', () => {
     }
   });
 
-  it('builds every body with every single option', () => {
-    for (const body of CAR_BODIES) {
+  // One test per body: a single test that builds all twenty bodies with every option blocks the test worker for over a
+  // minute on a slow CI runner, long enough for vitest's worker RPC to time out.
+  it.each([...CAR_BODIES])('builds the %s with every single option', (body) => {
+    {
       const one = (patch: Partial<CarStyle>): void => {
         const m = make(body, { ...defaultStyle(), ...patch }, 'low');
         expect(m.root.children.length).toBeGreaterThan(0);
@@ -62,7 +64,7 @@ describe('the styling options on all twenty bodies', () => {
       one({ decals: {} });
       one({ glow: '#19e3ff', plate: 'KALLE 7', number: 99, paint: '#123456', paint2: '#abcdef', rimColor: '#ff00aa' });
     }
-  }, 120_000);
+  }, 60_000);
 
   it('builds every body with all the extras at once, with the biggest spoiler, in low quality too', () => {
     for (const body of CAR_BODIES)
