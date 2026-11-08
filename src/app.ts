@@ -18,8 +18,9 @@ import { chooseEvent, continueAfterRace, currentNode, currentPlan, enterNode, fi
 import { buyHeart, buyRepair, buyTrinket, reroll, workshopBuy, workshopPaint, workshopRepair } from './run/economy.ts';
 import { activeCombos, buildRunMods, lookOf } from './run/upgrades.ts';
 import { buildScreen } from './ui/upgrades.ts';
-import { trophiesFor, unlockedBodies, unlockedTrinkets, type Meta } from './run/meta.ts';
+import { unlockedBodies, type Meta } from './run/meta.ts';
 import { checkChallenges } from './run/unlocks.ts';
+import { giveUpRun, restartPick, settleRun } from './run/giveup.ts';
 import { kitOf } from './shared/abilities.ts';
 import { newSeed } from './run/rng.ts';
 import { allNodes, type NodeType } from './run/map.ts';
@@ -29,7 +30,7 @@ import { btn, arrowNav, el } from './ui/dom.ts';
 import { confettiRain, kombo, pryl, sfx, upplast } from './ui/juice.ts';
 import { saveSettings, settings } from './settings.ts';
 import { trinketById } from './run/trinkets.ts';
-import { bagView, collectionView, eventView, mapView, menuView, overView, pickView, postraceView, preraceView, rewardView, settingsView, shopView, titleView, workshopView, type PickSel } from './ui/views.ts';
+import { bagView, collectionView, eventView, mapView, menuView, overView, pickView, restartConfirmView, postraceView, preraceView, rewardView, settingsView, shopView, titleView, workshopView, type PickSel } from './ui/views.ts';
 
 type State = 'menu' | 'loading' | 'playing' | 'paused' | 'result';
 /** Quick race (one race, the old front end) or a run (the roguelite). */
@@ -65,6 +66,8 @@ export class App {
   private fpsStop: (() => void) | null = null;
   /** The car and driver being picked for a new run. */
   private sel: PickSel;
+  /** What Escape does while a confirm dialog is open (it means "no"). */
+  private escape: (() => void) | null = null;
 
   constructor(private parent: HTMLElement) {
     const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -129,12 +132,14 @@ export class App {
   }
 
   private show(...kids: Node[]): void {
+    this.escape = null;
     this.card.className = 'arc-card show' + (this.state === 'menu' ? ' menu' : '');
     this.card.replaceChildren(...kids);
   }
 
   /** A run screen: the card is the whole screen, laid out by the screen itself. */
   private showScreen(view: HTMLElement): void {
+    this.escape = null;
     this.card.className = 'arc-card show menu rg';
     this.card.replaceChildren(view);
     // the main button first, else the first road on the map, else any button
@@ -750,8 +755,31 @@ export class App {
   }
 
   private mapMenu(r: RunState): void {
-    this.showScreen(menuView(r, { onClose: () => this.showRun(), onTitle: () => this.title(), onSettings: () => this.openSettings(() => this.mapMenu(r)), onBuild: () => this.showBuild(r) }));
+    this.showScreen(menuView(r, { onClose: () => this.showRun(), onTitle: () => this.title(), onSettings: () => this.openSettings(() => this.mapMenu(r)), onBuild: () => this.showBuild(r), onRestart: () => this.confirmRestart(r, () => this.mapMenu(r)) }));
   }
+
+  /** "Ge upp rundan": asks first (Nej is the default and Escape), then gives the run up and goes to the pick. */
+  private confirmRestart(r: RunState, back: () => void): void {
+    this.showScreen(restartConfirmView(r, { onYes: () => this.restartRun(r, false), onNo: back, onResult: () => this.restartRun(r, true) }));
+    this.escape = back;
+  }
+
+  /** Counts the run as given up (no trophies; the settled run is saved first, so a reload shows it and never counts it twice), then the result or straight to the pick with the same car. */
+  private restartRun(r: RunState, result: boolean): void {
+    this.stopGame();
+    this.set('menu');
+    const done = giveUpRun(this.meta, r);
+    this.meta = done.meta;
+    saveMeta(this.meta);
+    saveRun(done.run);
+    this.mode = 'run';
+    this.runState = done.run;
+    if (result) return this.showOver(done.run);
+    clearRun();
+    this.sel = restartPick(done.run);
+    this.pickScreen();
+  }
+
 
   /** Bygget: the trees with what is taken, the combos, and the car with its mods on a turntable. */
   private showBuild(r: RunState): void {
@@ -764,21 +792,7 @@ export class App {
   /** The run is over (lost or won): the trophies go to the meta progress once (the run remembers it in `end`), and the run stays saved until its summary has been left, so a reload shows it again. */
   private endRun(r: RunState): void {
     if (r.end) return;
-    const won = r.status === 'won';
-    const gain = trophiesFor({ bossesBeaten: r.stats.bossesBeaten, won, races: r.stats.races });
-    const old = this.meta.trophies;
-    const total = old + gain;
-    // the end of the run counts for the challenges that add up over runs (once: `end` guards it)
-    const chk = checkChallenges(this.meta, r, true);
-    const bodies = [...new Set([...r.opened, ...chk.unlocked.map((c) => c.body)])];
-    const trinkets = unlockedTrinkets(total)
-      .filter((t) => t.unlock > old)
-      .map((t) => t.id);
-    const seen = new Set(this.meta.seen);
-    trinkets.forEach((id) => seen.add(id));
-    this.meta = { ...chk.meta, trophies: total, runs: this.meta.runs + 1, wins: this.meta.wins + (won ? 1 : 0), bestAct: Math.max(this.meta.bestAct, won ? 3 : r.act + 1), seen: [...seen] };
-    r.opened = bodies;
-    r.end = { won, trophies: gain, total, unlockedBodies: bodies, unlockedTrinkets: trinkets, progress: { ...this.meta.progress } };
+    this.meta = settleRun(this.meta, r).meta;
     saveMeta(this.meta);
     saveRun(r);
   }
@@ -788,6 +802,7 @@ export class App {
     this.stage.replaceChildren();
     const leave = (next: () => void) => () => {
       clearRun();
+      if (r.end?.gaveUp) this.sel = restartPick(r);
       next();
     };
     this.showScreen(overView(r, r.end!, { onAgain: leave(() => this.pickScreen()), onTitle: leave(() => this.title()) }));
@@ -888,6 +903,11 @@ export class App {
 
   private onKey = (e: KeyboardEvent): void => {
     if (e.type === 'keydown' && e.code === 'Escape' && !e.repeat) {
+      if (this.escape) {
+        this.escape();
+        e.preventDefault();
+        return;
+      }
       if (this.state === 'playing') this.pause();
       else if (this.state === 'paused') this.resume();
       e.preventDefault();

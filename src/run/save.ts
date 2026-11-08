@@ -139,6 +139,7 @@ function cleanEnd(raw: unknown): RunEnd | undefined {
     unlockedBodies: bodies,
     unlockedTrinkets: Array.isArray(raw.unlockedTrinkets) ? raw.unlockedTrinkets.filter(isTrinket) : [],
     progress: cleanProgress(raw.progress),
+    ...(raw.gaveUp === true ? { gaveUp: true } : {}),
   };
 }
 
