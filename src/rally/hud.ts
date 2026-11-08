@@ -111,6 +111,19 @@ const CSS = `
 .rl-bigpop.abil { color: #e4d0ff; }
 .rl-bigpop.boost { color: #ffb347; }
 .rl-bigpop.hit { color: #ff9aa8; }
+.rl-bigpop.slip { color: #bfe9ff; }
+.rl-help { position: absolute; left: 50%; top: calc(max(calc(62px * var(--s)), 54px) + calc(4px * var(--s))); transform: translateX(-50%); display: none; gap: calc(6px * var(--s)); pointer-events: none; }
+.rl-help.show { display: flex; }
+.rl-help span { font: 800 calc(12px * var(--s)) var(--body, system-ui), system-ui, sans-serif; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; background: rgba(16, 20, 34, 0.55); border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; padding: calc(2px * var(--s)) calc(8px * var(--s)); display: none; white-space: nowrap; }
+.rl-help span.on { display: block; }
+.rl-help .comeback { color: #9be37f; border-color: rgba(155,227,127,0.6); }
+.rl-help .rage { color: #ff9a8a; border-color: rgba(255,154,138,0.6); }
+.rl-help .slip { color: #bfe9ff; border-color: rgba(191,233,255,0.6); }
+.rl-back { position: absolute; left: 50%; top: 27%; transform: translateX(-50%); pointer-events: auto; display: none; border: 2px solid rgba(255,255,255,0.7); background: rgba(24, 80, 150, 0.82); color: #fff; border-radius: 999px;
+  font: 900 calc(20px * var(--s)) var(--body, system-ui), system-ui, sans-serif; padding: calc(10px * var(--s)) calc(22px * var(--s)); cursor: pointer; box-shadow: 0 calc(4px * var(--s)) calc(14px * var(--s)) rgba(0,0,0,0.45); animation: rl-backpulse 1.1s ease-in-out infinite; }
+.rl-back.show { display: block; }
+@keyframes rl-backpulse { 0%, 100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.07); } }
+@media (prefers-reduced-motion: reduce) { .rl-back { animation: none; } }
 @keyframes rl-bigpop { 0% { opacity: 0; transform: scale(0.4) translateY(10px); } 20% { opacity: 1; transform: scale(1.15) translateY(0); } 34% { transform: scale(1); } 68% { opacity: 1; } 100% { opacity: 0; transform: scale(1) translateY(-14px); } }
 @media (max-height: 520px) { .rl-bigpop { font-size: calc(22px * var(--s)); } .rl-bigpop i { font-size: calc(32px * var(--s)); } .rl-pops { bottom: 60%; } }
 @media (prefers-reduced-motion: reduce) { .rl-bigpop { animation-duration: 0.01s; animation-delay: 0.6s; } }
@@ -289,6 +302,10 @@ export class Hud {
   private btns: HTMLElement;
   /** Touch buttons of the HUD's own: the camera. */
   readonly camBtn: HTMLButtonElement;
+  /** "↩ Tillbaka": shows when the car is off the road or stuck (touch). */
+  readonly backBtn: HTMLButtonElement;
+  private helpEl: HTMLElement;
+  private helpChips: Record<'comeback' | 'rage' | 'slip', HTMLElement>;
   /** The last values shown, so a frame with no change touches no DOM. */
   private last: Record<string, string> = {};
 
@@ -352,6 +369,17 @@ export class Hud {
     this.camBtn.textContent = '🎥';
     if (touch) this.camBtn.classList.add('show');
     this.camBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.backBtn = el('button', 'rl-back', this.root) as HTMLButtonElement;
+    this.backBtn.textContent = '↩ Tillbaka';
+    this.backBtn.setAttribute('aria-label', 'Tillbaka på vägen');
+    this.backBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.helpEl = el('div', 'rl-help', this.root);
+    const chip = (cls: string, text: string): HTMLElement => {
+      const c = el('span', cls, this.helpEl);
+      c.textContent = text;
+      return c;
+    };
+    this.helpChips = { comeback: chip('comeback', '↑ Comeback'), rage: chip('rage', '😤 Ilska'), slip: chip('slip', '💨 Sug') };
     this.loading = el('div', 'rl-loading', this.root);
     el('div', 'car', this.loading).textContent = '🏎️';
     el('div', '', this.loading).textContent = 'Slänger ihop en bana…';
@@ -513,6 +541,17 @@ export class Hud {
     let html = '';
     for (let k = 0; k < total; k++) html += `<span class="${k < left ? 'on' : burning && k === left ? 'burn' : ''}">🔥</span>`;
     this.nitroChip.innerHTML = html;
+  }
+
+  /** The small help chips (Comeback, Ilska, Sug) and the "↩ Tillbaka" button. */
+  setHelp(comeback: boolean, rage: boolean, slip: boolean, back: boolean): void {
+    if (!this.same('help', `${comeback}/${rage}/${slip}/${back}`)) {
+      this.helpChips.comeback.classList.toggle('on', comeback);
+      this.helpChips.rage.classList.toggle('on', rage);
+      this.helpChips.slip.classList.toggle('on', slip);
+      this.helpEl.classList.toggle('show', comeback || rage || slip);
+      this.backBtn.classList.toggle('show', back);
+    }
   }
 
   /** The vehicle's ability: its icon and name, how charged it is (0..1) and whether it can be used now. */

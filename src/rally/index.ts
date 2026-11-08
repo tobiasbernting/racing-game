@@ -26,6 +26,7 @@ import { BASE_POWER, Car, collideCars, Ground_, type Controls, type HitInfo } fr
 import { courseFor } from './variant.ts';
 import { canRain, variationFor } from '../shared/variation.ts';
 import { Coins } from './coins.ts';
+import { RAGE, RESPAWN, SLIP, autoRespawnAfter, comebackBonus, comebackLevel, helpK, rageBonus, rageSeconds, rageStrength, respawnSpeed, rivalEase, showBackButton, slipBonus, slipDepth, slipK, type RageCause } from './catchup.ts';
 import { Confetti, Debris, Particles, Skids } from './fx.ts';
 import { buildAttitude, type Attitude } from './attitude.ts';
 import { Post, canPost, gradeFor, setOutlineScreen } from './look.ts';
@@ -212,7 +213,7 @@ function archetypeBody(seed: number, k: number, spec: RivalSpec): CarBody {
 
 const nextFrame = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
-/** Test hooks, only in a dev build: ?rallydebug, ?rallyauto, ?rallyturbo, ?rallyskip, ?rallyat, ?rallycam, ?rallygo, ?rallylaps. */
+/** Test hooks, only in a dev build: ?rallyhelp=0|1 (the comeback help), ?rallylast=<m> (start that far behind), ?rallydebug, ?rallyauto, ?rallyturbo, ?rallyskip, ?rallyat, ?rallycam, ?rallygo, ?rallylaps. */
 const Q = new URLSearchParams(import.meta.env.DEV && typeof location !== 'undefined' ? location.search : '');
 const DEBUG = Q.has('rallydebug');
 const AUTO = Q.has('rallyauto') ? Number(Q.get('rallyauto')) || 0.9 : 0;
@@ -222,6 +223,8 @@ const SKIP = Math.max(1, Number(Q.get('rallyskip')) || 1);
 const AT = Q.has('rallyat') ? Number(Q.get('rallyat')) : NaN;
 const CAM0 = Number(Q.get('rallycam')) || 0;
 const GO = Q.has('rallygo');
+const HELP_Q = Q.has('rallyhelp') ? Q.get('rallyhelp') !== '0' : null;
+const LAST_Q = Math.max(0, Number(Q.get('rallylast')) || 0);
 const LAPS_Q = Math.max(1, Math.min(9, Number(Q.get('rallylaps')) || 3));
 
 const rally = (ctx: GameContext): GameInstance => {
@@ -924,6 +927,13 @@ const rally = (ctx: GameContext): GameInstance => {
   let thrPrev = false;
   let boosted = false;
   let place = 1;
+  // ---- the comeback help (catchup.ts): the difficulty sets how much, the setting can turn it off ----
+  const helpDiff = field?.diff ?? (rules?.difficulty === 'easy' ? 'calm' : rules?.difficulty === 'hard' ? 'hard' : 'normal');
+  const helpOn = (): boolean => HELP_Q ?? settings.catchup;
+  const assistK = (): number => (opts && !derby ? helpK(helpDiff, helpOn()) : 0);
+  const slipKnow = (): number => (opts && !derby ? slipK(helpDiff, helpOn()) : 0);
+  /** Slipström depth, the comeback level, the rage left (and its length), when the next rage may start, a wreck seen, a "Tillbaka" press, seconds off the road, a nitro bank for the drip. */
+  const help = { slip: 0, slipSeen: false, come: 0, rageT: 0, rageTot: 0, rageCd: 0, wasWreck: false, back: false, offRoadT: 0, gapLead: 0, topMul: 1, powMul: 1, shown: 0 };
   const wasAhead = new Map<string, boolean>();
   const ledger = new TakedownLedger();
   const pairCd = new Map<number, number>();
@@ -1003,6 +1013,7 @@ const rally = (ctx: GameContext): GameInstance => {
   /** The drift boost and style points only count when the race has options (rules and a car). */
   const tricksOn = !!opts;
   hud.camBtn.addEventListener('click', () => (camPress = true));
+  hud.backBtn.addEventListener('click', () => (help.back = true));
 
   const camPos = new THREE.Vector3();
   const camLook = new THREE.Vector3();
@@ -1141,10 +1152,87 @@ const rally = (ctx: GameContext): GameInstance => {
     e.ctl.shift = car0.manual ? (inp.pressed('su') ? 1 : 0) - (inp.pressed('sd') ? 1 : 0) : 0;
   }
 
+  // ---- the comeback help ----
+  function startRage(cause: RageCause): void {
+    if (assistK() <= 0 || help.rageCd > 0 || phase !== 'race') return;
+    help.rageT = help.rageTot = rageSeconds(cause);
+    help.rageCd = RAGE.cooldown;
+    hud.pop('rage', '😤', 'Ilska!', 'hit');
+  }
+
+  /** Per frame, after the handling set the power: slipström, comeback and rage, as a little more power and top speed for the player. */
+  function catchupStep(dt: number, me: Entrant, racing: boolean): void {
+    const c = me.car;
+    const driving = racing && phase === 'race' && !me.finished && !derby && me.wreckT <= 0;
+    help.rageCd = Math.max(0, help.rageCd - dt);
+    help.rageT = driving ? Math.max(0, help.rageT - dt) : 0;
+    // a wreck that is over: the rage starts as the car gets going again
+    if (me.wreckT > 0) help.wasWreck = true;
+    else if (help.wasWreck) {
+      help.wasWreck = false;
+      if (racing && phase === 'race') startRage('wreck');
+    }
+    // seconds spent off the road (moving or not): for the "Tillbaka" button
+    if (driving && Math.abs(c.proj.d) > track.at(track.hw, c.proj.s) + 1.5) help.offRoadT += dt;
+    else help.offRoadT = Math.max(0, help.offRoadT - dt * 2);
+    let slipT = 0;
+    let comeT = 0;
+    const ak = assistK();
+    const sk = slipKnow();
+    if (driving && (ak > 0 || sk > 0)) {
+      // the draft: right behind another car
+      if (sk > 0)
+        for (const o of around()) slipT = Math.max(slipT, slipDepth(o.fwd, o.lat, c.speed));
+      // how far behind the leader, and how low in the order
+      let lead = -1e9;
+      for (const o of entrants) if (o !== me && !o.gone) lead = Math.max(lead, o.u);
+      help.gapLead = lead - me.u;
+      if (ak > 0) comeT = comebackLevel(help.gapLead, place, entrants.length);
+    }
+    help.slip = damp(help.slip, slipT, slipT > help.slip ? SLIP.rise : SLIP.fall, dt);
+    help.come = damp(help.come, comeT, 1.1, dt);
+    if (!driving) {
+      help.slip = help.come = 0;
+    }
+    const cb = comebackBonus(help.come, ak);
+    const rg = rageBonus(rageStrength(help.rageT, help.rageTot), ak);
+    const sb = slipBonus(help.slip, sk);
+    help.powMul = 1 + cb.power + rg.power + sb.power;
+    help.topMul = Math.min(1.2, 1 + cb.top + rg.top + sb.top);
+    c.power *= help.powMul;
+    c.topK = mt.top * help.topMul;
+    // and a little more grip in the bends, so the extra speed is not only for the straights
+    c.grip *= 1 + (help.powMul - 1) * 0.12;
+    if (driving) {
+      // faster recharge: a nitro charge now and then, and the ability's cooldown running a little quicker
+      const nitro = cb.nitro + sb.nitro;
+      if (nitro > 0 && nitroSlots() > 0) api.nitro(nitro * dt);
+      if (cb.recharge > 0 && abilCd > 0) abilCd = Math.max(0, abilCd - dt * cb.recharge);
+      // wind lines while in the draft
+      if (help.slip > 0.25 && Math.random() < (high ? 0.8 : 0.45)) {
+        const sinH = Math.sin(c.heading);
+        const cosH = Math.cos(c.heading);
+        for (const sx of [-1, 1]) particles.emit({ x: c.x + cosH * sx * (1.3 + Math.random() * 1.4) + sinH * (3 + Math.random() * 3), y: c.y + 0.4 + Math.random() * 1.1, z: c.z - sinH * sx * (1.3 + Math.random() * 1.4) + cosH * (3 + Math.random() * 3), vx: -sinH * (16 + c.speed * 0.5), vy: 0, vz: -cosH * (16 + c.speed * 0.5), life: 0.28, size0: 0.22, size1: 0.1, color: colWhite, alpha: 0.75, drag: 0.1, gravity: 0 });
+      }
+      if (help.slip > 0.5 && !help.slipSeen) {
+        help.slipSeen = true;
+        hud.pop('slip', '💨', 'Sug!', 'slip');
+      } else if (help.slip < 0.15) help.slipSeen = false;
+      if (help.come > 0.3 && help.shown < 0.3) hud.pop('comeback', '🔥', 'Comeback!', 'boost');
+    }
+    help.shown = help.come;
+    // the small chips and the "Tillbaka" button
+    hud.setHelp(help.come > 0.2, help.rageT > 0, help.slip > 0.3, ctx.touch && driving && showBackButton(Math.max(me.offT, help.offRoadT), me.stuckT));
+  }
+
   // ---- respawn ----
   function respawn(e: Entrant): void {
     const c = e.car;
-    let s = c.proj.s - 4;
+    const mine = e === player() && !derby;
+    // the player is put back where the road is (a little ahead, not behind) and rolls on with part of the speed
+    const trouble = e.offT > RESPAWN.buttonAfter || e.stuckT > RESPAWN.buttonAfter || help.offRoadT > RESPAWN.buttonAfter;
+    const keep = mine ? respawnSpeed(c.speed) : 0;
+    let s = c.proj.s + (mine ? 3 : -4);
     let d = 0;
     if (derby) {
       // a free spot of the floor, not the scrum it got stuck in
@@ -1160,6 +1248,12 @@ const rally = (ctx: GameContext): GameInstance => {
     poof(c.x, c.y, c.z);
     c.place(s, d, ground);
     c.ghost = 2.2;
+    if (keep > 0) {
+      c.vx = Math.sin(c.heading) * keep;
+      c.vz = Math.cos(c.heading) * keep;
+    }
+    help.offRoadT = 0;
+    if (mine && trouble) startRage('respawn');
     e.lastS = c.proj.s;
     e.stuckT = 0;
     e.offT = 0;
@@ -2922,6 +3016,7 @@ const rally = (ctx: GameContext): GameInstance => {
       audio.crunch(hit, other.car.feel.mass);
       shake = Math.max(shake, Math.min(0.55, hit * 0.055 * (0.8 + 0.2 * Math.sqrt(other.car.feel.mass))));
       mods.bus.hit('car', hit);
+      if (hit > RAGE.hit && fresh && other.ai && phase === 'race') startRage('hit');
       if (fresh) vehicleContact(other, hit);
       if (hit > 3) buzz(hit > 8 ? 'crash' : 'hit', !!ctx.controls?.haptics);
     } else if (hit > 4 && Math.hypot(ea.car.x - me.car.x, ea.car.z - me.car.z) < 30 && fresh) audio.crunch(hit * 0.5, ea.car.feel.mass);
@@ -3354,6 +3449,17 @@ const rally = (ctx: GameContext): GameInstance => {
           stats.boosts++;
           mods.bus.boost('start');
         }
+        if (LAST_Q > 0 && !derby) {
+          // test hook: start the player this many metres behind the start line, rolling
+          me.car.place(track.length - LAST_Q, 0, ground);
+          const h = me.car.heading;
+          me.car.vx = Math.sin(h) * 18;
+          me.car.vz = Math.cos(h) * 18;
+          me.lastS = me.car.proj.s;
+          me.u = -LAST_Q;
+          camPos.set(me.car.x - Math.sin(h) * 7, me.car.y + 2.5, me.car.z - Math.cos(h) * 7);
+          camYaw = h;
+        }
         if (Number.isFinite(AT)) {
           // test hook: start the player somewhere else on the lap, rolling
           me.car.place(AT, 0, ground);
@@ -3419,7 +3525,9 @@ const rally = (ctx: GameContext): GameInstance => {
           const ease = easeOff(gap, c);
           const lastLap = e.spec?.rules.includes('lastlap') && e.lapsDone >= LAPS - 1 ? LASTLAP_BOOST : 0;
           const sk = e.ai?.p.skill ?? 1;
-          mul = Math.min(1 + boost, 1.08 / Math.max(0.6, sk)) * (1 - ease) * (1 + lastLap);
+          // and the help for a player far behind: the ones in front ease off a little (never the boss as much)
+          const hEase = rivalEase(gap, assistK() * (e.spec?.boss ? 0.6 : 1));
+          mul = Math.min(1 + boost, 1.08 / Math.max(0.6, sk)) * (1 - ease) * (1 - hEase) * (1 + lastLap);
           // in Blandat and Blodbad the pack stays bunched up (it is a brawl, not a procession): stragglers hurry, the ones far ahead of everybody ease off
           if (kind !== 'rally' && packN > 1) {
             const k = carnage ? 1 : 0.5;
@@ -3428,7 +3536,8 @@ const rally = (ctx: GameContext): GameInstance => {
             else if (gp < -25) mul = Math.min(mul * (1 + Math.min(0.1, (-gp - 25) / 500) * k), 1.12 / Math.max(0.6, sk));
           }
           if (e.eager) mul *= 0.82;
-          e.car.power = e.basePower * (1 + boost * 0.9 + lastLap) * (1 - ease * 0.4) * damagePower(e.damage) * (e.squashT > 0 ? 0.4 : 1) * (e.hp < e.maxHp * 0.25 && carnage ? 0.85 : 1);
+          e.car.topK = 1 - hEase * 0.8;
+          e.car.power = e.basePower * (1 + boost * 0.9 + lastLap) * (1 - ease * 0.4) * (1 - hEase * 0.5) * damagePower(e.damage) * (e.squashT > 0 ? 0.4 : 1) * (e.hp < e.maxHp * 0.25 && carnage ? 0.85 : 1);
           if (e.ai) {
             e.ai.surge = e.rivalBoostT > 0 ? 0.1 : 0;
             // every car in Blodbad fights: the racers too go for the opportunity, and (derby) a FEGIS car goes for anybody
@@ -3458,7 +3567,8 @@ const rally = (ctx: GameContext): GameInstance => {
           }
         }
         if (e.blindT > 0) mul *= 0.72;
-        drv.drive(e.car, track, cars, mul, timeU.value + entrants.indexOf(e), dt, e.ctl);
+        // the test autopilot drives to the car's real limit, so it uses half of the extra top speed the help gives (a person does on the straights)
+        drv.drive(e.car, track, cars, e === me && AUTO ? mul * (1 + (help.topMul - 1) * 0.5 + (help.powMul - 1) * 0.06) : mul, timeU.value + entrants.indexOf(e), dt, e.ctl);
         if (e.blindT > 0 && e !== me) {
           e.ctl.steer = clamp(e.ctl.steer + Math.sin(timeU.value * 7 + entrants.indexOf(e)) * 0.32, -1, 1);
           if (Math.random() < 0.05) particles.emit({ x: e.car.x, y: e.car.y + 1.6, z: e.car.z, vy: 0.8, life: 0.8, size0: 0.9, size1: 1.8, color: colSnow, alpha: 0.7, drag: 1, gravity: -0.2 });
@@ -3478,6 +3588,7 @@ const rally = (ctx: GameContext): GameInstance => {
     abilityStep(dt, me, racing);
     hornStep(dt, me, racing);
     for (const e of entrants) handling(e, dt, e === me);
+    catchupStep(dt, me, racing);
     tricks(dt, me, racing);
     obstaclesStep(dt, racing);
 
@@ -3522,10 +3633,12 @@ const rally = (ctx: GameContext): GameInstance => {
         else e.stuckT = Math.max(0, e.stuckT - dt * 2);
         if (Math.abs(c.proj.d) > hw + 1.5 && e.rate < (e.ai ? 5 : 7)) e.offT += dt;
         else e.offT = Math.max(0, e.offT - dt);
-        if (e.stuckT > (e.ai ? 2.2 : 2.8) || e.offT > (e.ai ? 4 : 6)) respawn(e);
+        const auto = autoRespawnAfter(helpOn());
+        if (e.stuckT > (e.ai ? 2.2 : auto.stuck) || e.offT > (e.ai ? 4 : auto.off)) respawn(e);
       }
     }
-    if (phase === 'race' && !me.finished && (inp.keyPressed('KeyR') || inp.pressed('b'))) respawn(me);
+    if (phase === 'race' && !me.finished && (inp.keyPressed('KeyR') || inp.pressed('b') || help.back)) respawn(me);
+    help.back = false;
 
     // positions
     const order = ranking();
@@ -4215,6 +4328,7 @@ const rally = (ctx: GameContext): GameInstance => {
         shortcut: { done: scDone, taking: scTake, spec: shortcut },
         style: stylePts,
         nitro: nitroLeft,
+        help: { ...help, assist: assistK(), slipK: slipKnow(), on: helpOn(), diff: helpDiff, place },
         ability: { cd: abilCd, kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, burst: burstT, junk, draft: draftT, drafting, vip: vipT, mow: mowT, clouds: clouds.length, blind: entrants.filter((e) => e.blindT > 0).length, shots: shots.count, obstacles: obstacles.count, hp: me.hp, maxHp: me.maxHp, wheelie: me.wheelie, ram: me.car.ram, boost: me.car.boost, ghost: me.car.ghost, vy: me.car.vy, air: me.car.air, heading: me.car.heading, uses: stats.abilityUses, squashed: entrants.filter((e) => e !== me && e.squashT > 0).length },
         tumbles,
         gimmicks: gimmicks ? { ids: gimmicks.ids, ...gimmicks.state, penaltyMs, obstacles: obstacles.count, zone: obstacles.countOf('zone'), ice: obstacles.countOf('ice'), pin: obstacles.countOf('pin'), sign: obstacles.countOf('sign'), flipped: hud.map.classList.contains('flipped'), ballsAt: gimmicks.where, objS: (['zone', 'ice', 'sign', 'pin'] as const).flatMap((k) => obstacles.positions(k).map((q) => ({ kind: k, s: track.project(q.x, q.z, -1, { i: 0, u: 0, s: 0, d: 0 }).s }))) } : null,

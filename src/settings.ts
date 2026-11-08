@@ -8,11 +8,13 @@ export interface Settings {
   fps: boolean;
   /** Where the short pop-ups for talismans, abilities and boosts show: in the middle (above the car), in the corner, or not at all. */
   popups: 'mid' | 'corner' | 'off';
+  /** Ikappkörningshjälp: slipström, comeback and a gentler field when you are far behind (rally/catchup.ts). On by default; the difficulty sets how much, Ett liv none of the comeback. */
+  catchup: boolean;
 }
 
 export const SETTINGS_KEY = 'galna-rallyt:settings:v1';
 
-export const defaultSettings = (): Settings => ({ volume: 0.8, music: true, shake: true, fps: false, popups: 'mid' });
+export const defaultSettings = (): Settings => ({ volume: 0.8, music: true, shake: true, fps: false, popups: 'mid', catchup: true });
 
 /** Anything stored (or junk) becomes valid settings. */
 export function cleanSettings(raw: unknown): Settings {
@@ -26,6 +28,7 @@ export function cleanSettings(raw: unknown): Settings {
     shake: typeof o.shake === 'boolean' ? o.shake : d.shake,
     fps: typeof o.fps === 'boolean' ? o.fps : d.fps,
     popups: o.popups === 'mid' || o.popups === 'corner' || o.popups === 'off' ? o.popups : d.popups,
+    catchup: typeof o.catchup === 'boolean' ? o.catchup : d.catchup,
   };
 }
 
