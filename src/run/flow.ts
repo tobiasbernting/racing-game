@@ -24,7 +24,7 @@ export function currentNode(r: RunState): MapNode | undefined {
 /** The race the pre-race card or the race itself is about. */
 export function currentPlan(r: RunState): RacePlan | null {
   const n = currentNode(r);
-  return n ? planRace(n, r.calm) : null;
+  return n ? planRace(n, r.diff) : null;
 }
 
 /** Go to a node on the map. Returns the same run when the node cannot be entered. */
@@ -68,7 +68,7 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
   if (run.screen?.kind !== 'prerace') return run;
   const r = copyRun(run);
   const node = nodeOf(r, run.screen.nodeId)!;
-  const plan = planRace(node, r.calm);
+  const plan = planRace(node, r.diff);
   const lost = heartsLost(res.place, res.n, res.finished, r.diff, node.type === 'boss');
   const heartLost = lost > 0;
   const met = plan.goal ? goalMet(plan.goal, res) : null;

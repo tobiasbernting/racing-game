@@ -884,6 +884,7 @@ export function settingsView(o: SettingsOpts): HTMLElement {
     toggle('🎵', 'Musik', 'Soundtracket till kaoset', () => s.music, (v) => { s.music = v; o.onChange(); }),
     toggle('📳', 'Skakningar', 'Kameran vibrerar vid krascher och landningar', () => s.shake, (v) => { s.shake = v; o.onChange(); }),
     el('div', 'rg-setvol', el('span', 'rg-setlabel', '💥 Pop-ups'), popRow),
+    toggle('🛟', 'Ikappkörningshjälp', 'Sug bakom andra, lite draghjälp och en snällare bana när du hamnat långt efter. Ett liv: bara sugen', () => s.catchup, (v) => { s.catchup = v; o.onChange(); }),
     toggle('📈', 'Visa FPS', 'Siffran som skvallrar när det laggar', () => s.fps, (v) => { s.fps = v; o.onChange(); }),
     o.fullscreen === null ? null : btn('rg-btn rg-set', '⛶ Helskärm på/av (ingen kant, ingen nåd)', o.onFullscreen),
   );
