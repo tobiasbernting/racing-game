@@ -27,6 +27,8 @@ const CSS = `
 .rl-board { list-style: none; margin: 0; padding: calc(5px * var(--s)) calc(10px * var(--s)); font-size: calc(13px * var(--s)); line-height: 1.5; }
 .rl-board li { display: flex; align-items: center; gap: calc(6px * var(--s)); white-space: nowrap; }
 .rl-nm { overflow: hidden; text-overflow: ellipsis; max-width: calc(150px * var(--s)); }
+.rl-board.compact { padding: calc(3px * var(--s)) calc(8px * var(--s)); font-size: calc(12px * var(--s)); line-height: 1.35; }
+.rl-board.compact li:nth-child(n+4):not(.me) { display: none; }
 .rl-board li.me { font-weight: 900; color: #ffe27a; }
 .rl-board li.done { opacity: 0.75; }
 .rl-dot { width: calc(10px * var(--s)); height: calc(10px * var(--s)); border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.8); flex: none; }
@@ -159,6 +161,17 @@ const CSS = `
   border: 1px solid rgba(255,255,255,0.45); transform: translate(-50%, -100%); display: none; overflow: hidden; }
 .rl-bar i { display: block; height: 100%; width: 100%; background: #ff5a3a; }
 .rl-bar.out { opacity: 0.35; }
+.rl-fg { position: absolute; left: 0; top: 0; padding: 0 calc(7px * var(--s)); border-radius: 999px; background: #d62d20; color: #fff; font-weight: 900; font-size: calc(12px * var(--s)); letter-spacing: 0.05em;
+  white-space: nowrap; display: none; border: 1px solid #fff; animation: rl-blink 0.5s steps(2) infinite; }
+.rl-float { position: absolute; left: 0; top: 0; font-weight: 900; font-size: calc(22px * var(--s)); color: #ffe05a; pointer-events: none; white-space: nowrap;
+  -webkit-text-stroke: calc(4px * var(--s)) rgba(10, 8, 24, 0.8); paint-order: stroke fill; animation: rl-flt 0.95s ease-out both; }
+.rl-float.big { font-size: calc(32px * var(--s)); color: #ffb21f; }
+.rl-float.taken { color: #ff8a8a; font-size: calc(18px * var(--s)); }
+@keyframes rl-flt { from { opacity: 1; margin-top: 0; } 70% { opacity: 1; } to { opacity: 0; margin-top: calc(-52px * var(--s)); } }
+.rl-fegisme { position: absolute; left: 50%; top: calc(max(calc(10px * var(--s)), env(safe-area-inset-top)) + calc(46px * var(--s))); transform: translateX(-50%); display: none; padding: calc(5px * var(--s)) calc(16px * var(--s));
+  border-radius: calc(14px * var(--s)); background: rgba(190, 28, 18, 0.9); border: 2px solid #fff; color: #fff; font-weight: 900; font-size: calc(17px * var(--s)); white-space: nowrap; z-index: 3; animation: rl-blink 0.7s steps(2) infinite; }
+.rl-fegisme.show { display: block; }
+@media (prefers-reduced-motion: reduce) { .rl-float { animation-duration: 0.01s; animation-delay: 0.9s; } }
 .rl-board li small { margin-left: auto; padding-left: calc(8px * var(--s)); opacity: 0.85; font-weight: 800; font-variant-numeric: tabular-nums; }
 .rl-disco { position: absolute; inset: 0; opacity: 0; mix-blend-mode: screen; transition: opacity 0.5s;
   background: conic-gradient(from 0deg at 50% -10%, rgba(255, 0, 150, 0.4), rgba(0, 200, 255, 0.4), rgba(255, 230, 0, 0.4), rgba(120, 0, 255, 0.4), rgba(255, 0, 150, 0.4));
@@ -256,6 +269,8 @@ export class Hud {
   private scoreEl: HTMLElement;
   private barsEl: HTMLElement;
   private barEls = new Map<string, HTMLElement>();
+  private fgEls = new Map<string, HTMLElement>();
+  private fegisMe!: HTMLElement;
   private tagsEl: HTMLElement;
   private trinketRow: HTMLElement;
   private trinketEls = new Map<string, HTMLElement>();
@@ -311,6 +326,7 @@ export class Hud {
     this.speedEl = el('div', 'rl-speed', this.root);
     this.tagsEl = el('div', 'rl-tags', this.root);
     this.barsEl = el('div', 'rl-bars', this.root);
+    this.fegisMe = el('div', 'rl-fegisme', this.root);
     this.br = el('div', 'rl-br', this.root);
     this.styleChip = el('div', 'rl-panel rl-chip rl-style', this.br);
     this.coinChip = el('div', 'rl-panel rl-chip rl-style', this.br);
@@ -346,13 +362,21 @@ export class Hud {
     this.fit();
   }
 
+  /** Blodbad and the derby keep a small points board even on a phone (the top three and you); the other races only show one when there is room. */
+  private pointsOn = false;
+  private fitBoard(): void {
+    const r = this.root.getBoundingClientRect();
+    const roomy = r.height > 520 && r.width > 700;
+    this.board.style.display = roomy || this.pointsOn ? '' : 'none';
+    this.board.classList.toggle('compact', !roomy);
+  }
+
   private fit(): void {
     const r = this.root.getBoundingClientRect();
     const s = clamp(Math.min(r.width / 980, r.height / 620), 0.58, 1.25);
     this.scale = s;
     this.root.style.setProperty('--s', s.toFixed(3));
-    // the board only when there is room
-    this.board.style.display = r.height > 520 && r.width > 700 ? '' : 'none';
+    this.fitBoard();
     const mw = Math.round(156 * s * this.dpr);
     this.map.width = mw;
     this.map.height = mw;
@@ -395,15 +419,34 @@ export class Hud {
     this.hpTxt.textContent = out ? `VRAKAD ${wreckLeft.toFixed(1).replace('.', ',')}` : String(Math.max(0, Math.round(hp)));
   }
 
-  /** Blodbad: the player's points and takedowns under the position (null hides it). */
-  setScore(points: number | null, takedowns: number): void {
-    if (this.same('score', points === null ? '-' : `${points}/${takedowns}`)) return;
+  /** Blodbad and the derby: the player's takedowns, damage dealt and points under the position (null hides it). */
+  setScore(points: number | null, takedowns: number, dealt = 0): void {
+    if (this.same('score', points === null ? '-' : `${points}/${takedowns}/${Math.round(dealt)}`)) return;
     this.scoreEl.classList.toggle('show', points !== null);
-    if (points !== null) this.scoreEl.innerHTML = `<span>💥 <b>${takedowns}</b></span><span><b>${points}</b> p</span>`;
+    if (this.pointsOn !== (points !== null)) {
+      this.pointsOn = points !== null;
+      this.fitBoard();
+    }
+    if (points !== null) this.scoreEl.innerHTML = `<span>💥 <b>${takedowns}</b></span><span>🔨 <b>${Math.round(dealt)}</b></span><span><b>${points}</b> p</span>`;
+  }
+
+  /** A number that rises from a screen position and fades ("+12" over a car you hit). */
+  floater(text: string, x: number, y: number, cls = ''): void {
+    const e = el('div', `rl-float ${cls}`, this.barsEl);
+    e.textContent = text;
+    e.style.transform = `translate(${(x + (Math.random() - 0.5) * 24).toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+    setTimeout(() => e.remove(), 1000);
+  }
+
+  /** The big warning on the player's own screen while it is FEGIS (null hides it). */
+  setFegis(on: boolean): void {
+    if (this.same('fegisme', on ? 1 : 0)) return;
+    this.fegisMe.classList.toggle('show', on);
+    this.fegisMe.textContent = on ? '🐔 FEGIS! Träffa någon, annars tappar du hälsa' : '';
   }
 
   /** Small health bars over the rivals' heads, at screen positions (CSS px); the ones not listed are hidden. */
-  bars(list: { id: string; x: number; y: number; hp: number; out: boolean; color: string }[]): void {
+  bars(list: { id: string; x: number; y: number; hp: number; out: boolean; color: string; fegis?: boolean }[]): void {
     const seen = new Set<string>();
     for (const b of list) {
       seen.add(b.id);
@@ -419,7 +462,16 @@ export class Hud {
       const i = e.firstElementChild as HTMLElement;
       i.style.width = `${Math.round(clamp(b.hp, 0, 1) * 100)}%`;
       i.style.background = b.hp > 0.55 ? '#5fdc6a' : b.hp > 0.25 ? '#ffd23f' : '#ff5a3a';
+      let f = this.fgEls.get(b.id);
+      if (!f) {
+        f = el('div', 'rl-fg', this.barsEl);
+        f.textContent = 'FEGIS!';
+        this.fgEls.set(b.id, f);
+      }
+      f.style.display = b.fegis && !b.out ? 'block' : 'none';
+      f.style.transform = `translate(${b.x.toFixed(1)}px, ${(b.y - 10).toFixed(1)}px) translate(-50%, -100%)`;
     }
+    for (const [id, f] of this.fgEls) if (!seen.has(id)) f.style.display = 'none';
     for (const [id, e] of this.barEls) if (!seen.has(id)) e.style.display = 'none';
   }
 

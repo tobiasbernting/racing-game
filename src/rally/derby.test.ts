@@ -7,7 +7,8 @@ import { ARENA_IDS, DERBY_DAMAGE, DERBY_HP, DERBY_WARMUP, DERBY_SECONDS, DerbyBo
 import { BASE_POWER, Car, collideCars, type Controls } from './car.ts';
 import { arenaCourse, arenaStart } from './arena.ts';
 import { DerbyBrain, freeSpot, type DerbyFoe } from './derbyai.ts';
-import { impactDamage, maxHpOf } from './combat.ts';
+import { fegisDealt, fegisDrain, fegisTick, impactDamage, maxHpOf, type FegisState } from './combat.ts';
+import { damagePoints } from '../shared/kinds.ts';
 import { liftFor, rampHeight, type RampSpec } from './ramps.ts';
 import { Track } from './track.ts';
 import { courseFor } from './variant.ts';
@@ -23,6 +24,11 @@ interface Sim {
   rescues: number;
   stuck: number;
   outside: number;
+  /** Damage dealt per car (points), what the aggressor side (it drove into the other) and the victim side took, in health points, and the cars that were ever marked FEGIS. */
+  dealt: number[];
+  aggressorTaken: number;
+  victimTaken: number;
+  fegis: Set<number>;
 }
 
 /** Runs a derby between computer drivers only. */
@@ -58,7 +64,8 @@ function runDerby(arena: (typeof ARENA_IDS)[number], seed: number, bodies: CarBo
   const srand = rng(seed * 977 + 5);
   const ctl: Controls[] = cars.map(() => ({ throttle: 0, brake: 0, steer: 0, handbrake: false }));
   const dt = 1 / 60;
-  const sim: Sim = { board, cars, hp, maxHp, t: 0, hits: 0, rescues: 0, stuck: 0, outside: 0 };
+  const sim: Sim = { board, cars, hp, maxHp, t: 0, hits: 0, rescues: 0, stuck: 0, outside: 0, dealt: cars.map(() => 0), aggressorTaken: 0, victimTaken: 0, fegis: new Set() };
+  const marks: FegisState[] = cars.map(() => ({ idleT: 0, fegis: false }));
   const stuckFor = cars.map(() => 0);
   const lastHit = new Map<number, { by: number; t: number }>();
   for (; sim.t < seconds && !board.isOver(sim.t); sim.t += dt) {
@@ -68,6 +75,16 @@ function runDerby(arena: (typeof ARENA_IDS)[number], seed: number, bodies: CarBo
         ctl[i] = { throttle: 0, brake: 0.3, steer: 0, handbrake: false };
         return;
       }
+      if (sim.t >= DERBY_WARMUP) {
+        if (fegisTick(marks[i]!, dt, true) === 'start') sim.fegis.add(i);
+        if (marks[i]!.fegis) hp[i] = Math.max(0, hp[i]! - fegisDrain(maxHp[i]!, dt, true));
+        if (hp[i]! <= 0) {
+          board.eliminate(ids[i]!, sim.t, null);
+          c.ghost = 1e9;
+          return;
+        }
+      }
+      brains[i]!.desperate = marks[i]!.fegis;
       brains[i]!.think(c, foes, dt, sim.t < DERBY_WARMUP);
       brains[i]!.drive(c, track, foes, sim.t, dt, ctl[i]!);
       if (brains[i]!.gaveUp) {
@@ -88,8 +105,14 @@ function runDerby(arena: (typeof ARENA_IDS)[number], seed: number, bodies: CarBo
         const tot = info.closeA + info.closeB + 0.001;
         for (const [x, o, closeO] of [[a, b, info.closeB], [b, a, info.closeA]] as const) {
           if (board.isOut(ids[x]!)) continue;
-          const dmg = impactDamage({ dv: info.j / cars[x]!.feel.mass, blame: closeO / tot, ram: 1, dmgTaken: 1 }) * DERBY_DAMAGE;
+          const dmg = impactDamage({ dv: info.j / cars[x]!.feel.mass, blame: closeO / tot, facing: x === a ? info.faceA : info.faceB, ram: 1, dmgTaken: 1 }) * DERBY_DAMAGE;
           if (dmg <= 0) continue;
+          const real = Math.min(dmg, hp[x]!);
+          if (closeO / tot < 0.5) sim.aggressorTaken += real;
+          else sim.victimTaken += real;
+          sim.dealt[o]! += damagePoints(real, maxHp[x]!);
+          board.deal(ids[o]!, damagePoints(real, maxHp[x]!));
+          fegisDealt(marks[o]!);
           hp[x] = Math.max(0, hp[x]! - dmg);
           lastHit.set(x, { by: o, t: sim.t });
           if (hp[x]! <= 0) {
@@ -124,6 +147,38 @@ it.skipIf(!STATS)('stats', () => {
     }
     console.log(arena + '\n' + rows.join('\n'));
   }
+});
+
+describe('fighting is the only way to win a derby', () => {
+  it('the car that rams takes far less damage than the car it hits (nose against flank and tail), summed over a whole derby', () => {
+    let aggr = 0;
+    let vict = 0;
+    for (const seed of [1, 2, 3, 4]) {
+      const sim = runDerby('bowl', seed, ['pickup', 'hatch', 'tractor', 'coupe', 'monster', 'buggy'], 100);
+      aggr += sim.aggressorTaken;
+      vict += sim.victimTaken;
+    }
+    console.log('derby damage taken by the aggressor side vs the victim side', Math.round(aggr), Math.round(vict));
+    expect(vict).toBeGreaterThan(0);
+    expect(aggr).toBeLessThan(vict * 0.45);
+  });
+
+  it('every computer driver goes for the others, racers too: all of them deal damage in the first 60 seconds, none cruises', () => {
+    for (const seed of [1, 2, 3]) {
+      // two real rammers and four racers with hardly any appetite
+      const sim = runDerby('oval', seed, ['pickup', 'hatch', 'tractor', 'coupe', 'monster', 'buggy'], 60, [1, 0.05, 1, 0.05, 0.1, 0.05]);
+      const quiet = sim.dealt.filter((d) => d < 1).length;
+      expect(quiet, `seed ${seed}: dealt ${sim.dealt.map((d) => Math.round(d)).join(',')}`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('points rule the table: the car with the most damage and wrecks tops it, not the one with the most health', () => {
+    const sim = runDerby('bowl', 5, ['pickup', 'hatch', 'tractor', 'coupe', 'monster', 'buggy'], 150, [1, 0.3, 1, 0.3, 0.8, 0.3]);
+    const st = sim.board.standings((id) => sim.hp[Number(id.slice(1))]! / sim.maxHp[Number(id.slice(1))]!);
+    const pts = st.map((r) => r.points);
+    expect([...pts].sort((a, b) => b - a)).toEqual(pts);
+    expect(st[0]!.dealt + st[0]!.takedowns * 20).toBeGreaterThan(0);
+  });
 });
 
 describe('the arenas', () => {
@@ -182,10 +237,11 @@ describe('the derby drivers', () => {
       }
   });
 
-  it('racers that only roam and dodge still get hit now and then but last longer than the rammers', () => {
+  it('racers are no passengers: with almost no appetite they still hunt, and a rammer does not simply outlast them by cruising', () => {
     const sim = runDerby('bowl', 11, ['coupe', 'coupe', 'pickup', 'pickup'], 120, [0.05, 0.05, 1, 1]);
-    const outAt = (i: number): number => sim.board.standings(() => 0).find((r) => r.id === `c${i}`)?.outAt ?? Infinity;
-    expect(Math.min(outAt(0), outAt(1))).toBeGreaterThanOrEqual(Math.min(outAt(2), outAt(3)) - 1);
+    // the racers deal damage too, and every car ends up in the points table with a fair share of the fighting
+    expect(sim.dealt[0]! + sim.dealt[1]!).toBeGreaterThan(5);
+    expect(sim.hits).toBeGreaterThan(10);
   });
 });
 

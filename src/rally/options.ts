@@ -38,6 +38,9 @@ export interface RallyResult {
   /** Rally, Blandat or Blodbad. In Blodbad `place` is the rank by points, and these tell how it came about. */
   kind?: RaceKind;
   points?: number;
+  /** Blodbad and the derby: the part of the points that came from damage dealt (the rest is takedowns and the position), and the survival order in a derby. */
+  dealt?: number;
+  survival?: number;
   takedowns?: number;
   /** Times the player was wrecked. */
   wrecked?: number;
@@ -58,7 +61,7 @@ export interface DerbyOutcome {
   /** The clock ran out with more than one car running. */
   timeUp: boolean;
   /** Everyone, in placing order. `outAt` is the second the car was wrecked (null if it was still running). */
-  table: { name: string; place: number; alive: boolean; takedowns: number; hp: number; outAt: number | null; me: boolean }[];
+  table: { name: string; place: number; alive: boolean; takedowns: number; dealt: number; points: number; survival: number; hp: number; outAt: number | null; me: boolean }[];
 }
 
 export interface RallyOptions {

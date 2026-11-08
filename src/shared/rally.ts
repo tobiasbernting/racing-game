@@ -441,7 +441,7 @@ export function cleanRules(r: unknown): RaceRules {
  * Alone on the track (a time trial, or a race with nobody else) pays like a practice run.
  */
 export function racePrize(rules: RaceRules, place: number, n: number): number {
-  const byPlace = [200, 140, 100, 70, 50, 40, 35, 30];
+  const byPlace = [160, 112, 80, 56, 40, 32, 28, 24];
   const base = n <= 1 ? 50 : byPlace[Math.max(0, Math.min(byPlace.length - 1, place - 1))]!;
   const laps = Math.max(0.6, Math.min(1.6, rules.laps / 3));
   const diff = rules.difficulty === 'easy' ? 0.8 : rules.difficulty === 'hard' ? 1.25 : 1;

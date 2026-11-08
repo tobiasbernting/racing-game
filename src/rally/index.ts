@@ -11,9 +11,9 @@ import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { AWNING, CHAOS_TEXT, DODGE, DRAFT, EPA_BURST, HOLE_IN_ONE, HOP, ICE_CANNON, JINGLE, KART_SLIDE, KICKSTART, MOW, PASSIVE_RAM, POUND, POWDER, RAMMER, REPAIR, ROCKET, SCAVENGE, SLINGSHOT, SOFTLAND, VIP, WHEELIE_ROCKET, WOBBLE, chaosPick, chargeOf, draftTarget, kitOf, pivotDir, type ActiveDef, type VehicleKit } from '../shared/abilities.ts';
 import { rivalById, rivalCast } from '../shared/rivals.ts';
 import { LASTLAP_BOOST, archetypeBodies, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
-import { KIND_AGGRO, carnagePoints, pointsTable, type RaceKind } from '../shared/kinds.ts';
+import { FEGIS_AFTER, FEGIS_REACH, KIND_AGGRO, carnagePoints, damagePoints, pointsTable, type RaceKind } from '../shared/kinds.ts';
 import { DERBY_DAMAGE, DERBY_HP, DERBY_SECONDS, DERBY_WARMUP, DerbyBoard, derbyHeadline } from '../shared/derby.ts';
-import { BIG_HIT, RESPAWN_HP, TakedownLedger, WRECK_SECONDS, impactDamage, maxHpOf, ramPowerOf } from './combat.ts';
+import { BIG_HIT, RESPAWN_HP, capRammer, TakedownLedger, WRECK_SECONDS, fegisDealt, fegisDrain, fegisTick, impactDamage, maxHpOf, ramPowerOf, zoneOf } from './combat.ts';
 import type { GameContext, GameInstance } from '../arcade/types.ts';
 import { Driver, steerTo, type Aim } from './ai.ts';
 import { arenaCourse, arenaStart } from './arena.ts';
@@ -104,6 +104,10 @@ interface Entrant {
   wreckT: number;
   takedowns: number;
   wrecks: number;
+  /** Damage dealt, in points, and the seconds since the last hit it made (FEGIS: nothing dealt for too long). */
+  dealt: number;
+  idleT: number;
+  fegis: boolean;
   /** Seconds the grip is gone after an oil slick, and the next nitro and oil drop of a rival with those modifiers. */
   slickT: number;
   oilNext: number;
@@ -119,6 +123,8 @@ interface Entrant {
   /** The active a computer car used last (a talisman can copy it). */
   lastAbil: ActiveDef | null;
   wheelie: number;
+  /** Blodbad: a computer car that must fight and has nobody ahead eases off to be caught. */
+  eager: boolean;
   /** Seconds left blinded by a snow cloud: slower and wandering. */
   blindT: number;
   /** Derby: the computer driver's brain, seconds since it was wrecked for good, and whether the hulk has been cleared away. */
@@ -154,7 +160,9 @@ const PALETTE = ['#2f6fe0', '#f4c20d', '#2fa84f', '#8a4fd8', '#ff8a1f', '#e8412c
 const DIFF = { easy: { skill: 0.88, power: 0.96, band: 1.35 }, normal: { skill: 1, power: 1, band: 1 }, hard: { skill: 1.06, power: 1.03, band: 0.6 } } as const;
 
 /** What one coin on the road is worth (before trinkets). */
-const COIN_KR = 1.2;
+const COIN_KR = 0.9;
+/** The least appetite for a fight any computer car has in Blodbad (the racers too go for the hits that are offered). */
+const FIGHT_MIN = 0.5;
 
 /** How different two colours look (hue first, then lightness and saturation); under about 0.12 they read as the same car. */
 function colorGap(a: string, b: string): number {
@@ -651,6 +659,29 @@ const rally = (ctx: GameContext): GameInstance => {
           meE.lastS = meE.car.proj.s;
           meE.u = v.u + gap;
         },
+        /** Put the player `dist` m from the n-th rival, at its tail ('rear'), its flank ('side') or nose to nose ('front'), driving at it at `speed` m/s. */
+        strike: (n = 0, zone: 'rear' | 'side' | 'front' = 'rear', speed = 22, dist = 11) => {
+          const v = entrants.filter((e) => e !== meE)[n];
+          if (!v || !meE) return;
+          const vh = v.car.heading;
+          const fx = Math.sin(vh);
+          const fz = Math.cos(vh);
+          const [dx, dz, h] = zone === 'rear' ? [-fx, -fz, vh] : zone === 'side' ? [fz, -fx, vh - Math.PI / 2] : [fx, fz, vh + Math.PI];
+          const pr = track.project(v.car.x + dx * dist, v.car.z + dz * dist, v.car.proj.i, { i: 0, u: 0, s: 0, d: 0 });
+          meE.car.place(pr.s, pr.d, ground);
+          meE.car.heading = h;
+          meE.car.vx = Math.sin(h) * speed;
+          meE.car.vz = Math.cos(h) * speed;
+          meE.car.yawRate = 0;
+          meE.lastS = meE.car.proj.s;
+          camPos.set(meE.car.x - Math.sin(h) * 7, meE.car.y + 2.5, meE.car.z - Math.cos(h) * 7);
+          camYaw = h;
+        },
+        /** Make the n-th rival stand still (its controls are cut) or let it drive again. */
+        still: (n = 0, on = true) => {
+          const v = entrants.filter((e) => e !== meE)[n];
+          if (v) dbgStill.set(v.id, on);
+        },
         /** Lay a hazard on the road `dist` m in front of the player. */
         hazard: (kind: 'hay' | 'oil' | 'pothole' | 'banana' | 'glass' | 'tent', dist = 22, lat = 0) => {
           const c = meE!.car;
@@ -830,6 +861,10 @@ const rally = (ctx: GameContext): GameInstance => {
         wreckT: 0,
         takedowns: 0,
         wrecks: 0,
+        dealt: 0,
+        // a few seconds of grace at the start so nobody is marked before the cars have met
+        idleT: -6,
+        fegis: false,
         slickT: 0,
         oilNext: 6 + Math.random() * 8,
         nitroNext: 5 + Math.random() * 6,
@@ -839,6 +874,7 @@ const rally = (ctx: GameContext): GameInstance => {
         abilNext: 9 + Math.random() * 10,
         lastAbil: null,
         wheelie: 0,
+        eager: false,
         blindT: 0,
         brain: derby && !isMe && spec ? new DerbyBrain({ aggro: spec.aggro, skill: clamp(spec.skill * (kid ? 0.93 : 1), 0.7, 1.06), phase: k * 1.7 }) : null,
         wreckAge: 0,
@@ -890,7 +926,8 @@ const rally = (ctx: GameContext): GameInstance => {
   const wasAhead = new Map<string, boolean>();
   const ledger = new TakedownLedger();
   const pairCd = new Map<number, number>();
-  const dbg = { contacts: 0, aims: 0, wrecks: 0, rivalTake: 0 };
+  const dbgStill = new Map<string, boolean>();
+  const dbg = { contacts: 0, aims: 0, wrecks: 0, rivalTake: 0, dealt: 0, flankHits: 0, fegisStarts: 0 };
   const tauntIds = new Map<string, number>();
   let tauntAt = -99;
   let ended = false;
@@ -899,7 +936,7 @@ const rally = (ctx: GameContext): GameInstance => {
   let derbyOver = false;
   let playerOutT = 0;
   let derbyTimeUp = false;
-  let derbyTable: { name: string; place: number; alive: boolean; takedowns: number; hp: number; outAt: number | null; me: boolean }[] = [];
+  let derbyTable: { name: string; place: number; alive: boolean; takedowns: number; dealt: number; points: number; survival: number; hp: number; outAt: number | null; me: boolean }[] = [];
   /** The shortcut jump: the take-off in flight, and whether the player has taken it. */
   let scTake = false;
   let scDone = false;
@@ -2892,14 +2929,19 @@ const rally = (ctx: GameContext): GameInstance => {
       if (!fresh || !racingNow() || derbyOver) return;
       const tot = info.closeA + info.closeB + 0.001;
       let any = false;
-      for (const [x, o, closeO] of [[ea, eb, info.closeB], [eb, ea, info.closeA]] as const) {
-        if (x.finished || x.wreckT > 0) continue;
-        const dmg = impactDamage({ dv: info.j / x.car.feel.mass, blame: closeO / tot, ram: o.car.ram * (o === me ? mt.spike : 1), dmgTaken: x.tune.dmgMul }) * (derby ? DERBY_DAMAGE : 1);
+      // where it was hit and who drove into whom decide the share: the rammer's nose takes little, the flank and the tail the bulk
+      const sides = [[ea, eb, info.closeB, info.faceA], [eb, ea, info.closeA, info.faceB]] as const;
+      const raw = sides.map(([x, o, closeO, face]) =>
+        x.finished || x.wreckT > 0 ? 0 : impactDamage({ dv: info.j / x.car.feel.mass, blame: closeO / tot, facing: face, ram: o.car.ram * (o === me ? mt.spike : 1), ownRam: x.car.ram, dmgTaken: x.tune.dmgMul }) * (derby ? DERBY_DAMAGE : 1),
+      );
+      sides.forEach(([x, o, closeO, face], n) => {
+        // whatever the mass or armour, the nose that rams never takes more than 40 % of what the car it hits takes
+        const dmg = capRammer(raw[n]!, raw[1 - n]!, face, closeO / tot);
         if (dmg > 0) {
-          damageHp(x, dmg, o);
+          damageHp(x, dmg, o, zoneOf(face));
           any = true;
         }
-      }
+      });
       if (any) pairCd.set(key, now);
     } else if (hit > 2) {
       hurt(ea, (hit - 2) * 1.2);
@@ -2907,14 +2949,86 @@ const rally = (ctx: GameContext): GameInstance => {
     }
   }
 
-  /** Health lost: from another car (who may get a takedown if this wrecks it) or from the road (null). */
-  function damageHp(x: Entrant, dmg: number, from: Entrant | null): void {
+  /** Floating "+12" numbers over the cars the player hits (summed per car for a moment so a stream of small hits reads as one number). */
+  const floatAcc = new Map<string, { pts: number; t: number }>();
+  function floatNumber(x: Entrant, pts: number, mine: boolean): void {
+    const f = floatAcc.get(x.id) ?? { pts: 0, t: -9 };
+    f.pts += pts;
+    floatAcc.set(x.id, f);
+    const now = timeU.value;
+    if (f.pts < 1.5 || now - f.t < 0.2) return;
+    camera.updateMatrixWorld();
+    tmpV.set(x.car.x, x.car.y + 2.2 * x.car.size, x.car.z).project(camera);
+    if (tmpV.z > 1) return;
+    const text = mine ? `+${Math.round(f.pts)}` : `−${Math.round(f.pts)}`;
+    hud.floater(text, (tmpV.x * 0.5 + 0.5) * W, (-tmpV.y * 0.5 + 0.5) * H, mine ? (f.pts >= 20 ? 'big' : '') : 'taken');
+    f.pts = 0;
+    f.t = now;
+  }
+
+  /** Health lost: from another car (who may get a takedown if this wrecks it and is paid points for the damage) or from the road (null). */
+  function damageHp(x: Entrant, dmg: number, from: Entrant | null, zone: 'front' | 'side' | 'rear' | null = null): void {
     if (!carnage || x.wreckT > 0 || x.finished || dmg <= 0 || !racingNow() || derbyOver || (x === meE && dodgeT > 0)) return;
+    const real = Math.min(dmg, x.hp);
     x.hp = Math.max(0, x.hp - dmg);
     x.calmT = 0;
-    if (from) ledger.hit(x.id, from.id, dmg, timeU.value);
+    if (from) {
+      ledger.hit(x.id, from.id, dmg, timeU.value);
+      if (from !== x && real > 0) {
+        // the damage you deal is what the points are made of; whoever deals some is no longer FEGIS
+        const pts = damagePoints(real, x.maxHp);
+        from.dealt += pts;
+        if (derby) board.deal(from.id, pts);
+        if (pts > 0.05) {
+          if (fegisDealt(from)) endFegis(from);
+        }
+        if (from === meE) {
+          dbg.dealt += pts;
+          floatNumber(x, pts, true);
+          if (zone === 'side' || zone === 'rear') dbg.flankHits++;
+        } else if (x === meE) floatNumber(x, real, false);
+      }
+    }
     x.model.setDamage(100 * (1 - x.hp / x.maxHp) * 0.9);
     if (x.hp <= 0) wreck(x);
+  }
+
+  /** FEGIS: nothing dealt for too long. The mark shows over the car, the crowd boos and the health drains until it hits somebody. */
+  function startFegis(e: Entrant): void {
+    dbg.fegisStarts++;
+    if (e === meE) {
+      hud.pop('fegis', '🐔', 'FEGIS!', 'hit');
+      audio.boo(1);
+    } else if (Math.hypot(e.car.x - player().car.x, e.car.z - player().car.z) < 70) {
+      hud.toast(`🐔 ${e.name} är FEGIS och tappar hälsa`, 'dead');
+      audio.boo(0.6);
+    }
+  }
+  function endFegis(e: Entrant): void {
+    if (e === meE) hud.toast('Bra! Du slåss igen', 'td');
+  }
+
+  /** Per car each frame: nobody nearby to hit pauses the clock in a lap race; in the derby the clock always runs. */
+  function fegisStep(e: Entrant, dt: number): void {
+    if (e.wreckT > 0 || e.finished || !racingNow() || derbyOver || phase !== 'race' || (derby && raceT < DERBY_WARMUP)) return;
+    let near = derby;
+    if (!near)
+      for (const o of entrants) {
+        if (o === e || o.wreckT > 0 || o.finished) continue;
+        if (Math.hypot(o.car.x - e.car.x, o.car.z - e.car.z) < FEGIS_REACH) {
+          near = true;
+          break;
+        }
+      }
+    const ev = fegisTick(e, dt, near);
+    if (ev === 'start') startFegis(e);
+    else if (ev === 'end') endFegis(e);
+    if (e.fegis) {
+      // slow bleeding: no takedown credit for anybody, the car is simply giving out
+      e.hp = Math.max(0, e.hp - fegisDrain(e.maxHp, dt, derby));
+      e.model.setDamage(100 * (1 - e.hp / e.maxHp) * 0.9);
+      if (e.hp <= 0) wreck(e);
+    }
   }
 
   const colFireball = new THREE.Color(1.9, 0.55, 0.06);
@@ -2951,6 +3065,7 @@ const rally = (ctx: GameContext): GameInstance => {
     const me = player();
     const c = x.car;
     x.wreckT = derby ? Infinity : WRECK_SECONDS;
+    x.fegis = false;
     x.wreckAge = 0;
     x.wrecks++;
     x.tumbleT = 0;
@@ -2996,6 +3111,7 @@ const rally = (ctx: GameContext): GameInstance => {
     if (!carnage) return;
     if (e.wreckT <= 0) {
       e.calmT += dt;
+      fegisStep(e, dt);
       // a boss with the right to heal does so when nobody has hit it for a while
       if (e.spec?.rules.includes('regen') && e.calmT > 3 && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + 6 * dt);
       return;
@@ -3025,6 +3141,8 @@ const rally = (ctx: GameContext): GameInstance => {
       e.model.shadow.visible = false;
     }
     if (e.wreckT === 0) {
+      e.idleT = 0;
+      e.fegis = false;
       e.hp = e.maxHp * RESPAWN_HP;
       e.model.setDamage(35);
       respawn(e);
@@ -3039,6 +3157,7 @@ const rally = (ctx: GameContext): GameInstance => {
     e.aimT = 0.45 + Math.random() * 0.3;
     d.aim = null;
     const aggro = d.p.aggro ?? 0;
+    e.eager = false;
     if (aggro < 0.04 || e.tumbleT > 0 || Math.random() > aggro) return;
     const me = player();
     let leader: Entrant | null = null;
@@ -3062,6 +3181,8 @@ const rally = (ctx: GameContext): GameInstance => {
     }
     if (!best) return;
     const ds = track.wrapDist(best.car.proj.s - e.car.proj.s);
+    // a car that must fight with nobody ahead of it lets the pack catch up instead of leading it round
+    if (carnage && ds <= -3 && (e.fegis || e.idleT > FEGIS_AFTER * 0.5)) e.eager = true;
     if (ds > -3) {
       d.aim = { car: best.car, mode: 'ram' } as Aim;
       dbg.aims++;
@@ -3069,9 +3190,9 @@ const rally = (ctx: GameContext): GameInstance => {
     else if (ds > -16 && (best === me || best === leader) && Math.random() < 0.6) d.aim = { car: best.car, mode: 'block' } as Aim;
   }
 
-  /** Blodbad points as the race stands now (as if it ended): position points and 3 per takedown. */
+  /** Blodbad points as the race stands now (as if it ended): damage dealt, takedowns and a smaller part for the position on the road. */
   function carnageTable(order: Runner[]): ReturnType<typeof pointsTable> {
-    return pointsTable(order.map((r, i) => ({ id: r.id, place: i + 1, takedowns: entrants.find((e) => e.id === r.id)?.takedowns ?? 0 })));
+    return pointsTable(order.map((r, i) => ({ id: r.id, place: i + 1, takedowns: entrants.find((e) => e.id === r.id)?.takedowns ?? 0, damage: entrants.find((e) => e.id === r.id)?.dealt ?? 0 })));
   }
 
   // ---- Rivningsderby: who is running, the computer drivers, the end ----
@@ -3105,8 +3226,15 @@ const rally = (ctx: GameContext): GameInstance => {
     foesBuf.length = 0;
     for (const o of entrants) foesBuf.push({ car: o.car, alive: o.wreckT <= 0 && !o.gone, hp: o.hp / o.maxHp, player: o === me });
     // a blinded driver wanders, a squashed one barely moves
+    brain.desperate = e.fegis;
+    brain.hurt = e.hp < e.maxHp * 0.3 && !e.fegis;
     brain.think(e.car, foesBuf, dt, raceT < DERBY_WARMUP);
     brain.drive(e.car, track, foesBuf, timeU.value, dt, e.ctl);
+    if (DEBUG && dbgStill.get(e.id)) {
+      e.ctl.throttle = 0;
+      e.ctl.brake = 1;
+      e.ctl.steer = 0;
+    }
     // pinned against a fence again and again: the tow truck puts it back on the floor
     if (brain.gaveUp) {
       brain.gaveUp = false;
@@ -3130,7 +3258,7 @@ const rally = (ctx: GameContext): GameInstance => {
     const mine = stand.find((r) => r.id === me.id)!;
     derbyTable = stand.map((r) => {
       const e = entrants.find((x) => x.id === r.id)!;
-      return { name: e.name, place: r.place, alive: r.alive, takedowns: r.takedowns, hp: Math.round(r.hp * 100), outAt: r.outAt, me: e === me };
+      return { name: e.name, place: r.place, alive: r.alive, takedowns: r.takedowns, dealt: r.dealt, points: r.points, survival: r.survival, hp: Math.round(r.hp * 100), outAt: r.outAt, me: e === me };
     });
     finishPlace = mine.place;
     finishTime = raceT;
@@ -3144,7 +3272,7 @@ const rally = (ctx: GameContext): GameInstance => {
       finishAdj = mods.bus.finish(info);
     }
     const won = finishPlace === 1;
-    hud.msg(won ? 'SISTA BILEN!' : mine.alive ? 'TIDEN UTE!' : 'UTSLAGEN', 1900, won ? 'gold' : 'small');
+    hud.msg(won ? 'MEST POÄNG!' : derbyTimeUp ? 'TIDEN UTE!' : 'DERBYT SLUT', 1900, won ? 'gold' : 'small');
     hud.subtitle(derbyHeadline({ place: mine.place, n: entrants.length, alive: mine.alive, timeUp: derbyTimeUp }));
     hud.wrongWay(false);
     audio.fanfare(won);
@@ -3299,10 +3427,12 @@ const rally = (ctx: GameContext): GameInstance => {
             if (gp > 25) mul *= 1 - Math.min(0.08, (gp - 25) / 700) * k;
             else if (gp < -25) mul = Math.min(mul * (1 + Math.min(0.1, (-gp - 25) / 500) * k), 1.12 / Math.max(0.6, sk));
           }
+          if (e.eager) mul *= 0.82;
           e.car.power = e.basePower * (1 + boost * 0.9 + lastLap) * (1 - ease * 0.4) * damagePower(e.damage) * (e.squashT > 0 ? 0.4 : 1) * (e.hp < e.maxHp * 0.25 && carnage ? 0.85 : 1);
           if (e.ai) {
             e.ai.surge = e.rivalBoostT > 0 ? 0.1 : 0;
-            if (carnage) e.ai.p.aggro = e.spec!.aggro * (e.spec!.rules.includes('regen') && e.hp < e.maxHp * 0.5 ? 1.3 : 1);
+            // every car in Blodbad fights: the racers too go for the opportunity, and a FEGIS car goes for anybody
+            if (carnage) e.ai.p.aggro = e.fegis ? 1 : Math.max(FIGHT_MIN, e.spec!.aggro * (e.spec!.rules.includes('regen') && e.hp < e.maxHp * 0.5 ? 1.3 : 1));
             if (racing && !e.finished && e.wreckT <= 0) aimStep(e, dt);
             else e.ai.aim = null;
           }
@@ -3506,7 +3636,7 @@ const rally = (ctx: GameContext): GameInstance => {
           if (!hay) sparks(c.x, c.y, c.z, high ? 10 : 5);
         } else if (carnage && c.wallHit > 5) {
           // (the tyre wall of an arena is soft: it hurts a lot less than a stone wall)
-          damageHp(e, (c.wallHit - 5) * (hay ? 0.6 : 1.5) * Math.max(0.3, e.tune.dmgMul) * (derby ? DERBY_DAMAGE * 0.7 : 1), null);
+          damageHp(e, (c.wallHit - 5) * (hay ? 0.4 : 0.9) * Math.max(0.3, e.tune.dmgMul) * (derby ? DERBY_DAMAGE * 0.7 : 1), null);
           if (!hay) sparks(c.x, c.y, c.z, high ? 10 : 5);
         }
       }
@@ -3656,15 +3786,18 @@ const rally = (ctx: GameContext): GameInstance => {
     if (racing) {
       const shownLap = Math.min(LAPS, me.lapsDone + 1);
       if (derby) {
-        hud.setPosition(place, entrants.length, 0, 0);
-        hud.setScore(null, 0);
+        const stand = board.standings(hpFrac);
+        const mineD = stand.find((r) => r.id === me.id)!;
+        hud.setPosition(mineD.place, entrants.length, 0, 0);
+        hud.setScore(mineD.points, me.takedowns, me.dealt);
+        hud.setFegis(me.fegis && me.wreckT <= 0);
         hud.setHealth(me.hp / me.maxHp, me.hp, 0);
         hud.setDerby({ alive: board.aliveCount(), total: entrants.length, left: board.timeLeft(raceT), takedowns: me.takedowns });
         if (hudBoard)
           hud.setBoard(
-            board.standings(hpFrac).map((r) => {
+            stand.map((r) => {
               const e = entrants.find((x) => x.id === r.id)!;
-              return { name: e.name, color: e.color, me: e === me, done: false, x: e.car.x, z: e.car.z, out: !r.alive, tag: r.alive ? `${Math.round(r.hp * 100)} %` : 'ute' };
+              return { name: e.name, color: e.color, me: e === me, done: false, x: e.car.x, z: e.car.z, out: !r.alive, tag: `${e.fegis && r.alive ? '🐔 ' : ''}${r.points} p` };
             }),
           );
       } else if (carnage) {
@@ -3672,7 +3805,8 @@ const rally = (ctx: GameContext): GameInstance => {
         const table = carnageTable(order);
         const mine = table.find((r) => r.id === me.id)!;
         hud.setPosition(mine.rank, order.length, me.finished ? LAPS + 1 : shownLap, LAPS);
-        hud.setScore(mine.points, me.takedowns);
+        hud.setScore(mine.points, me.takedowns, me.dealt);
+        hud.setFegis(me.fegis && me.wreckT <= 0);
         hud.setHealth(me.hp / me.maxHp, me.hp, me.wreckT);
         if (hudBoard) {
           const byRank = [...order].sort((a, b) => table.find((r) => r.id === a.id)!.rank - table.find((r) => r.id === b.id)!.rank);
@@ -3761,8 +3895,8 @@ const rally = (ctx: GameContext): GameInstance => {
     // (a derby is decided by the placing alone: the order the cars were wrecked in, with the survivors ranked by health)
     const row = carnage && !derby ? carnageTable(ranking()).find((r) => r.id === me.id)! : null;
     const placed = finished ? (row ? row.rank : finishPlace) : total;
-    let sc = derby ? 2500 + (total - placed) * 1500 + me.takedowns * 700 + (placed === 1 ? 2500 : 0) : finished ? score(finishPlace, finishTime) : 1200 + Math.round(1800 * clamp(me.u / (LAPS * track.length), 0, 1));
-    let detail = derby ? `${ordinal(placed)} i derbyt · ${me.takedowns} vrak` : finished ? (row ? `${ordinal(row.rank)} på poäng · ${row.points} p` : `${ordinal(finishPlace)} plats · ${fmtTime(finishTime)}`) : `Nästan i mål! · ${Math.min(LAPS, me.lapsDone)} av ${LAPS} varv`;
+    let sc = derby ? 2500 + (total - placed) * 1500 + me.takedowns * 700 + Math.round(me.dealt * 12) + (placed === 1 ? 2500 : 0) : finished ? score(finishPlace, finishTime) : 1200 + Math.round(1800 * clamp(me.u / (LAPS * track.length), 0, 1));
+    let detail = derby ? `${ordinal(placed)} i derbyt · ${derbyTable.find((r) => r.me)?.points ?? 0} p · ${me.takedowns} vrak` : finished ? (row ? `${ordinal(row.rank)} på poäng · ${row.points} p` : `${ordinal(finishPlace)} plats · ${fmtTime(finishTime)}`) : `Nästan i mål! · ${Math.min(LAPS, me.lapsDone)} av ${LAPS} varv`;
     if (rules) {
       const ms = finished ? Math.round(finishTime * 1000) - finishAdj.time + penaltyMs : 0;
       const medal = ms && !derby ? raceMedal(course.id, LAPS, ms) : null;
@@ -3792,7 +3926,9 @@ const rally = (ctx: GameContext): GameInstance => {
         bestLap: Number.isFinite(bestLap) ? Math.round(bestLap * 1000) : 0,
         triggers: { ...triggers },
         kind,
-        points: derby ? carnagePoints(placed, me.takedowns) : row?.points,
+        points: derby ? mine?.points : row?.points,
+        dealt: carnage ? Math.round(me.dealt) : undefined,
+        survival: derby ? mine?.survival : undefined,
         takedowns: me.takedowns,
         wrecked: me.wrecks,
         roadPlace: finished ? finishPlace : undefined,
@@ -3994,7 +4130,7 @@ const rally = (ctx: GameContext): GameInstance => {
     }
   }
   /** Small health bars over the rivals' heads (Blodbad): projected to the screen each frame. */
-  const barList: { id: string; x: number; y: number; hp: number; out: boolean; color: string }[] = [];
+  const barList: { id: string; x: number; y: number; hp: number; out: boolean; color: string; fegis: boolean }[] = [];
   function projectBars(): void {
     camera.updateMatrixWorld();
     barList.length = 0;
@@ -4005,7 +4141,7 @@ const rally = (ctx: GameContext): GameInstance => {
       if (d > 75) continue;
       tmpV.set(e.car.x, e.car.y + 2.5 * e.car.size, e.car.z).project(camera);
       if (tmpV.z > 1 || Math.abs(tmpV.x) > 1.1 || Math.abs(tmpV.y) > 1.1) continue;
-      barList.push({ id: e.id, x: (tmpV.x * 0.5 + 0.5) * W, y: (-tmpV.y * 0.5 + 0.5) * H, hp: e.hp / e.maxHp, out: e.wreckT > 0, color: e.color });
+      barList.push({ id: e.id, x: (tmpV.x * 0.5 + 0.5) * W, y: (-tmpV.y * 0.5 + 0.5) * H, hp: e.hp / e.maxHp, out: e.wreckT > 0, color: e.color, fegis: e.fegis });
     }
     hud.bars(barList);
   }
@@ -4069,6 +4205,10 @@ const rally = (ctx: GameContext): GameInstance => {
         hp: me.hp,
         dbg,
         takedowns: me.takedowns,
+        dealt: Math.round(me.dealt),
+        fegis: entrants.map((e) => e.fegis),
+        idle: entrants.map((e) => Math.round(e.idleT * 10) / 10),
+        points: entrants.map((e) => (derby ? board.standings(hpFrac).find((r) => r.id === e.id)?.points : pointsTable(ranking().map((r, i) => ({ id: r.id, place: i + 1, takedowns: entrants.find((x) => x.id === r.id)?.takedowns ?? 0, damage: entrants.find((x) => x.id === r.id)?.dealt ?? 0 }))).find((r) => r.id === e.id)?.points)),
         wrecks: me.wrecks,
         rivalHp: entrants.filter((e) => e !== me).map((e) => Math.round(e.hp)),
         derby: derby ? { alive: board.aliveCount(), over: derbyOver, left: board.timeLeft(raceT), out: entrants.filter((e) => e.wreckT > 0).length, gone: entrants.filter((e) => e.gone).length } : null,

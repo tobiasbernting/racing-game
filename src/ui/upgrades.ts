@@ -255,9 +255,4 @@ export function buildScreen(run: RunState, o: { onClose(): void }): HTMLElement 
   return el('div', 'rg-screen up-build', statusBar(run, close), el('div', 'up-buildbody', left, right));
 }
 
-/** The workshop's tree panel (taking nodes) with its heading, for workshopView. */
-export function workshopPanel(run: RunState, onBuy: (id: string) => void): HTMLElement {
-  return treePanel(run, { mode: 'buy', onBuy });
-}
-
 export type { TreeId };

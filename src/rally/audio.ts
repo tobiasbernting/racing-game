@@ -673,6 +673,16 @@ export class RallyAudio {
     }
   }
 
+  /** The crowd boos: a low, sagging "buuuh" from a few throats. */
+  boo(level = 1): void {
+    if (!this.a || !this.out) return;
+    for (let k = 0; k < 4; k++) {
+      const f = 150 + Math.random() * 70;
+      tone(this.a, this.out, f, 0.9, { type: 'sawtooth', to: f * 0.72, vol: 0.022 * level, at: k * 0.07 });
+    }
+    noiseShot(this.a, this.out, 0.8, { freq: 500, q: 1, vol: 0.03 * level, at: 0.05 });
+  }
+
   fanfare(win: boolean): void {
     const seq: [number, number, number][] = win
       ? [

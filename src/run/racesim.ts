@@ -145,6 +145,10 @@ interface Car {
 /** How the computer cars' numbers are scaled to the player's in the derby model (fitted so that a decent build wins a derby more often than a bare car). */
 const RIVAL_SURV = 0.8;
 const RIVAL_OFF = 0.85;
+/** How many of the hits a driver goes for actually land. */
+const AIM = { poor: 0.55, average: 0.8, good: 1, expert: 1.15 } as const;
+/** How often a driver of each kind is wrecked, relative to an average one (a good driver sees the hit coming, the flank is what the rivals aim for). */
+const WRECKED = { poor: 1.3, average: 1, good: 0.8, expert: 0.65 } as const;
 const DODGE = { poor: 0.8, average: 1, good: 1.25, expert: 1.5 } as const;
 
 /**
@@ -163,6 +167,8 @@ function simulateDerby(plan: RacePlan, run: RunState, m: PlayerModel, rg: Rng, s
     dodge: number;
     alive: boolean;
     take: number;
+    /** Damage dealt, in points. */
+    dealt: number;
     outAt: number;
   }
   const mine: D = {
@@ -174,8 +180,11 @@ function simulateDerby(plan: RacePlan, run: RunState, m: PlayerModel, rg: Rng, s
     dodge: DODGE[m.skill] * Math.pow(Math.min(1.6, stats.grip), 0.9) * Math.pow(Math.min(1.8, stats.power), 0.7) * (1.45 - 0.75 * m.aggression),
     alive: true,
     take: 0,
+    dealt: 0,
     outAt: 0,
   };
+  // a driver who does not fight is marked FEGIS after ten quiet seconds and bleeds health until he hits somebody
+  mine.surv *= Math.min(1, 0.45 + 2.2 * m.aggression);
   const cars: D[] = [mine];
   for (const sp of field.rivals) {
     const skillK = 0.85 + 0.6 * Math.max(0, Math.min(1, (sp.skill - 0.8) / 0.26));
@@ -186,6 +195,7 @@ function simulateDerby(plan: RacePlan, run: RunState, m: PlayerModel, rg: Rng, s
       dodge: skillK * (1.25 - 0.4 * sp.aggro),
       alive: true,
       take: 0,
+      dealt: 0,
       outAt: 0,
     });
   }
@@ -199,12 +209,21 @@ function simulateDerby(plan: RacePlan, run: RunState, m: PlayerModel, rg: Rng, s
     }
     return list[list.length - 1]!;
   };
+  // between the wrecks the damage keeps flowing: about a point a second for each car in the ring, shared out by offence
+  const chip = (alive: D[], secs: number): void => {
+    const w = alive.map((c) => Math.pow(c.off, 1.5));
+    const sum = w.reduce((a, b) => a + b, 0) || 1;
+    alive.forEach((c, i) => (c.dealt += (secs * alive.length * 0.9 * w[i]!) / sum));
+  };
   let t = 0;
   const out: D[] = [];
   while (cars.filter((c) => c.alive).length > 1) {
     const alive = cars.filter((c) => c.alive);
     // one wreck every half minute or so, quicker when there are many cars left
-    t += -Math.log(Math.max(1e-6, rg.float())) * 24 * Math.pow(4 / alive.length, 0.35);
+    const dt = -Math.log(Math.max(1e-6, rg.float())) * 24 * Math.pow(4 / alive.length, 0.35);
+    const upTo = Math.min(t + dt, DERBY_SECONDS);
+    chip(alive, upTo - t);
+    t += dt;
     if (t >= DERBY_SECONDS) break;
     const threat = (c: D): number => alive.reduce((a, o) => a + (o === c ? 0 : o.off), 0);
     const victim = pickBy(alive, (c) => (threat(c) * noise()) / (c.surv * c.dodge));
@@ -215,15 +234,20 @@ function simulateDerby(plan: RacePlan, run: RunState, m: PlayerModel, rg: Rng, s
     victim.alive = false;
     victim.outAt = t;
     attacker.take++;
+    // the hits that wrecked it: most of a car's health in damage points
+    attacker.dealt += 40;
     out.push(victim);
   }
-  // who is left when the clock runs out is ranked by health: what a car can take, a little luck
+  // the cars still running when the clock stops are ranked by health for the position part of the points; the placing is the rank by points
+  chip(cars.filter((c) => c.alive), Math.max(0, DERBY_SECONDS - t));
   const left = cars.filter((c) => c.alive).sort((a, b) => b.surv * b.dodge * noise() - a.surv * a.dodge * noise());
-  const order = [...left, ...out.reverse()];
-  const place = order.indexOf(mine) + 1;
-  const row = { points: carnagePoints(place, mine.take) };
+  const survival = [...left, ...out.reverse()];
+  const scored = survival.map((c, i) => ({ c, points: carnagePoints(i + 1, c.take, c.dealt), surv: i + 1 }));
+  const order = [...scored].sort((a, b) => b.points - a.points || a.surv - b.surv);
+  const place = order.findIndex((r) => r.c === mine) + 1;
+  const row = order[place - 1]!;
   const wrecked = mine.alive ? 0 : 1;
-  return { roadPlace: place, rank: place, n: cars.length, time: Math.min(DERBY_SECONDS, t), points: row.points, takedowns: mine.take, wrecks: wrecked, lapped: false, margin: 0, winners: order.map((c) => c.id) };
+  return { roadPlace: place, rank: place, n: cars.length, time: Math.min(DERBY_SECONDS, t), points: row.points, takedowns: mine.take, wrecks: wrecked, lapped: false, margin: 0, winners: order.map((r) => r.c.id) };
 }
 
 /** Runs one race to the end. */
@@ -238,23 +262,38 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
   // contact: who gets how many takedowns and how many times the player is wrecked
   let myTake = 0;
   let myWrecks = 0;
+  let myDealt = 0;
   const take: Record<string, number> = {};
+  const dealt: Record<string, number> = {};
   if (carnage) {
-    const lam = 0.35 + m.aggression * (1.1 + 2.4 * (stats.ram - 1) + 0.5 * (stats.mass - 1) + 0.4 * (stats.mass > 2 ? 1 : 0)) * (0.8 + 0.2 * stats.dmg);
+    // the one who goes for the hits makes them (ram, spikes and mass count); everybody lands a few, and a driver who never fights is marked FEGIS and bleeds
+    const power = (stats.ram - 1) * 1.1 + 0.5 * (stats.mass - 1) + 0.4 * (stats.mass > 2 ? 1 : 0);
+    // a poor driver misses more of the hits he goes for
+    const aim = AIM[m.skill];
+    const lam = (0.35 + m.aggression * (1.3 + power) * (0.8 + 0.2 * stats.dmg)) * aim;
     myTake = poisson(rg, Math.min(6, lam));
-    for (const sp of field.rivals) take[`ai${sp.slot}`] = poisson(rg, 0.15 + 0.5 * sp.aggro * sp.ram);
-    const hunt = field.rivals.reduce((a, sp) => a + sp.aggro * sp.ram, 0);
-    myWrecks = poisson(rg, (0.25 + 0.3 * hunt * (stats.tough / Math.pow(stats.hp, 0.6))) / (0.7 + 0.3 * stats.mass));
+    const hits = poisson(rg, aim * 1.5 + aim * m.aggression * (8 + 4 * (stats.ram - 1) + 2 * (stats.mass - 1)));
+    myDealt = myTake * 40 + hits * 5 * Math.sqrt(stats.dmg) * (0.8 + 0.2 * stats.ram);
+    for (const sp of field.rivals) {
+      const fight = Math.max(0.5, sp.aggro);
+      take[`ai${sp.slot}`] = poisson(rg, 0.2 + 0.5 * fight * sp.ram);
+      dealt[`ai${sp.slot}`] = take[`ai${sp.slot}`]! * 40 + poisson(rg, 2 + 4 * fight) * 5 * Math.sqrt(sp.ram);
+    }
+    const hunt = field.rivals.reduce((a, sp) => a + Math.max(0.3, sp.aggro) * sp.ram, 0);
+    myWrecks = poisson(rg, ((0.15 + 0.2 * hunt * (stats.tough / Math.pow(stats.hp, 0.6))) / (0.7 + 0.3 * stats.mass)) * WRECKED[m.skill]);
+    // FEGIS: a quiet driver loses health to the clock as well as to the rivals
+    if (m.aggression < 0.25) myWrecks += poisson(rg, 1.4 * (0.25 - m.aggression) / 0.25);
     for (let k = 0; k < myWrecks && field.rivals.length; k++) {
       const sp = field.rivals[rg.int(0, field.rivals.length - 1)]!;
       take[`ai${sp.slot}`] = (take[`ai${sp.slot}`] ?? 0) + 1;
+      dealt[`ai${sp.slot}`] = (dealt[`ai${sp.slot}`] ?? 0) + 40;
     }
   }
   // hazards on the road: hay, oil and potholes cost seconds to whoever drives into them
   const hz = field.hazards;
   const hazardCost = (hit: number, slip: number): number => laps * hit * (hz.hay * HAZARD_COST.hay * slip + hz.oil * HAZARD_COST.oil * slip + hz.pothole * HAZARD_COST.pothole);
   // being gone for by the rivals who like contact (already scaled by the race kind): shoves, spins and lost speed
-  const hunted = field.rivals.reduce((a, sp) => a + sp.aggro * sp.ram, 0);
+  const hunted = field.rivals.reduce((a, sp) => a + (carnage ? Math.max(0.3, sp.aggro) : sp.aggro) * sp.ram, 0);
   const contactCost = (laps * 0.4 * hunted) / (0.7 + 0.3 * Math.sqrt(stats.mass));
   const myPenalty = contactCost + hazardCost(HAZARD_HIT[m.skill], 1) +  (carnage ? myWrecks * 3.0 + myTake * 0.6 * (0.4 + m.aggression) : 0) + (poisson(rg, laps * INCIDENT[m.skill]) * 6);
   // per-car pace for each lap (noise), with the player's savings spread over the race
@@ -302,7 +341,7 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
   }
   const order = [...cars].sort((a, b) => a.t - b.t);
   const roadPlace = order.indexOf(me) + 1;
-  const table = pointsTable(order.map((c, i) => ({ id: c.id, place: i + 1, takedowns: c.id === 'me' ? myTake : take[c.id] ?? 0 })));
+  const table = pointsTable(order.map((c, i) => ({ id: c.id, place: i + 1, takedowns: c.id === 'me' ? myTake : take[c.id] ?? 0, damage: c.id === 'me' ? myDealt : dealt[c.id] ?? 0 })));
   const row = table.find((r) => r.id === 'me')!;
   // a lap down: the player crossed the line a whole lap or more ahead of some car
   const lapped = roadPlace === 1 && !!snap && snap.slice(1).some((u) => u <= total - LAP_M);

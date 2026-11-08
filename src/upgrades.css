@@ -314,3 +314,50 @@
 .rs-tl.fell { background: #f2c3c8 var(--noise); background-blend-mode: multiply; border-color: var(--ink); box-shadow: 3px 3px 0 var(--spray-r); }
 .rs-tl-top { min-width: 0; }
 .rs-kind { max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Skruvhörnan: the two or three nodes on the shelf, as cards */
+.rg-work .rg-shelf { flex: 0 1 auto; width: 100%; max-width: 960px; margin: 0 auto auto; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.rg-work .rg-shelf .up-card { padding: 20px 14px 14px; gap: 8px; }
+.up-card.sold { opacity: 0.5; }
+.up-card.poor .rg-price { color: #ff8a8a; }
+@media (max-height: 520px) { .rg-work .rg-shelf .up-card { padding: 8px; gap: 2px; } }
+
+/* ---- the pick of three after every race: talismans and upgrades side by side, told apart by the tag on top ---- */
+.rg-reward .rg-cards.rg-three { grid-template-columns: repeat(3, minmax(0, 1fr)); padding-top: 18px; max-width: 980px; }
+.rg-kt { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); padding: 3px 12px; border-radius: 999px; font-size: 13px; font-weight: 900; letter-spacing: 0.03em;
+  white-space: nowrap; background: #b46bff; color: #15120d; box-shadow: 0 3px 0 rgba(0, 0, 0, 0.4); z-index: 1; }
+.up-card .rg-kt { background: var(--tc); }
+.rg-reward.g-plain .rg-tcard { filter: saturate(0.7); }
+.rg-reward.g-boss .rg-tcard, .rg-reward.g-elite .rg-tcard { box-shadow: 0 5px 0 rgba(0, 0, 0, 0.3), 0 0 22px rgba(255, 210, 63, 0.35); }
+@media (max-width: 640px) {
+  .rg-reward .rg-cards.rg-three { grid-template-columns: 1fr; gap: 14px; padding-top: 18px; flex: 1 1 auto; align-content: center; }
+  .rg-reward .rg-three .rg-tcard { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; text-align: left; column-gap: 12px; align-items: center; padding: 14px 12px 8px; gap: 0 12px; }
+  .rg-reward .rg-three .rg-tem { grid-row: 1 / 4; font-size: 40px; }
+  .rg-reward .rg-three .rg-tname { font-size: 17px; }
+  .rg-reward .rg-three .rg-ttext { font-size: 13px; }
+  .rg-reward .rg-three .rg-tfoot { justify-content: flex-start; margin-top: 2px; padding-top: 0; }
+  .rg-reward .rg-three .rg-tag, .rg-reward .rg-three .rg-own { grid-column: 2; }
+  .rg-reward .rg-rhint { font-size: 12px; text-align: center; }
+}
+@media (max-height: 520px) and (min-width: 641px) {
+  .rg-reward .rg-cards.rg-three { gap: 10px; padding-top: 16px; }
+  .rg-reward .rg-three .rg-tcard { padding: 12px 8px 6px; }
+  .rg-reward .rg-three .rg-tem { font-size: 32px; }
+  .rg-reward .rg-three .rg-tname { font-size: 15px; }
+  .rg-reward .rg-three .rg-ttext { font-size: 12px; }
+}
+
+/* the workshop shelf on a phone held sideways: three small cards on the left, repair and paint in the column on the right */
+@media (max-height: 520px) {
+  .rg-workbody > .rg-shelf { grid-column: 1; grid-row: 2; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-content: start; overflow-y: auto; margin: 0; max-width: none; padding: 4px 2px; }
+  .rg-work .rg-shelf .up-card { padding: 12px 6px 6px; gap: 2px; }
+  .rg-work .rg-shelf .up-card .rg-tem { font-size: 28px; }
+  .rg-work .rg-shelf .up-card .rg-tname { font-size: 14px; }
+  .rg-work .rg-shelf .up-card .rg-ttext { font-size: 11px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .rg-work .rg-shelf .rg-tfoot { flex-wrap: wrap; justify-content: center; gap: 2px 6px; }
+  .rg-work .rg-shelf .up-chip, .rg-work .rg-shelf .up-tier { font-size: 10px; }
+  .rg-work .rg-shelf .rg-price { font-size: 13px; }
+  .rg-postbody .rg-scrap { display: none; }
+  .rg-postbody .rg-points { font-size: 12px; padding: 4px 10px; }
+  .rg-postbody .rg-goal { font-size: 13px; padding: 3px 10px; }
+}

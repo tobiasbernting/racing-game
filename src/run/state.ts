@@ -106,6 +106,14 @@ export interface Acquired {
   node: string;
 }
 
+/**
+ * The quality of the three cards after a race: `plain` for the bottom half or a DNF (only Skräp talismans and first-step nodes),
+ * `normal` for the top half but not first, `win` for a win, `elite` and `boss` for winning a dödslopp or a boss.
+ */
+export type RewardGrade = 'plain' | 'normal' | 'win' | 'elite' | 'boss';
+export const REWARD_GRADES: readonly RewardGrade[] = ['plain', 'normal', 'win', 'elite', 'boss'];
+export const isRewardGrade = (s: unknown): s is RewardGrade => typeof s === 'string' && (REWARD_GRADES as readonly string[]).includes(s);
+
 /** What a race came to, shown on the card after it. */
 export interface RaceSummary {
   place: number;
@@ -125,11 +133,14 @@ export interface RaceSummary {
   medal: 'gold' | 'silver' | 'bronze' | null;
   /** Is a trinket to pick next? */
   reward: boolean;
-  /** What the reward is: a pick of three for a win, two plain ones for second place, or the elite and boss pick. */
-  rewardKind?: 'win' | 'second' | 'elite' | 'boss';
+  /** How good the pick of three is: decided by the placing (see `rewardGrade` in economy.ts). */
+  rewardKind?: RewardGrade;
   /** Rally, Blandat or Blodbad; in Blodbad also the points, takedowns and wrecks of the player. */
   kind?: RaceKind;
   points?: number;
+  /** The part of the points that came from damage dealt, and (derby) the survival order the position part came from. */
+  dealt?: number;
+  survival?: number;
   /** Where the player crossed the line on the road (Blodbad is scored on points, not on this). */
   roadPlace?: number;
   takedowns?: number;
@@ -149,9 +160,9 @@ export interface ShopItem {
 export type Screen =
   | { kind: 'prerace'; nodeId: string }
   | { kind: 'postrace'; nodeId: string; summary: RaceSummary }
-  | { kind: 'reward'; nodeId: string; choices: string[]; /** The upgrade cards offered next to the trinkets (node ids). */ ups?: string[]; source: 'race' | 'elite' | 'boss' | 'event' | 'consolation' }
+  | { kind: 'reward'; nodeId: string; /** The talismans offered (ids). */ choices: string[]; /** The upgrade nodes offered next to them (node ids): talismans and nodes are three cards in all. */ ups?: string[]; grade: RewardGrade }
   | { kind: 'shop'; nodeId: string; stock: ShopItem[]; rerolls: number; healed: boolean; repaired: boolean }
-  | { kind: 'workshop'; nodeId: string; used: boolean; note: string }
+  | { kind: 'workshop'; nodeId: string; used: boolean; note: string; /** The two or three nodes Skruvhörnan sells this visit (seeded). */ stock: string[] }
   | { kind: 'event'; nodeId: string; eventId: string; outcome: { text: string; lines: string[] } | null };
 
 export type RunStatus = 'running' | 'won' | 'dead';
@@ -313,7 +324,7 @@ export const SCRAP_PER_HEART = 4;
 export const scrapHearts = (before: number, after: number, every = SCRAP_PER_HEART): number => (every <= 0 ? 0 : Math.max(0, Math.floor(after / every) - Math.floor(before / every)));
 
 /** Kronor are scaled up in later acts and in calm mode. */
-export const KRONOR_SCALE = [1, 1.3, 1.7] as const;
+export const KRONOR_SCALE = [1, 1.2, 1.45] as const;
 export const actScale = (act: number): number => KRONOR_SCALE[Math.min(act, KRONOR_SCALE.length - 1)]!;
 
 /**

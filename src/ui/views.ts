@@ -17,14 +17,15 @@ import type { Meta } from '../run/meta.ts';
 import { MEDALS, earned, medalCount, progressText } from '../run/medals.ts';
 import { parseSeedCode, seedLabelOf } from '../run/seedcode.ts';
 import { LEANS, LEAN_EMOJI, LEAN_NAMES, LEAN_TEXT, kitOf, type Lean } from '../shared/abilities.ts';
-import { healPrice, repairPrice, rerollPrice, trinketPrice } from '../run/economy.ts';
+import { healPrice, repairPrice, rerollPrice, trinketPrice, upgradePrice, workshopFree } from '../run/economy.ts';
+import { NODE_RISE, upgradeById } from '../run/upgrades.ts';
 import { EVENTS, choiceAllowed, eventById } from '../run/events.ts';
 import { currentNode, currentPlan } from '../run/flow.ts';
 import { DIFFICULTIES, DIFFS, diffOf, heartRuleText, type Difficulty } from '../run/difficulty.ts';
-import { mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
+import { mapOf, reachable, type RewardGrade, type RunState, type Screen } from '../run/state.ts';
 import { TRINKETS, trinketById } from '../run/trinkets.ts';
 import { btn, el, plural } from './dom.ts';
-import { upgradeCard, workshopPanel } from './upgrades.ts';
+import { treeLabel, upgradeCard } from './upgrades.ts';
 import { ACT_NAMES, arrowSvg, chip, seedChip, statusBar, trinketCard, trinketIcons } from './parts.ts';
 import { countUp } from './juice.ts';
 import type { Settings } from '../settings.ts';
@@ -419,7 +420,7 @@ export function mapView(o: MapOpts): HTMLElement {
   }
   const legend = el('div', 'rg-legend');
   for (const t of ['race', 'challenge', 'elite', 'shop', 'workshop', 'event', 'boss'] as NodeType[]) legend.append(el('span', null, `${NODE_EMOJI[t]} ${NODE_NAMES[t]}`));
-  if (nodes.some((n) => n.derby)) legend.append(el('span', 'rg-lg-derby', `${DERBY_EMOJI} ${DERBY_NAME}`, el('small', null, ' arena, sista bilen vinner')));
+  if (nodes.some((n) => n.derby)) legend.append(el('span', 'rg-lg-derby', `${DERBY_EMOJI} ${DERBY_NAME}`, el('small', null, ' arena, mest poäng vinner')));
   const kinds = el('div', 'rg-legend rg-kinds', ...RACE_KINDS.map((k) => el('span', `k-${k}`, `${KIND_EMOJI[k]} ${KIND_NAMES[k]}`, el('small', null, k === 'rally' ? ' ren racing' : k === 'mixed' ? ' racing med knuffar' : ' vrak och poäng'))));
   const menu = btn('rg-icon', '☰', o.onMenu);
   menu.setAttribute('aria-label', 'Meny');
@@ -527,8 +528,8 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void; na
   const info: Node[] = [
     el('div', 'rg-chips', ...chips),
     arena
-      ? el('div', 'rg-kindbox rg-derbybox k-carnage', el('b', null, `${DERBY_EMOJI} ${DERBY_NAME}: `), DERBY_TEXT.replace(`${DERBY_NAME}: `, ''), el('small', null, ` Placeringen är i vilken ordning bilarna åker ut, och varje vrak ger ${TAKEDOWN_POINTS} p. ${arena.text}`))
-      : el('div', `rg-kindbox k-${kind}`, el('b', null, `${KIND_EMOJI[kind]} ${KIND_NAMES[kind]}: `), KIND_TEXT[kind], kind === 'carnage' ? el('small', null, ` Poäng för placering: ${PLACE_POINTS.join('/')} och ${TAKEDOWN_POINTS} per vrak. Placeringen på poäng avgör priset och hjärtat.`) : null),
+      ? el('div', 'rg-kindbox rg-derbybox k-carnage', el('b', null, `${DERBY_EMOJI} ${DERBY_NAME}: `), DERBY_TEXT.replace(`${DERBY_NAME}: `, ''), el('small', null, ` Poäng: skada du gör (en hel bil är 50 p), ${TAKEDOWN_POINTS} p per vrak och ${PLACE_POINTS[0]} till 2 p för hur länge du håller. ${arena.text}`))
+      : el('div', `rg-kindbox k-${kind}`, el('b', null, `${KIND_EMOJI[kind]} ${KIND_NAMES[kind]}: `), KIND_TEXT[kind], kind === 'carnage' ? el('small', null, ` Poäng: skada du gör (en hel bil är 50 p), ${TAKEDOWN_POINTS} per vrak och ${PLACE_POINTS.join('/')} för placeringen. Placeringen på poäng avgör priset och hjärtat.`) : null),
   ];
   if (plan.boss) {
     const rules = plan.field.rivals[0]?.rules.filter((x) => (x === 'lastlap' && !arena) || (x === 'regen' && kind === 'carnage')) ?? [];
@@ -566,11 +567,9 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
   const head = dv
     ? s.place === 1
       ? '🏆 DU VANN DERBYT!'
-      : dv.alive
-        ? `${s.place}:a på klockan. Tiden tog slut.`
-        : s.place === s.n
-          ? 'Först ut. Det gick fort.'
-          : `${s.place}:a. Du blev utslagen som bil nummer ${s.n - s.place + 1}.`
+      : s.place === s.n
+        ? `${s.place}:a på poäng. Slåss mer!`
+        : `${s.place}:a på poäng${dv.alive ? '' : '. Du blev utslagen'}.`
     : !s.finished
       ? 'Du kom aldrig i mål. Aj.'
       : s.place === 1
@@ -591,14 +590,14 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
       el(
         'div',
         'rg-points rg-derbyres',
-        el('b', null, `🏟️ Plats ${s.place} av ${s.n}`),
-        el('small', null, ` efter utslagsordningen${dv.timeUp ? ' (de som rullade till slutet rangordnas på hälsa)' : ''} · 💥 ${td} vrak × ${TAKEDOWN_POINTS} p = ${td * TAKEDOWN_POINTS} p${s.wrecked ? ' · du blev vrakad' : ''}`),
+        el('b', null, `🏟️ Plats ${s.place} av ${s.n} på poäng · ${s.points ?? 0} p`),
+        el('small', null, ` = ${s.dealt ?? 0} för skada du gjorde + ${td} vrak × ${TAKEDOWN_POINTS} p = ${td * TAKEDOWN_POINTS} + ${PLACE_POINTS[Math.min(PLACE_POINTS.length, s.survival ?? s.n) - 1]!} för hur länge du höll${s.wrecked ? ' (du blev vrakad)' : ''}. Mest poäng vinner, inte mest hälsa.`),
       ),
       el(
         'ol',
         'rg-dtable',
         ...dv.table.map((r) =>
-          el('li', `${r.me ? 'me' : ''} ${r.alive ? 'alive' : 'out'}`, el('b', null, `${r.place}.`), el('span', 'rg-dn', r.name), el('small', null, r.alive ? `rullade kvar · ${r.hp} % hälsa` : `ute efter ${clock(r.outAt ?? 0)}`), r.takedowns ? el('em', null, `💥 ${r.takedowns}`) : null),
+          el('li', `${r.me ? 'me' : ''} ${r.alive ? 'alive' : 'out'}`, el('b', null, `${r.place}.`), el('span', 'rg-dn', r.name), el('small', null, `${r.points} p · ${r.alive ? `rullade kvar · ${r.hp} % hälsa` : `ute efter ${clock(r.outAt ?? 0)}`}`), el('em', null, `🔨 ${r.dealt}${r.takedowns ? ` · 💥 ${r.takedowns}` : ''}`)),
         ),
       ),
     );
@@ -608,7 +607,7 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
     const pp = s.roadPlace ? PLACE_POINTS[Math.min(PLACE_POINTS.length, s.roadPlace) - 1]! : 0;
     const td = s.takedowns ?? 0;
     lines.push(
-      el('div', 'rg-points', el('b', null, `💥 Blodbad: ${s.points} p`), el('small', null, ` = ${pp} för ${s.roadPlace ?? '?'}:a plats på vägen + ${td} vrak × ${TAKEDOWN_POINTS} p${s.wrecked ? ` · du blev vrakad ${s.wrecked} ${s.wrecked === 1 ? 'gång' : 'gånger'}` : ''}. Plats ${s.place} av ${s.n} på poäng.`)),
+      el('div', 'rg-points', el('b', null, `💥 Blodbad: ${s.points} p`), el('small', null, ` = ${s.dealt ?? 0} för skada du gjorde + ${td} vrak × ${TAKEDOWN_POINTS} p = ${td * TAKEDOWN_POINTS} + ${pp} för ${s.roadPlace ?? '?'}:a plats på vägen${s.wrecked ? ` · du blev vrakad ${s.wrecked} ${s.wrecked === 1 ? 'gång' : 'gånger'}` : ''}. Plats ${s.place} av ${s.n} på poäng.`)),
     );
   }
   const kr = el('b', null, `+${s.total} kr`);
@@ -631,48 +630,57 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
   if (s.scrapHearts) lines.push(el('div', 'rg-heartline', '🔩 Skrotpant: ❤️ tillbaka för vraken', el('small', null, ` (${DIFFS[run.diff].scrapEvery} vrak = ett hjärta)`)));
   else if ((s.takedowns ?? 0) > 0 && s.scrapCount !== undefined && DIFFS[run.diff].scrapEvery > 0) lines.push(el('div', 'rg-scrap', `🔩 Skrotpant: ${s.scrapCount} av ${DIFFS[run.diff].scrapEvery} vrak till nästa ❤️`));
   if (s.goal) lines.push(el('div', `rg-goal ${s.goal.met ? 'ok' : 'miss'}`, s.goal.met ? '✅ Utmaning krossad! ' : '❌ Misslyckades. Skärp dig. ', el('small', null, s.goal.text)));
-  if (s.reward) lines.push(el('div', 'rg-goal ok', s.rewardKind === 'second' ? '🥈 Tröstpris: välj en av två.' : s.rewardKind === 'win' ? '🏆 Vinst! Välj ditt byte.' : '🎁 Du får välja en talisman.'));
-  return screen('rg-post', statusBar(run), el('div', 'rg-postbody', el('h2', 'rg-bigh', head), ...lines), foot(go(run.status === 'dead' ? 'Fortsätt' : s.reward ? (s.rewardKind === 'second' ? 'Ta tröstpriset 🎁' : 'Välj ditt byte 🎁') : 'Till kartan', o.onNext)));
+  if (s.reward) lines.push(el('div', `rg-goal ${s.rewardKind === 'plain' ? 'miss' : 'ok'}`, REWARD_LINE[s.rewardKind ?? 'win']));
+  return screen('rg-post', statusBar(run), el('div', 'rg-postbody', el('h2', 'rg-bigh', head), ...lines), foot(go(run.status === 'dead' ? 'Fortsätt' : s.reward ? 'Välj ditt byte 🎁' : 'Till kartan', o.onNext)));
 }
 
 // ---- reward ----
 
+/** The line on the card after a race: what the placing earned (every race gives a pick of three). */
+const REWARD_LINE: Record<RewardGrade, string> = {
+  boss: '👑 Bossen är slagen! Välj ditt byte: tre kort med de bästa oddsen.',
+  elite: '💀 Dödsloppet vunnet! Välj ditt byte: tre kort med extra bra odds.',
+  win: '🏆 Vinst! Välj ditt byte: tre kort med bättre odds på Grym och Legendarisk.',
+  normal: '🎁 Bra körning. Välj ditt byte: tre kort med vanliga odds.',
+  plain: '🧰 Nedre halvan eller bruten: du får välja ett byte, men bara bland Skräp och första stegen.',
+};
+const REWARD_TITLE: Record<RewardGrade, string> = {
+  boss: 'Bossen ligger i diket! Ta ett byte',
+  elite: 'Du vann dödsloppet! Ta ett byte',
+  win: 'Vinst! Välj ditt byte',
+  normal: 'Bra körning. Välj ditt byte',
+  plain: 'Bara skräp kvar. Välj ändå',
+};
+
 export function rewardView(run: RunState, scr: Extract<Screen, { kind: 'reward' }>, o: { onPick(i: number): void }): HTMLElement {
-  const title =
-    scr.source === 'boss' ? 'Bossen ligger i diket! Ta ett byte' : scr.source === 'elite' ? 'Du överlevde dödsloppet! Ta ett byte' : scr.source === 'consolation' ? 'Tvåa. Ta ett tröstpris' : 'Vinst! Välj ditt byte';
   const ups = scr.ups ?? [];
+  const kindTag = (card: HTMLElement, text: string): HTMLElement => {
+    card.prepend(el('span', 'rg-kt', text));
+    return card;
+  };
+  // three cards in one row, talismans and upgrades mixed (the picks index the talismans first, then the nodes)
   const trinkets = scr.choices.map((id, i) => {
     const d = trinketById(id)!;
-    return trinketCard(d, { n: run.trinkets.find((t) => t.id === id)?.n, onClick: () => o.onPick(i), tag: run.trinkets.some((t) => t.id === id) ? 'Staplas! Stinkigare!' : undefined });
+    return kindTag(trinketCard(d, { n: run.trinkets.find((t) => t.id === id)?.n, onClick: () => o.onPick(i), tag: run.trinkets.some((t) => t.id === id) ? 'Staplas! Stinkigare!' : undefined }), '🎁 Talisman');
   });
-  const upCards = ups.map((id, j) => upgradeCard(run, id, { onClick: () => o.onPick(scr.choices.length + j) }));
-  const trinketGrid = el('div', 'rg-cards', ...trinkets);
-  const upGrid = el('div', 'rg-cards up-cards', ...upCards);
-  const both = trinkets.length > 0 && upCards.length > 0;
-  let show: 'ups' | 'trinkets' = upCards.length ? 'ups' : 'trinkets';
-  const tabs = el('div', 'rg-rtabs');
-  const draw = (): void => {
-    trinketGrid.hidden = show !== 'trinkets';
-    upGrid.hidden = show !== 'ups';
-    tabs.replaceChildren(
-      ...(
-        [
-          ['ups', `🛠️ Uppgraderingar (${upCards.length})`],
-          ['trinkets', `🎁 Talismaner (${trinkets.length})`],
-        ] as const
-      ).map(([k, label]) => {
-        const b = btn('rg-chipbtn rg-rtab', label, () => {
-          show = k;
-          draw();
-        });
-        b.setAttribute('aria-pressed', String(show === k));
-        return b;
-      }),
-    );
-  };
-  draw();
-  const hint = both ? el('small', 'rg-rhint', 'Du får EN av dem. Bilen växer av uppgraderingar, talismaner ändrar reglerna.') : null;
-  return screen('rg-reward', statusBar(run), el('div', 'rg-rhead', el('h2', 'rg-h', title), both ? tabs : null), hint, upGrid, trinketGrid, foot(ghost('Nej tack (+30 kr)', () => o.onPick(-1))));
+  const upCards = ups.map((id, j) => {
+    const lab = treeLabel(upgradeById(id)!.tree, run.car.body);
+    return kindTag(upgradeCard(run, id, { onClick: () => o.onPick(scr.choices.length + j) }), `${lab.emoji} Uppgradering`);
+  });
+  const cards: HTMLElement[] = [];
+  const [more, less] = trinkets.length >= upCards.length ? [trinkets, upCards] : [upCards, trinkets];
+  for (let k = 0; k < more.length; k++) {
+    cards.push(more[k]!);
+    if (less[k]) cards.push(less[k]!);
+  }
+  return screen(
+    `rg-reward g-${scr.grade}`,
+    statusBar(run),
+    el('div', 'rg-rhead', el('h2', 'rg-h', REWARD_TITLE[scr.grade])),
+    el('small', 'rg-rhint', 'Du tar ETT kort. 🎁 Talismaner ändrar reglerna, uppgraderingar bygger bilen.'),
+    el('div', 'rg-cards rg-three', ...cards),
+    foot(ghost('Nej tack (+30 kr)', () => o.onPick(-1))),
+  );
 }
 
 // ---- shop ----
@@ -719,14 +727,25 @@ export function workshopView(run: RunState, scr: Extract<Screen, { kind: 'worksh
   }
   const repair = btn('rg-btn', `🔧 Laga allt${run.car.damage > 0 ? '' : ' (den är hel)'}`, o.onRepair);
   repair.disabled = scr.used || run.car.damage <= 0;
+  // the shelf: the two or three nodes for sale this visit, as cards that can be told from the talismans of the kiosk
+  const shelf = scr.stock.map((id) => {
+    const taken = run.up.includes(id);
+    const free = workshopFree(run, id);
+    const price = upgradePrice(run, id);
+    const poor = !taken && !free && run.kronor < price;
+    const card = upgradeCard(run, id, { onClick: () => o.onBuy(id), price: taken ? 'Tagen ✔' : free ? (scr.stock.filter((x) => workshopFree(run, x)).length > 1 ? 'GRATIS · ett val' : 'GRATIS') : `${price} kr`, disabled: taken || poor });
+    if (poor) card.classList.add('poor');
+    if (taken) card.classList.add('sold');
+    return card;
+  });
   return screen(
     'rg-work',
     statusBar(run, btn('rg-icon wide up-leave', scr.used ? 'Klar → karta' : 'Strunt i det', o.onLeave)),
     el(
       'div',
       'rg-workbody',
-      el('div', 'rg-shophead', el('h2', 'rg-h', '🔧 Skruvhörnan'), el('span', 'rg-note', scr.used ? 'Det gratis är taget. Resten kostar kronor.' : 'En billig uppgradering (nivå I eller II) är gratis. Resten kostar.')),
-      workshopPanel(run, o.onBuy),
+      el('div', 'rg-shophead', el('h2', 'rg-h', '🔧 Skruvhörnan'), el('span', 'rg-note', scr.used ? 'Det gratis är taget. Resten kostar kronor, och varje uppgradering du har gör nästa dyrare.' : `Det här hade jag inne idag. En billig (nivå I eller II) är gratis, resten kostar, och varje uppgradering du redan har gör nästa ${Math.round(NODE_RISE * 100)} % dyrare.`)),
+      el('div', 'rg-cards up-cards rg-shelf', ...shelf),
       el('div', 'rg-workrow', repair, el('div', 'rg-paintbox', el('span', 'arc-h', '🎨 Måla om (gratis)'), paints)),
     ),
     foot(go(scr.used ? 'Klar – till kartan' : 'Strunt i det', o.onLeave)),

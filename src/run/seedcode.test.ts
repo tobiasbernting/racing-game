@@ -4,7 +4,7 @@ import { actMap } from './map.ts';
 import { playRun, profile } from './bot.ts';
 import { cleanMeta, defaultMeta } from './meta.ts';
 import { MEDALS } from './medals.ts';
-import { drawTrinkets, makeStock, rewardChoices, upgradeChoices } from './economy.ts';
+import { drawTrinkets, makeStock, rewardOffer } from './economy.ts';
 import { Rng, newSeed } from './rng.ts';
 import { SEED_COUNT, SEED_WORDS, parseSeedCode, randomSeed, seedCode, seedFromParts, seedLabelOf } from './seedcode.ts';
 import { newRun } from './state.ts';
@@ -90,8 +90,8 @@ describe('the same code and difficulty make the same run, whatever the meta', ()
       const { chal0: _b, ...rb } = b;
       expect(rb).toEqual(ra);
       expect(makeStock(b, 'n1', 0)).toEqual(makeStock(a, 'n1', 0));
-      expect(rewardChoices(b, 'n1', 'boss')).toEqual(rewardChoices(a, 'n1', 'boss'));
-      expect(upgradeChoices(b, 'n1', 'race')).toEqual(upgradeChoices(a, 'n1', 'race'));
+      expect(rewardOffer(b, 'n1', 'boss')).toEqual(rewardOffer(a, 'n1', 'boss'));
+      expect(rewardOffer(b, 'n1', 'normal')).toEqual(rewardOffer(a, 'n1', 'normal'));
       expect(drawTrinkets(b, new Rng(9), 6, 'shop')).toEqual(drawTrinkets(a, new Rng(9), 6, 'shop'));
     }
   });

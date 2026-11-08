@@ -1360,6 +1360,6 @@ export function buildMods(owned: readonly Owned[], body: CarBody = 'hatch'): Rac
 }
 
 /** What a trinket costs in the shop (before discounts). */
-export const TRINKET_PRICE: Record<Rarity, number> = { common: 70, rare: 130, legendary: 230 };
+export const TRINKET_PRICE: Record<Rarity, number> = { common: 80, rare: 150, legendary: 260 };
 
 export const RARITY_NAMES: Record<Rarity, string> = { common: 'Skräp', rare: 'Grym', legendary: 'Legendarisk' };

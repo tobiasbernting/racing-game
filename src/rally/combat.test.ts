@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BIG_HIT, HIT_MIN_DV, TAKEDOWN_WINDOW, TakedownLedger, hitsToWreck, impactDamage, maxHpOf, ramPowerOf } from './combat.ts';
+import { capRammer, isRammer, type FegisState, fegisDealt, fegisDrain, fegisTick, BIG_HIT, HIT_MIN_DV, NOSE_MIN, TAKEDOWN_WINDOW, TakedownLedger, exposure, hitsToWreck, impactDamage, maxHpOf, ramPowerOf, zoneOf } from './combat.ts';
 
-const hit = { dv: 8, blame: 1, ram: 1, dmgTaken: 1 };
+const hit = { dv: 8, blame: 1, facing: -1, ram: 1, dmgTaken: 1 };
 
 describe('how much a hit hurts', () => {
   it('nothing for a nudge, more for a faster hit', () => {
@@ -38,6 +38,95 @@ describe('how much a hit hurts', () => {
     expect(maxHpOf(1, 1.5)).toBe(120);
     expect(ramPowerOf(0)).toBe(1);
     expect(ramPowerOf(100)).toBe(2.5);
+  });
+});
+
+describe('who takes the damage: the nose that rams or the flank that is rammed', () => {
+  it('names the zone from the angle', () => {
+    expect(zoneOf(0.9)).toBe('front');
+    expect(zoneOf(0.1)).toBe('side');
+    expect(zoneOf(-0.1)).toBe('side');
+    expect(zoneOf(-0.9)).toBe('rear');
+  });
+  it('the rammer with its nose takes about a fifth, the car hit on its side takes the bulk (x1.5) and the tail x1.3', () => {
+    const rammer = exposure(1, 0);
+    const sideVictim = exposure(0, 1);
+    const rearVictim = exposure(-1, 1);
+    expect(rammer).toBeCloseTo(NOSE_MIN);
+    expect(sideVictim).toBeCloseTo(1.5);
+    expect(rearVictim).toBeCloseTo(1.3);
+    expect(sideVictim / rammer).toBeGreaterThan(6);
+    expect(rearVictim / rammer).toBeGreaterThan(5);
+  });
+  it('a head-on splits evenly: both noses, both half the blame', () => {
+    expect(exposure(1, 0.5)).toBeCloseTo(exposure(1, 0.5));
+    const a = impactDamage({ dv: 8, blame: 0.5, facing: 1, ram: 1, dmgTaken: 1 });
+    const b = impactDamage({ dv: 8, blame: 0.5, facing: 0.95, ram: 1, dmgTaken: 1 });
+    expect(Math.abs(a - b) / a).toBeLessThan(0.1);
+    // ...and each takes less than a rear-ended car would
+    expect(a).toBeLessThan(impactDamage({ dv: 8, blame: 1, facing: -1, ram: 1, dmgTaken: 1 }));
+  });
+  it('ramming a car from behind or from the side wrecks it in a few hits while the rammer lasts for many', () => {
+    const base = { dv: 4, ram: 1, dmgTaken: 1 };
+    const rammerHit = impactDamage({ ...base, blame: 0, facing: 1 });
+    const sideHit = impactDamage({ ...base, blame: 1, facing: 0 });
+    const rearHit = impactDamage({ ...base, blame: 1, facing: -1 });
+    expect(sideHit).toBeGreaterThan(rammerHit * 6);
+    expect(rearHit).toBeGreaterThan(rammerHit * 5);
+    expect(Math.ceil(80 / rearHit)).toBeLessThanOrEqual(5);
+    expect(Math.ceil(80 / rammerHit)).toBeGreaterThanOrEqual(15);
+  });
+  it('mass and ram power scale it, and a ram build is hardened in front', () => {
+    const nose = { dv: 8, blame: 0.1, facing: 1, ram: 1, dmgTaken: 1 };
+    expect(impactDamage({ ...nose, ownRam: 2.5 })).toBeLessThan(impactDamage(nose) * 0.75);
+    const flank = { dv: 3, blame: 1, facing: 0, dmgTaken: 1 };
+    expect(impactDamage({ ...flank, ram: 2 })).toBeCloseTo(impactDamage({ ...flank, ram: 1 }) * 2);
+    // a lighter victim changes speed more in the same hit
+    expect(impactDamage({ ...flank, ram: 1, dv: 4 })).toBeGreaterThan(impactDamage({ ...flank, ram: 1, dv: 2.5 }));
+  });
+});
+
+describe('the rammer is never hurt more than 40 % of what it hits', () => {
+  it('caps the nose that rams, leaves head-ons and the victim alone', () => {
+    expect(capRammer(21, 8, 1, 0.05)).toBeCloseTo(3.2);
+    expect(capRammer(2, 8, 1, 0.05)).toBe(2);
+    // head-on: split as before
+    expect(capRammer(21, 8, 1, 0.5)).toBe(21);
+    // a flank or tail takes its own damage
+    expect(capRammer(21, 8, 0, 1)).toBe(21);
+    expect(capRammer(21, 8, -1, 1)).toBe(21);
+    expect(isRammer(0.9, 0.2)).toBe(true);
+    expect(isRammer(0.9, 0.6)).toBe(false);
+  });
+});
+
+describe('FEGIS: a car that does not fight', () => {
+  it('is marked after ten quiet seconds, and loses health until it deals damage', () => {
+    const st: FegisState = { idleT: 0, fegis: false };
+    let started = 0;
+    for (let t = 0; t < 9.9; t += 0.1) if (fegisTick(st, 0.1, true) === 'start') started++;
+    expect(started).toBe(0);
+    expect(st.fegis).toBe(false);
+    for (let t = 0; t < 0.4; t += 0.1) if (fegisTick(st, 0.1, true) === 'start') started++;
+    expect(started).toBe(1);
+    expect(st.fegis).toBe(true);
+    // half a minute of bleeding takes about two thirds of a derby car's health (a wreck in ~45 s), not all in one go
+    let hp = 144;
+    for (let t = 0; t < 30; t += 0.1) hp -= fegisDrain(144, 0.1, true);
+    expect(hp).toBeLessThan(144 * 0.4);
+    expect(hp).toBeGreaterThan(0);
+    expect(fegisDealt(st)).toBe(true);
+    expect(st).toEqual({ idleT: 0, fegis: false });
+  });
+  it('is not started when nobody is near enough to hit, and cools off again', () => {
+    const st: FegisState = { idleT: 8, fegis: false };
+    for (let t = 0; t < 20; t += 0.1) expect(fegisTick(st, 0.1, false)).toBeNull();
+    expect(st.idleT).toBe(0);
+    const marked: FegisState = { idleT: 12, fegis: true };
+    let ended = 0;
+    for (let t = 0; t < 5; t += 0.1) if (fegisTick(marked, 0.1, false) === 'end') ended++;
+    expect(ended).toBe(1);
+    expect(marked.fegis).toBe(false);
   });
 });
 

@@ -79,7 +79,7 @@ describe('the sofa\'s passive', () => {
       let r = newRun({ seed: 21, calm: false, body, paint: '#e8412c' });
       r.trinkets = [];
       const boss = allNodes(mapOf(r)).find((n) => n.type === 'boss')!;
-      r.screen = { kind: 'reward', nodeId: boss.id, choices: ['gummianka'], source: 'boss' };
+      r.screen = { kind: 'reward', nodeId: boss.id, choices: ['gummianka'], grade: 'boss' };
       r = pickReward(r, -1);
       expect(r.act).toBe(1);
       return r.trinkets.reduce((n, t) => n + t.n, 0);

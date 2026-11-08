@@ -14,7 +14,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 
 - **Titel**: Ny runda, Fortsätt runda (rundan sparas i localStorage efter varje plats), Snabbrace (ett enda lopp som förr),
   Skrytlådan (medaljer med framsteg, sedda talismaner, och bästa rundan per svårighet). Svårigheten väljs på bilsidan, inte här; titeln visar bara vad som valdes sist.
-- **Karta**: tre akter (Bondlandet, Vildmarken, Galna stan), fem rader med 2–4 platser och sedan en boss. Platserna är
+- **Karta**: tre akter (Bondlandet, Vildmarken, Galna stan), fem rader med 2–4 platser och sedan en boss. Varje väg dit innehåller minst tre lopp (fas 17, se längst ner). Platserna är
   🏁 lopp, ⏱️ utmaning (vinn eller skäms, topp 2 i spöregn, mörkerrallyt, slå klockan), 💀 dödslopp, 🛒 Mackens kiosk, 🔧 Skruvhörnan,
   ❓ helt random och 👑 boss (en av tre i varje akt, fröet väljer: tävlingsledaren, golfaren och kartläsaren i akt 1, fotbollsspelaren, målvakten och bowlaren i akt 2, en världsmästare eller Kapten Kanin på månen i akt 3, se fas 16).
   Tjugoen rivaler, vänliga ordvitsar på rally- och idrottsstjärnor, med eget skryt och eget hån när de kör om dig (`src/shared/rivals.ts`).
@@ -83,8 +83,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
   efter hastighet, vikt och rammarkraft (`src/rally/combat.ts`): traktorn och monstertruck puttar, moppen studsar. Vid 0 är bilen
   **vrak**: den vältar, ryker och ligger ute i ca 3 sekunder och är sedan tillbaka på vägen med det mesta av hälsan (ingen blir utslagen
   för gott). Den som gjorde den sista stora smällen inom 2 sekunder får en **takedown** (en liten rad i sidan, inte mitt på skärmen).
-  **Poängen**: placering ger 10 / 7 / 5 / 3 / 2 / 1 och varje takedown 3 p. Mest poäng vinner loppet, så en rammare kan vinna från
-  tredje plats. Hjärtat, priset och belöningen följer placeringen **på poäng**. Resultatkortet räknar upp hur poängen blev till.
+  **Poängen** (ändrade i fas 17, se längst ner): skada du gör, vrakade bilar och en mindre del för placeringen. Mest poäng vinner loppet. Hjärtat, priset och belöningen följer placeringen **på poäng**. Resultatkortet räknar upp hur poängen blev till.
 - **Rivaler** (`src/shared/rivals.ts`, `src/shared/field.ts`, `src/rally/ai.ts`): tolv rivaler, fyra av varje sort. 🔨 **Rammare** (Doris,
   Måns, Roffe, Mormor): sidosmäller, blockerar och jagar vrak. ⚡ **Racer** (Tord, Kenta, Fru Fartkvick, Egon): ren linje, sena
   bromspunkter, nitro på raksträckor. 🔀 **Blandad** (Gunnar, Lasse, Sixten, Kjell): rent tills du kommer för nära. Sorten på loppet
@@ -99,9 +98,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 - **Tak mot skenande staplar** (`capTune` i `src/rally/mods.ts`, `maxStack` på talismanerna): kraft, grepp, nitrolängd och antal, sladdturbo,
   knuff, tålighet, mynt, kronor och bilens totala kraft och grepp har mjuka tak (linjärt till ett knä, sedan mot ett max). Nitro
   räcker högst 12 sekunder per lopp. Talismaner som skenar (Pruttboost, Chilikorven, Dino-Dieseln …) slutar ge mer efter 2-3 exemplar.
-- **Byte efter varje vinst**: vinner du (i Blodbad: mest poäng) väljer du 1 av 6: tre talismaner eller tre uppgraderingskort (se "Bilen som växer" nedan), lutat mot sorten
-  (efter Blodbad fler rammar-talismaner, efter Rally fler fart-talismaner). Tvåan får ett tröstpris: 1 av 2 skräp-talismaner. Dödslopp och bossar ger
-  fortfarande alltid ett val, med bättre odds.
+- **Byte efter varje lopp** (fas 17, se längst ner): efter VARJE lopp i varje akt får du välja 1 av 3 kort, en slumpad (seedad) blandning av talismaner och uppgraderingar, och placeringen avgör kvaliteten. Ingen flikväljare och inget tröstpris för tvåan längre.
 - **Humor**: kaos, inte toalett. Högst tre talismaner handlar om prutt och bajs (Pruttboost är sällsynt, Bajsraketen legendarisk); bara de pruttar och lämnar det gröna molnet. Resten har egna effekter (konfetti, gnistor, glitter, studsar). Nya slumpade talismaner: Platsbytar-Pelle, Kon från ovan, Slumpväxeln och Tombolan. Inga svordomar: `src/language.test.ts` skannar alla texter.
 - **Talismanernas vägar** (`path` på alla 52): `ram`, `race`, `fuffens`, `stunt`, `girig`, `kaos`. Fas 9 bygger på dem.
 - **Balanssimuleringen** (`src/run/balance.test.ts`, `src/run/racesim.ts`, `src/shared/pace.ts`) räknar med varvtider i stället för tärningar:
@@ -322,9 +319,9 @@ vilka noder, talismaner och förmågor du har bestämmer hur rundan känns. Allt
 effekt efter användning (`plus`: olja, höbalar, stötvåg, boost, rök, kronor, nitro, lockbil, lagning, mina). Traktorns Rammbock blir 50 % längre och släpper sedan också höbalar, moppens Väj! blir längre och lämnar en lockbil som bilarna bakom saktar in för, golfbilens Hole in one laddar fortare och slår en stötvåg där bollen landar.
 De visas bara för den som kör det fordonet.
 
-**Hur man får dem.** Efter en vinst (och efter dödslopp och bossar) visar belöningsskärmen två flikar: 🛠️ Uppgraderingar (tre kort) och 🎁 Talismaner (tre kort); du tar EN av sex. Tvåan får fortfarande bara ett tröstpris med två skräp-talismaner. Korten dras ur de öppna noderna (`drawUpgrades`
+**Hur man får dem.** Efter varje lopp visar belöningsskärmen tre kort, en blandning av 🛠️ uppgraderingar och 🎁 talismaner (fas 17, inga flikar); du tar ETT. Korten ger bättre eller sämre kvalitet efter placeringen. Korten dras ur de öppna noderna (`drawUpgrades`
 i `economy.ts`) och lutas av sorten (`KIND_TREE_BIAS`): Blodbad ger Ram (×2,6) och Fuffens (×1,9), Rally ger Race (×2,6) och Stunt (×1,9), Blandat är öppet. Fordonets lutning (Ram/Race) ger en liten extra knuff, ett träd man redan går i kommer upp oftare (så ett bygge får en form), tre kort
-från minst två träd, bossar bjuder oftare på toppar och högre nivåer. Ett kort som väcker en kombo har en stjärna. I **Skruvhörnan** är första uppgraderingen på nivå I eller II gratis; alla noder går att köpa för kronor (`upgradePrice`: 90, 150, 240, topp 420, fordon 130, plus aktens påslag och rabatter), med en flik per träd. Händelser som "tunar bilen" ger en slumpad nod.
+från minst två träd, bossar bjuder oftare på toppar och högre nivåer. Ett kort som väcker en kombo har en stjärna. I **Skruvhörnan** ligger sedan fas 17 bara 2-3 slumpade noder på hyllan: en nivå I eller II är gratis, resten kostar kronor (`upgradePrice`, se tabellen i Fas 17: pengarna). Händelser som "tunar bilen" ger en slumpad nod.
 
 **Kombos** (10 st, `COMBOS`): två saker du äger väcker en kombo, och den visas som en liten "KOMBO!"-lapp i hörnet (aldrig mitt på skärmen) och som en guldkantad ikon först i loppets talisman-remsa.
 Spikmattan (Spikar + Oljeläcka: smällar lämnar olja), Luftburen (Flygtid + Nitro: landningar fyller nitro), Lotterivinsten (Ränta + valfri Kaos-talisman: lott efter varje varv), Eldkastaren (Pruttboost + Chilikorven: en kort eldstråle bakåt, sällsynt),
@@ -335,7 +332,7 @@ Pansarraketen (Stötvåg + Nitro), Sladdmolnet (Rökgranat + Sladd), Dödsförak
 Fuffens: oljefat, rökgranat, minor på stötfångaren, ett falskt mynt i en tråd, hö på taket, trollkarlshatt. Stunt: ramp, rullbur, flaggor, stuntstänger, guldstjärna. Girig: guldlist, en pengasäck, en guldflagga, en guldprydnad. `bodySpecOf` i `models.ts` ger testerna alla kroppars mått:
 `upgrades.test.ts` ritar varje rad på alla tjugo kroppar och kollar att allt sitter nära bilen.
 
-**Bygget** (☰ Paus → 🧰 Bygget, och 🧰 i kartans övre list): bilen på skivspelare med sina mods, byggets mix per väg, och träden som flikar med tagna, öppna och låsta noder (tryck för att läsa; kombofliken visar alla recept). Samma panel är Skruvhörnans butik.
+**Bygget** (☰ Paus → 🧰 Bygget, och 🧰 i kartans övre list): bilen på skivspelare med sina mods, byggets mix per väg, och träden som flikar med tagna, öppna och låsta noder (tryck för att läsa; kombofliken visar alla recept). Skruvhörnan har sedan fas 17 en egen hylla med kort.
 
 **Ge upp rundan** (☰ Paus → 🏳️ Ge upp rundan, med bekräftelse: "Nej" är förvald, Escape betyder nej): rundan räknas som en runda men ger inga troféer, medaljer av typen "bäst i en runda" behåller det som redan klarats, de som räknas över rundor ("Vinn en runda", "Kör klart 5 rundor") räknar den inte. Sedan väljer du fordon på nytt med samma fordon, hjälm och lack förvalda. "Ge upp och visa resultatet" visar resultatsidan ("Gav upp i Akt X"). Logiken ligger i src/run/giveup.ts.
 Telefon på sidan: bilen till vänster, träden till höger, panelen scrollar inuti; surfplatta stående: bilen överst. Alla knappar är minst 44 px och sidan scrollar aldrig. Resultatskärmen visar träden nod för nod (med varifrån varje kom), fordonets uppgraderingar och de aktiva kombona.
@@ -355,10 +352,9 @@ inte ens "alla noder + alla talismaner" (bästa spelare vinner under 99 % av lop
 
 - **Arenan**: en sluten ring av väldigt bred väg (så fysiken, datorförarna och minikartan funkar som vanligt) runt en fast ö i mitten med en skrothög, en strålkastarmast och en randig kant. Två former: den runda *Skrotskålen* (en stor öppen yta) och den långa *Däckovalen* (ett varv runt en lång ö).
   Däckvägg på båda staketen, tre läktare med en publik som hoppar när du är nära, sponsorskyltar, strålkastartorn med ljuspölar (och strålar på natten) och ramper på golvet. Seedet sätter åkriktning, ramperna, färgerna och om det är natt eller skymning.
-- **Reglerna**: inga varv och ingen mållinje. Alla bilar har hälsa (×1,8 mot Blodbad och smällarna gör 38 % mindre, så ett derby tar en minut eller två) och en **vrakad bil är ute för gott**: den ligger kvar och ryker i fyra sekunder och forslas sedan bort. **Placeringen är i vilken ordning bilarna åker ut** (först ut är sist),
-  de som rullar när tiden är slut (2:30) rangordnas på hälsa. Varje vrak är en takedown (3 p på kortet, men det är placeringen som styr priset, hjärtat och belöningen). Sista bilen vinner; åker du ut avslutas derbyt två sekunder senare (resten fortsätter i bakgrunden).
-  Hjärtat följer samma regel som annars: nedre halvan efter utslagsordning kostar ❤️ (bossen: vinner du inte, −❤️❤️). Ett vinst-, dödslopps- eller bossbyte delas ut som vanligt och lutar åt Ram (Blodbad).
-- **Datorförarna** (`DerbyBrain`): rammarna jagar (siktar framför bilen de är ute efter, runt ön om den är i vägen), racerna kryssar runt och väjer, de blandade gör lite av varje. De första sex sekunderna cirklar alla och spanar, undviker staketen och ön, backar ut ur hörn, tar en annan bil än den de är fastlåsta i, och en förare som fastnar gång på gång sätts tillbaka på en ledig plats. Fordonens förmågor och dina uppgraderingar funkar som i ett Blodbad.
+- **Reglerna**: inga varv och ingen mållinje. Alla bilar har hälsa (×1,8 mot Blodbad och smällarna gör 38 % mindre, så ett derby tar en minut eller två) och en **vrakad bil är ute för gott**: den ligger kvar och ryker i fyra sekunder och forslas sedan bort. **Placeringen är rangen på poäng** (fas 17: skada du gör + vrak + hur länge du höll; vem som rullar när tiden är slut avgör inte, och hälsan inte heller). Åker du ut avslutas derbyt två sekunder senare (resten fortsätter i bakgrunden).
+  Hjärtat följer samma regel som annars: nedre halvan på poäng kostar ❤️ (bossen: vinner du inte, −❤️❤️). Ett vinst-, dödslopps- eller bossbyte delas ut som vanligt och lutar åt Ram (Blodbad).
+- **Datorförarna** (`DerbyBrain`): rammarna jagar (siktar framför bilen de är ute efter, runt ön om den är i vägen), och sedan fas 17 jagar alla: racerna och de blandade också, och de kommer in mot en flank eller bakifrån, inte nos mot nos. Bara en riktigt sönderkörd förare väjer. De första sex sekunderna cirklar alla och spanar, undviker staketen och ön, backar ut ur hörn, tar en annan bil än den de är fastlåsta i, och en förare som fastnar gång på gång sätts tillbaka på en ledig plats. Fordonens förmågor och dina uppgraderingar funkar som i ett Blodbad.
 - **HUD**: en panel överst med bilar kvar, klockan (röd sista kvarten) och dina takedowns, tavlan med hälsa i procent och 💥 för utslagna, minikartan som en ring med ön som ett hål, hälsostaplar över rivalerna. Resultatkortet säger hur det gick, visar hela tabellen (utslagen efter 1:12, rullade kvar med 84 % hälsa) och tidslinjen har ett derbykort.
 - **Test** (`derby.test.ts` ×2): utslagsordning, klockan, placering och poäng, hjärtan, kartan, planen, belöningarna, en körd derbysimulering med riktig fysik (ingen lämnar golvet, ingen fastnar).
 
@@ -504,3 +500,70 @@ Namnet (eller rallynamnet) visas i tabellen under loppet, i HUD:en och namnskylt
 **Migrering.** Gamla sparningar läses utan fel (`cleanMeta`, `cleanCar`): ett gammalt `driver` (ko, kanin …) blir en människa med standardhjälmen (Rand, bilens lack), en meta utan namn frågar efter ett vid nästa start, medaljframstegen flyttas enligt `MEDAL_RENAMES`, och en pågående runda behåller allt men får standardhjälm. `save.test.ts` och `medals.test.ts` testar det.
 
 **Test.** `rallyname.test.ts` (oföränderligt per namn, rent språk i alla förslag, fallback, skräpindata), `rivals.test.ts` (inga djur, ~20 rivaler med alla fält, stilmix), `phase3.test.ts` (bosspoolerna och fröets val, kort och fordon, världsmästarna och det lånade tricket), `gimmicks.test.ts` (varje trick på riktig bana med riktiga hinder), `medals.test.ts` och `save.test.ts` (migreringarna), och `language.test.ts` läser nu ordlistan från `src/shared/words.ts`.
+
+## Fas 17: aggression lönar sig (Blodbad och Rivningsderby)
+
+Ägaren spelade en hel runda och tyckte att Blodbad och derby inte gick ihop: den som rammade tog skada medan bilar som bara körde runt vann.
+Reglerna är gjorda om så att den som slåss vinner och den som kryssar runt förlorar (`src/rally/combat.ts`, `src/shared/kinds.ts`, `src/shared/derby.ts`).
+
+- **Skadan är asymmetrisk** (`exposure`, `impactDamage`): bilen som träffar med nosen i högre inbromsad fart tar en femtedel (20 %), en frontalkrock delas lika (60 % var), bilen som träffas på sidan tar hela smällen ×1,5 och på bakändan ×1,3.
+  Var på bilen det träffar mäts mellan bilarnas mittpunkter (`HitInfo.faceA/faceB`), så en sidosmäll blir en sidosmäll vilken stötfångarring som än rörde vid. Smällens storlek kapas först (högst 40 hälsopoäng) och zonen räknas efter, så en sidosmäll tar sina ×1,5 även i den största krocken. Massa och rammarkraft skalar som förr (lätta bilar ändrar fart mer, tunga och pansrade tar mindre, rammarkraft ×1–2,5), och en ramm-bil är härdad i fronten (upp till −30 %).
+  **Rammaren tar aldrig mer än 40 %** av vad bilen den träffar tar i samma smäll, vad massa och pansar än säger (`capRammer`, bara när man kör in med nosen, inte i en frontalkrock). Däckväggen och staketen tar litet (40 % mindre än förut, och en kollision med väggen går alltid under en bilsmäll). Ett rammat bakifrån-sidled-bygge vrakar en bil på 4–5 smällar medan rammaren klarar 15+ (`combat.test.ts`).
+- **Poäng** (`carnagePoints`, `damagePoints`): 0,5 p per procent av en bils hela hälsa som en träff tar bort (en hel bil på träffar = 50 p), **20 p per vrak** och en mindre del för placeringen: 20 / 14 / 10 / 6 / 4 / 2. I Blodbad är placeringen ordningen över mållinjen, i derbyt hur länge man höll (sista bilen, sedan de som vrakades sist). Rangen på poäng avgör vem som vann. I derbyt avgör **poängen** när tiden går ut, inte kvarvarande hälsa (`DerbyBoard.deal`, `standings`). En bil som aldrig slåss kan bara få placeringspoängen och vinner aldrig.
+- **FEGIS!** (`fegisTick`, `fegisDrain`, `FEGIS_AFTER` 10 s, `FEGIS_DRAIN`): en bil som inte gjort någon skada på tio sekunder får en röd blinkande **FEGIS!**-skylt över sig, publiken bua:r (`audio.boo`) och bilen tappar hälsa långsamt (2,2–2,4 % av full hälsa i sekunden, ungefär 45 s till vrak) tills den träffar någon. Alla har sex sekunders respit i början så ingen märks innan bilarna mötts. I Blodbad går klockan bara när en rival finns inom 45 m (ledaren långt före fältet har ingen att slå), i derbyt alltid efter uppvärmningen. Spelaren får en stor banderoll och en toast, datorbilar med FEGIS jagar utan paus och en ledare utan någon framför sig bromsar in och låter klungan komma ikapp.
+- **Datorförarna slåss alltid**: i Blodbad har alla minst aggressionen 0,5 (`FIGHT_MIN`), derbyförarna jagar 60–100 % av tiden och siktar på flanken eller bakändan.
+- **Syns på skärmen**: "+12" (poäng) stiger över bilen du träffar, ett litet rött "−6" över dig när du blir träffad, poängtavlan visar poäng per bil (🐔 vid FEGIS; på en mobil i liggande en liten tavla med de tre bästa och du), och under platsen ligger dina vrak 💥, din skada 🔨 och dina poäng. Resultatkortet räknar upp: "= 42 för skada + 2 vrak × 20 = 40 + 14 för 2:a plats".
+- **Simuleringen** (`racesim.ts`) modellerar träffar och skada (en dålig förare träffar färre), en tyst förare får FEGIS-straff, och derbyt rangordnar på poäng. Boten (`bot.ts`) kör Race med aggressionen 0,6, Ram 1 och Blandat 0,5. Se balanstesterna.
+- Dev-krokar: `__rallyDebug.strike(n, 'rear'|'side'|'front', fart)` och `still(n)`.
+
+## Fas 17: pengarna (ekonomin)
+
+Ägaren tog hela uppgraderingsträdet. Nu kostar noderna mer, stiger i pris för varje nod man har, och Skruvhörnan säljer bara det som står på hyllan.
+
+| | Förut | Nu |
+|---|---|---|
+| Loppspris per placering (1:a, 2:a, 3:a ...) | 200 / 140 / 100 / 70 / 50 / 40 / 35 / 30 kr | 160 / 112 / 80 / 56 / 40 / 32 / 28 / 24 kr |
+| Aktskalning av kronor (akt 1 / 2 / 3) | 1 / 1,3 / 1,7 | 1 / 1,2 / 1,45 |
+| Myntets värde | 1,2 kr | 0,9 kr |
+| Uppgraderingsnod, nivå I / II / III / topp / fordon | 90 / 150 / 240 / 420 / 130 kr | 130 / 220 / 340 / 580 / 190 kr |
+| Prisökning per nod man redan har | ingen | +7 % per nod (`NODE_RISE`; 14 noder = dubbelt) |
+| Skruvhörnan säljer | hela trädet | 2 eller 3 slumpade noder (seedade), en av dem gratis (nivå I eller II) |
+| Kioskens varor | 3-5 talismaner | 3 eller 4 talismaner |
+| Talismanpris (Skräp / Grym / Legendarisk) | 70 / 130 / 230 | 80 / 150 / 260 |
+| Hjärta i kiosken | 100 kr | 85 kr (loppen betalar mindre) |
+
+Hyllan (`workshopStock`) dras med samma frö som annars (rundans frö + platsen), från noderna som är öppna i bygget, från minst två träd, med minst en som är billig nog att vara gratis. Den ligger i `Screen.workshop.stock`; en sparad runda från före hyllan får samma hylla beräknad vid laddning.
+Skruvhörnan visar korten (🛠️ Uppgradering, med trädets färg och ikon) i stället för hela trädet; att titta på hela trädet görs på Bygget. Målet är att en bra runda slutar med ungefär en tredjedel till hälften av ett träd plus några sidonoder
+(botten tar i snitt 12 noder varav 6-8 i största trädet) och aldrig ett fullt träd (`balance.test.ts`, "the economy").
+
+## Fas 17: kartan, alltid minst tre lopp före bossen
+
+Förut kunde en akt bli "köp saker, ett lopp, boss". Nu håller varje väg från aktens start till bossen (`pathsOf`, `pathProblems` i `src/run/map.ts`):
+- minst **3 lopp** av typen lopp, utmaning, dödslopp (en derby är ett dödslopp eller bossen), och högst **2 andra platser** (kiosk, Skruvhörnan, händelse);
+- **aldrig en kiosk eller Skruvhörnan direkt efter en kiosk eller Skruvhörnan** på en väg;
+- första raden är bara lopp och utmaningar, som förut.
+Kartan görs som förut (samma rader, samma vägar, samma frö) och typerna rättas efteråt (`repairPaths`): platsen som sitter på flest trasiga vägar blir ett lopp först, och av lika många den typ som aktens har flest av. Sedan ser `wants`-steget till att varje akt
+fortfarande har en kiosk, en Skruvhörna, ett dödslopp och en händelse någonstans (en plats byter typ och en annan blir lopp för att ge plats). Med eget seedat slumptal (`Rng.for(seed, 'mapfix', act)`), så resten av kartan är orörd.
+Per akt blir det i snitt 7,5 lopp, 2,4 utmaningar, 1,4 dödslopp, 1,6 kiosker, 1,5 Skruvhörnor och 1,9 händelser; en väg har i snitt 1,5 platser som inte är lopp. Testet (`map.test.ts`) går igenom 1500 frön × 3 akter.
+Pågående rundor: kartan räknas om från fröet, så platsernas typer kan ha ändrats i en runda som sparades före ändringen (rader, vägar och id:n är desamma).
+
+## Fas 17: byte efter varje lopp, tre kort
+
+Efter **varje** lopp (inte bara vinster) visar belöningsskärmen exakt **tre kort** (`rewardOffer` i `src/run/economy.ts`): en seedad blandning av 🎁 **Talisman** och uppgraderingar. En eller två av tre är talismaner, resten noder, så det är alltid en blandning om båda finns att dra. Spelaren tar ett. Perks som "ett kort till" (Kapitalisten) lägger fortfarande till ett kort ovanpå de tre.
+Talismankorten har en lila "🎁 Talisman"-flik och sin raritetsfärg; uppgraderingskorten har en flik med trädets ikon och namn ("🛡️ Uppgradering"), trädets färg på kanten och "Nivå I av III" i foten. På mobil i stående är det tre kort under varandra, i liggande tre bredvid varandra.
+Fliken Uppgraderingar/Talismaner och tröstpriset för tvåan är borta.
+
+**Placeringen sätter kvaliteten** (`rewardGrade`; placeringen är rangen på poäng i Blodbad och derby, ett uppfyllt utmaningsmål räknas som vinst):
+
+| Placering | Grad | Talismanernas odds (Skräp / Grym / Legendarisk) | Uppgraderingsnoder |
+|---|---|---|---|
+| Nedre halvan eller bruten | plain | 100 / 0 / 0 (bara Skräp) | bara nivå I, inga toppar |
+| Övre halvan, men inte etta | normal | 70 / 27 / 3 | alla nivåer lika sannolika |
+| Vinst | win | 45 / 42 / 13 | högre nivåer något oftare (+12 % per nivå, topp ×1,4) |
+| Vinst i dödslopp | elite | 32 / 47 / 21 | +25 % per nivå, topp ×1,8 |
+| Vinst mot en boss | boss | 12 / 52 / 36 | +25 % per nivå, topp ×2,2 |
+
+Sortens lutning är kvar: efter Blodbad kommer fler Ram- och Fuffens-kort, efter Rally fler Race- och Stunt-kort (både bland talismaner och noder). Kortet efter loppet säger vad placeringen gav ("🏆 Vinst! Välj ditt byte: tre kort med bättre odds ...", "🧰 Nedre halvan eller bruten: du får välja ett byte, men bara bland Skräp och första stegen") och knappen heter **Välj ditt byte 🎁**.
+`Screen.reward` har nu `grade` i stället för `source`; en gammal sparad belöning läses om (tröstpriset blir plain, boss och dödslopp behåller sin grad) och `RaceSummary.rewardKind` 'second' blir 'plain'.
+
+**Balans** (`balance.test.ts`, `racesim.ts`, `field.ts`): kartan har fler lopp per runda och byten kommer efter varje, så rivalernas delnivå (`partLevel`) går från 4,7 till 4,0 i slutet: de följer det en bra spelare numera köper. Boten (`bot.ts`) spenderar i Skruvhörnan (gratisvalet först, sedan det kassan räcker till) och kör Race med aggressionen 0,75, Blandat 0,55, Ram 1. Simuleringen låter en dålig förare träffa färre av de träffar den går efter och en bra förare bli vrakad mer sällan.

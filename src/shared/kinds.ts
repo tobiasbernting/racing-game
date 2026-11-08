@@ -14,7 +14,7 @@ export const KIND_EMOJI: Record<RaceKind, string> = { rally: '🏁', mixed: '⚖
 export const KIND_TEXT: Record<RaceKind, string> = {
   rally: 'Ren racing. Lätt plåtskada, rivalerna håller sig på sin sida. Först i mål vinner.',
   mixed: 'Racing med knuffar. Några rivaler går på dig, men ingen åker ut. Först i mål vinner.',
-  carnage: 'Smällar och vrak! Poäng för placering och 3 per vrakad bil. Mest poäng vinner, inte först i mål.',
+  carnage: 'Smällar och vrak! Poäng för skada du gör och vrakade bilar, lite för placeringen. Mest poäng vinner. Den som aldrig slåss blir FEGIS och tappar hälsa.',
 };
 
 /** Where a race kind leans when rewards are drawn (see TrinketDef.path). */
@@ -30,18 +30,31 @@ export const KIND_MIX: readonly (readonly [number, number, number])[] = [
   [0.25, 0.4, 0.35],
 ];
 
-/** Points for the finishing order in Blodbad (first to sixth), and for each car you wreck. */
-export const PLACE_POINTS = [10, 7, 5, 3, 2, 1] as const;
-export const TAKEDOWN_POINTS = 3;
+/**
+ * Blodbad and the derby are scored on fighting: points for the damage you deal, for every car you wreck, and a smaller
+ * part for where you end up (the finishing order, or in the derby how long you lasted). A car that never fights gets the
+ * position points and nothing else, so it cannot win.
+ */
+export const PLACE_POINTS = [20, 14, 10, 6, 4, 2] as const;
+/** Per wrecked car (the damage that wrecked it is paid on top). */
+export const TAKEDOWN_POINTS = 20;
+/** Points per percent of the victim's full health that a hit takes off: wrecking a whole car by hits alone is 50 p. */
+export const DAMAGE_PER_PERCENT = 0.5;
 
 export const placePoints = (place: number): number => PLACE_POINTS[Math.max(0, Math.min(PLACE_POINTS.length - 1, Math.round(place) - 1))]!;
-export const carnagePoints = (place: number, takedowns: number): number => placePoints(place) + TAKEDOWN_POINTS * Math.max(0, Math.floor(takedowns));
+/** Points for `hp` health points taken off a car that has `maxHp` in all. */
+export const damagePoints = (hp: number, maxHp: number): number => (DAMAGE_PER_PERCENT * 100 * Math.max(0, hp)) / Math.max(1, maxHp);
+/** A car's points: damage dealt (already in points), takedowns and the position part. */
+export const carnagePoints = (place: number, takedowns: number, damage = 0): number =>
+  placePoints(place) + TAKEDOWN_POINTS * Math.max(0, Math.floor(takedowns)) + Math.round(Math.max(0, damage));
 
 export interface PointsEntry {
   id: string;
   /** Position on the road (1 = in front). */
   place: number;
   takedowns: number;
+  /** Damage dealt, in points. */
+  damage?: number;
 }
 
 export interface PointsRow extends PointsEntry {
@@ -52,8 +65,14 @@ export interface PointsRow extends PointsEntry {
 
 /** The Blodbad table: points per car and the rank they make. */
 export function pointsTable(entries: readonly PointsEntry[]): PointsRow[] {
-  const rows = entries.map((e) => ({ ...e, points: carnagePoints(e.place, e.takedowns), rank: 0 }));
+  const rows = entries.map((e) => ({ ...e, points: carnagePoints(e.place, e.takedowns, e.damage ?? 0), rank: 0 }));
   const sorted = [...rows].sort((a, b) => b.points - a.points || a.place - b.place);
   sorted.forEach((r, i) => (r.rank = i + 1));
   return rows;
 }
+
+/** Seconds without dealing any damage before a car is marked FEGIS, and how fast it then loses health (percent of its full health per second). */
+export const FEGIS_AFTER = 10;
+export const FEGIS_DRAIN = { carnage: 2.4, derby: 2.2 } as const;
+/** In a race with laps the clock only runs while a rival is this close (m): the leader far ahead of the pack has nobody to hit. */
+export const FEGIS_REACH = 45;

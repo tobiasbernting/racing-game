@@ -7,10 +7,10 @@ import { ACTS, BOSSES, BOSS_RENAMES, NODE_TYPES, findNode, actMap, type BossId, 
 import { cleanMeta, defaultMeta, type Meta } from './meta.ts';
 import { MEDALS } from './medals.ts';
 import { asDifficulty, isDifficulty, type Difficulty } from './difficulty.ts';
-import { emptyRunStats, maxHeartsOf, validPaint, type Acquired, type NodeLog, type RunEnd, type RunState, type Screen } from './state.ts';
+import { emptyRunStats, isRewardGrade, maxHeartsOf, validPaint, type RewardGrade, type Acquired, type NodeLog, type RunEnd, type RunState, type Screen } from './state.ts';
 import { MAX_STACK, isTrinket, type Owned } from './trinkets.ts';
 import { isRaceKind } from '../shared/kinds.ts';
-import { partOfChoice } from './economy.ts';
+import { partOfChoice, workshopStock } from './economy.ts';
 import { PART_LINE, isItemId, isUpgrade, nodeId as upNodeId, partsToNodes, takeNode, tierOf, upgradeById } from './upgrades.ts';
 import { eventById } from './events.ts';
 
@@ -75,10 +75,12 @@ function cleanScreen(raw: unknown, act: number, seed: number, ups: readonly stri
           goal: isObj(s.goal) && typeof s.goal.text === 'string' ? { text: s.goal.text.slice(0, 80), met: s.goal.met === true } : undefined,
           medal: s.medal === 'gold' || s.medal === 'silver' || s.medal === 'bronze' ? s.medal : null,
           reward: s.reward === true,
-          rewardKind: s.rewardKind === 'win' || s.rewardKind === 'second' || s.rewardKind === 'elite' || s.rewardKind === 'boss' ? s.rewardKind : s.reward === true ? 'win' : undefined,
+          rewardKind: isRewardGrade(s.rewardKind) ? s.rewardKind : s.rewardKind === 'second' ? 'plain' : s.reward === true ? 'win' : undefined,
           kind: isRaceKind(s.kind) ? s.kind : undefined,
           roadPlace: typeof s.roadPlace === 'number' ? num(s.roadPlace, 1, 9, 1) : undefined,
-          points: typeof s.points === 'number' ? num(s.points, 0, 999, 0) : undefined,
+          points: typeof s.points === 'number' ? num(s.points, 0, 9999, 0) : undefined,
+          dealt: typeof s.dealt === 'number' ? num(s.dealt, 0, 9999, 0) : undefined,
+          survival: typeof s.survival === 'number' ? num(s.survival, 1, 9, 1) : undefined,
           takedowns: typeof s.takedowns === 'number' ? num(s.takedowns, 0, 99, 0) : undefined,
           wrecked: typeof s.wrecked === 'number' ? num(s.wrecked, 0, 99, 0) : undefined,
         },
@@ -97,16 +99,21 @@ function cleanScreen(raw: unknown, act: number, seed: number, ups: readonly stri
         }
       }
       if (!choices.length && !offered.length) return null;
-      const source = raw.source === 'race' || raw.source === 'elite' || raw.source === 'boss' || raw.source === 'event' || raw.source === 'consolation' ? raw.source : 'race';
-      return { kind: 'reward', nodeId, choices, ups: offered, source };
+      // a reward saved before the grades had a source: the second-place consolation was all plain, a boss or elite pick stays what it was
+      const grade: RewardGrade = isRewardGrade(raw.grade) ? raw.grade : raw.source === 'boss' ? 'boss' : raw.source === 'elite' ? 'elite' : raw.source === 'consolation' ? 'plain' : 'win';
+      return { kind: 'reward', nodeId, choices, ups: offered, grade };
     }
     case 'shop': {
       const stock = Array.isArray(raw.stock) ? raw.stock.filter((x): x is Record<string, unknown> => isObj(x) && isTrinket(x.id)).map((x) => ({ id: x.id as string, sold: x.sold === true })) : [];
       if (!stock.length) return null;
       return { kind: 'shop', nodeId, stock, rerolls: num(raw.rerolls, 0, 99, 0), healed: raw.healed === true, repaired: raw.repaired === true };
     }
-    case 'workshop':
-      return { kind: 'workshop', nodeId, used: raw.used === true, note: typeof raw.note === 'string' ? raw.note.slice(0, 20) : '' };
+    case 'workshop': {
+      // a visit saved before the shelf existed gets one now (the same one every time: it is seeded by the run and the node)
+      let stock = upIds(raw.stock).slice(0, 3);
+      if (!stock.length) stock = workshopStock({ seed, act, up: [...ups], car: { body }, trinkets: [] } as unknown as RunState, nodeId);
+      return { kind: 'workshop', nodeId, used: raw.used === true, note: typeof raw.note === 'string' ? raw.note.slice(0, 20) : '', stock };
+    }
     case 'event': {
       if (typeof raw.eventId !== 'string' || !eventById(raw.eventId)) return null;
       const o = raw.outcome;
@@ -169,7 +176,7 @@ function cleanLog(raw: unknown): NodeLog[] {
       place: optNum(x.place, 1, 9),
       n: optNum(x.n, 1, 9),
       finished: typeof x.finished === 'boolean' ? x.finished : undefined,
-      points: optNum(x.points, 0, 999),
+      points: optNum(x.points, 0, 9999),
       time: optNum(x.time, 0, 99999999),
       lost: num(x.lost, 0, 9, 0),
       goalMet: typeof x.goalMet === 'boolean' ? x.goalMet : undefined,

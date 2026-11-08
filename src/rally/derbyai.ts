@@ -1,7 +1,8 @@
 // The computer drivers of the derby. There is no racing line in an arena: a driver either hunts (picks a car, drives at
-// where it is going and rams it) or roams (cruises round the floor and swerves away from anyone coming at it). Rammers
-// hunt almost all the time, racers mostly roam and dodge, the in-betweens do both. Everybody keeps off the tyre wall
-// and the island and backs out when stuck. Plain maths on the Car and Track, no Three.js, so a test can run a derby.
+// where it is going and rams it) or roams (cruises round the floor looking for the next one). Everybody fights: the
+// rammers hunt all the time, the racers and the in-betweens most of it, and they come in at a flank or the tail, not
+// nose to nose. Only a badly hurt driver steers away from a car coming at it. Everybody keeps off the tyre wall and
+// the island and backs out when stuck. Plain maths on the Car and Track, no Three.js, so a test can run a derby.
 import type { Car, Controls } from './car.ts';
 import type { Track } from './track.ts';
 import { clamp, wrapAngle } from './util.ts';
@@ -85,6 +86,10 @@ export class DerbyBrain {
   /** The car it was locked together with when it last got stuck: not its target for a few seconds. */
   private shun: Car | null = null;
   private shunT = 0;
+  /** FEGIS: nothing dealt for ten seconds, so it hunts without a pause. */
+  desperate = false;
+  /** Badly hurt: only then does it steer away from a car coming at it. */
+  hurt = false;
 
   constructor(
     public p: DerbyPersona,
@@ -100,7 +105,8 @@ export class DerbyBrain {
     this.target = null;
     // the first seconds everybody circles and looks: the charge into the middle is not the whole derby
     if (warmup) return;
-    if (this.rand() > 0.15 + this.p.aggro * 0.85) return;
+    // nobody cruises around: even a racer hunts most of the time, a car marked FEGIS all of it
+    if (!this.desperate && this.rand() > 0.6 + this.p.aggro * 0.4) return;
     let best = Infinity;
     for (const f of foes) {
       if (!f.alive || f.car === car || f.car.ghost > 0) continue;
@@ -186,6 +192,28 @@ export class DerbyBrain {
       const lead = clamp(dist / Math.max(10, v + 8), 0, 1.1) * 0.8;
       ax = tgt.x + tgt.vx * lead;
       az = tgt.z + tgt.vz * lead;
+      // come in at a flank or the tail (they take the bulk of a hit, the nose of the rammer takes little): aim at the
+      // corner of the target nearest to us until close, then straight in
+      if (dist > 9) {
+        const sx = Math.sin(tgt.heading);
+        const cz = Math.cos(tgt.heading);
+        let bx = 0;
+        let bz = 0;
+        let bd = Infinity;
+        for (const [fx, fz] of [[-sx, -cz], [cz, -sx], [-cz, sx]] as const) {
+          const px = ax + fx * 3.4;
+          const pz = az + fz * 3.4;
+          const dd = Math.hypot(px - car.x, pz - car.z);
+          if (dd < bd) {
+            bd = dd;
+            bx = px;
+            bz = pz;
+          }
+        }
+        const k = clamp((dist - 9) / 10, 0, 1);
+        ax += (bx - ax) * k;
+        az += (bz - az) * k;
+      }
       speed = dist > 24 ? 40 : Math.max(16, tgt.vLong + 14);
       // nose to nose and going nowhere: slide round to its flank instead of pushing straight on
       if (dist < 10 && car.speed < 4.5 && dist > 0.1) {
@@ -221,7 +249,7 @@ export class DerbyBrain {
         if (dist > 26 || dist < 0.1) continue;
         // closing on me?
         const closing = ((f.car.vx - car.vx) * -dx + (f.car.vz - car.vz) * -dz) / dist;
-        if (closing < 1) continue;
+        if (closing < 1 || !this.hurt) continue;
         const k = ((26 - dist) / 26) * 2.4;
         ax -= (dx / dist) * k * 14;
         az -= (dz / dist) * k * 14;
