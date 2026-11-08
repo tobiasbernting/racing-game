@@ -151,7 +151,7 @@ export function modCount(act: number, row: number, role: RivalRole, calm: boolea
 /** Part level (0..3, fractional) rivals have by now: roughly what a good player has bought, all of it from act 3 row 2. */
 export function partLevel(t: number, role: RivalRole, calm: boolean): number {
   // 3 is a full set; the last stretch of the run goes a notch past it (a tuned car, no more than the player's caps allow)
-  let lv = 4.7 * Math.pow(clamp((t - 0.03) / 0.8, 0, 1), 1.65);
+  let lv = 4.0 * Math.pow(clamp((t - 0.03) / 0.8, 0, 1), 1.65);
   if (role === 'elite') lv += 0.35;
   if (role === 'boss') lv += 0;
   if (calm) lv *= 0.35;

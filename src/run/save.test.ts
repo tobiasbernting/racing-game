@@ -52,7 +52,7 @@ describe('saving a run', () => {
 
   it('keeps a shop or a reward in progress', () => {
     let run = newRun({ seed: 5, calm: false, body: 'hatch', paint: '#e8412c' });
-    run.screen = { kind: 'reward', nodeId: 'a0r0c0', choices: ['gummianka', 'bananskal'], ups: ['race.grip1', 'ram.spikes1'], source: 'boss' };
+    run.screen = { kind: 'reward', nodeId: 'a0r0c0', choices: ['gummianka', 'bananskal'], ups: ['race.grip1', 'ram.spikes1'], grade: 'boss' };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
     run = { ...run, screen: { kind: 'shop', nodeId: 'a0r0c0', stock: [{ id: 'gummianka', sold: true }, { id: 'jattehjul', sold: false }], rerolls: 2, healed: true, repaired: false } };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
@@ -209,12 +209,17 @@ describe('a save from before phase 6', () => {
     run.screen = { kind: 'postrace', nodeId: id, summary: { place: 1, n: 4, finished: true, time: 90000, heartLost: false, hearts: 0, prize: 100, coins: 5, bonus: 0, total: 110, medal: null, reward: true, rewardKind: 'win', kind: 'carnage', points: 14, takedowns: 3, wrecked: 1, roadPlace: 3 } };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
     // an old part card becomes the next tier of the line the part turned into
-    run.screen = { kind: 'reward', nodeId: id, choices: ['gummianka', 'part:armour', 'bananskal'], source: 'race' };
-    expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual({ kind: 'reward', nodeId: id, choices: ['gummianka', 'bananskal'], ups: ['ram.plates1'], source: 'race' });
-    run.screen = { kind: 'reward', nodeId: id, choices: ['gummianka', 'bananskal'], ups: [], source: 'consolation' };
+    const legacy = (screen: Record<string, unknown>): unknown => parseRun({ ...JSON.parse(JSON.stringify(run)), screen: { kind: 'reward', nodeId: id, ...screen } })?.screen;
+    expect(legacy({ choices: ['gummianka', 'part:armour', 'bananskal'], source: 'race' })).toEqual({ kind: 'reward', nodeId: id, choices: ['gummianka', 'bananskal'], ups: ['ram.plates1'], grade: 'win' });
+    // a saved second-place consolation turns into a plain pick, a boss or elite pick stays what it was, a new reward keeps its grade
+    expect(legacy({ choices: ['gummianka', 'bananskal'], ups: [], source: 'consolation' })).toEqual({ kind: 'reward', nodeId: id, choices: ['gummianka', 'bananskal'], ups: [], grade: 'plain' });
+    expect(legacy({ choices: ['bananskal'], ups: [], source: 'boss' })).toMatchObject({ grade: 'boss' });
+    expect(legacy({ choices: ['bananskal'], ups: [], source: 'elite' })).toMatchObject({ grade: 'elite' });
+    run.screen = { kind: 'reward', nodeId: id, choices: ['gummianka', 'bananskal'], ups: ['ram.plates1'], grade: 'normal' };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
-    run.screen = { kind: 'reward', nodeId: id, choices: ['part:finnsinte', 'bananskal'], source: 'race' };
-    expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual({ kind: 'reward', nodeId: id, choices: ['bananskal'], ups: [], source: 'race' });
+    expect(legacy({ choices: ['part:finnsinte', 'bananskal'], source: 'race' })).toEqual({ kind: 'reward', nodeId: id, choices: ['bananskal'], ups: [], grade: 'win' });
+    // a postrace card saved with the old second-place kind reads as plain
+    expect(parseRun({ ...JSON.parse(JSON.stringify(run)), screen: { kind: 'postrace', nodeId: id, summary: { place: 2, n: 4, finished: true, time: 1, heartLost: false, prize: 1, coins: 0, bonus: 0, total: 1, medal: null, reward: true, rewardKind: 'second' } } })?.screen).toMatchObject({ summary: { rewardKind: 'plain' } });
   });
 });
 

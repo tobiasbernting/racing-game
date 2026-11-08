@@ -6,7 +6,7 @@ import { ACTS, allNodes, generateAct } from '../run/map.ts';
 import { planRace } from '../run/plan.ts';
 import { costsHeart, heartsLost, newRun } from '../run/state.ts';
 import { continueAfterRace, enterNode, submitRace } from '../run/flow.ts';
-import { upgradeChoices } from '../run/economy.ts';
+import { rewardOffer } from '../run/economy.ts';
 import { upgradeById } from '../run/upgrades.ts';
 import { cleanRules, defaultRules } from './rally.ts';
 import { asRallyResult, simulateRace } from '../run/racesim.ts';
@@ -221,7 +221,7 @@ describe('the run rules for a derby', () => {
     });
     const won = submitRace(run, res(1, 5, 2));
     expect(won.screen?.kind === 'postrace' && won.screen.summary.heartLost).toBe(false);
-    expect(won.screen?.kind === 'postrace' && won.screen.summary.rewardKind).toBe('win');
+    expect(won.screen?.kind === 'postrace' && won.screen.summary.rewardKind).toBe('elite');
     expect(won.screen?.kind === 'postrace' && won.screen.summary.derby?.arena).toBe(plan.arena);
     expect(won.log.at(-1)?.arena).toBe(plan.arena);
     expect(won.log.at(-1)?.title).toBe(ARENAS[plan.arena!].name);
@@ -230,8 +230,9 @@ describe('the run rules for a derby', () => {
     const last = submitRace(run, res(5));
     expect(last.screen?.kind === 'postrace' && last.screen.summary.heartLost).toBe(true);
     expect(last.hearts).toBe(run.hearts - 1);
-    // an elite pays even when it is lost
+    // every race pays a pick: the loser of a derby gets a plain one
     expect(last.screen?.kind === 'postrace' && last.screen.summary.reward).toBe(true);
+    expect(last.screen?.kind === 'postrace' && last.screen.summary.rewardKind).toBe('plain');
     const middle = submitRace(run, res(2));
     expect(middle.screen?.kind === 'postrace' && middle.screen.summary.heartLost).toBe(false);
   });
@@ -245,7 +246,7 @@ describe('the run rules for a derby', () => {
       let all = 0;
       for (let k = 0; k < 160; k++) {
         const r = { ...run, seed: 1000 + k };
-        for (const id of upgradeChoices(r, `n${k}`, 'elite', kind)) {
+        for (const id of rewardOffer(r, `n${k}`, 'elite', kind).ups) {
           all++;
           if (upgradeById(id)?.tree === 'ram') ram++;
         }

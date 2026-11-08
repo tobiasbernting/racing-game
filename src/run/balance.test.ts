@@ -15,6 +15,8 @@ import { planRace } from './plan.ts';
 import { actMap, allNodes, ACTS } from './map.ts';
 import { stackCap, trinketById, TRINKETS } from './trinkets.ts';
 import { UPGRADES, available, isUpgrade, partsToNodes, takeNode, upgradeById } from './upgrades.ts';
+import { rewardOffer } from './economy.ts';
+import type { RewardGrade } from './state.ts';
 import type { RaceKind } from '../shared/kinds.ts';
 
 const winRate = (p: Profile, calm: Difficulty | boolean, runs = 100): number => {
@@ -74,7 +76,7 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
     expect(average).toBeLessThan(0.2);
     // a good player wins about as often as not with any of the builds: Race, Ram or a mix (phase 12 brought Ram up to Race)
     for (const g of goods) {
-      expect(g).toBeGreaterThan(0.15);
+      expect(g).toBeGreaterThan(0.27);
       expect(g).toBeLessThan(0.65);
     }
     expect(Math.abs(goods[0]! - goods[1]!)).toBeLessThan(0.25);
@@ -109,10 +111,10 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
     console.log('hard: average', averageHard, 'good', goodHard, 'expert', expertHard, '| one: average', averageOne, 'good', goodOne, 'expert', expertOne, '| normal good', goodNormal);
     for (let i = 0; i < 3; i++) {
       // Hård sits clearly between Normal and Ett liv: a good player wins about 15 to 33 percent (a little more since everything is unlocked from the start), a strong one about 35 to 70 (the boss pool of phase 16 is a little easier to read than the old three)
-      expect(goodHard[i]!).toBeLessThan(goodNormal[i]! - 0.08);
-      expect(goodHard[i]!).toBeGreaterThan(0.05);
+      expect(goodHard[i]!).toBeLessThan(goodNormal[i]! - 0.1);
+      expect(goodHard[i]!).toBeGreaterThan(0.1);
       expect(goodHard[i]!).toBeLessThan(0.35);
-      expect(expertHard[i]!).toBeGreaterThan(0.25);
+      expect(expertHard[i]!).toBeGreaterThan(0.3);
       expect(expertHard[i]!).toBeLessThan(0.7);
       expect(goodHard[i]!).toBeGreaterThan(goodOne[i]! + 0.05);
       expect(averageHard[i]!).toBeLessThan(0.08);
@@ -228,9 +230,9 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
     const rate = (b: ReturnType<typeof byKind>, k: string): number => b.win[k]! / Math.max(1, b.n[k]!);
     console.log('ram: runs won', ram.run, 'rally', rate(ram, 'rally').toFixed(2), 'mixed', rate(ram, 'mixed').toFixed(2), 'blodbad', rate(ram, 'carnage').toFixed(2), '| race: runs won', race.run, 'rally', rate(race, 'rally').toFixed(2), 'mixed', rate(race, 'mixed').toFixed(2), 'blodbad', rate(race, 'carnage').toFixed(2));
     // both can win a run about as often as not, and neither is the only way to win one
-    expect(ram.run).toBeGreaterThan(0.3);
+    expect(ram.run).toBeGreaterThan(0.35);
     expect(ram.run).toBeLessThan(0.6);
-    expect(race.run).toBeGreaterThan(0.2);
+    expect(race.run).toBeGreaterThan(0.3);
     expect(race.run).toBeLessThan(0.6);
     // the ram build is at home in Blodbad, the race build in Rally
     // (Blodbad is the harder race for everybody, so the sign of the comparison is between the builds, not between the kinds)
@@ -389,7 +391,7 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
     expect(rate(carnage)).toBeGreaterThan(rate(rally));
   });
 
-  it('a win is a pick of three, second place a pick of two plain ones, and in Blodbad the hearts follow the rank on points', () => {
+  it('every race gives a pick of three, the placing sets the quality, and in Blodbad the hearts follow the rank on points', () => {
     const base = (): RunState => {
       const r = newRun({ seed: 3, calm: false, body: 'hatch', paint: '#e8412c' });
       r.act = 0;
@@ -403,21 +405,72 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
     const node = reachable(first).find((n) => n.type === 'race')!;
     const enter = (r: RunState) => enterNode(r, node.id);
     const plan = planRace(node, false);
-    const res = (place: number): ReturnType<typeof asRallyResult> => ({ ...asRallyResult(plan, { roadPlace: place, rank: place, n: 4, time: 90, points: 0, takedowns: 0, wrecks: 0, lapped: false, margin: 0, winners: [] }), place, n: 4 });
-    const won = submitRace(enter(first), res(1));
-    expect(won.screen?.kind === 'postrace' && won.screen.summary.rewardKind).toBe('win');
-    const afterWin = continueAfterRace(won);
-    expect(afterWin.screen?.kind === 'reward' && afterWin.screen.choices.length).toBeGreaterThanOrEqual(3);
+    const res = (place: number, finished = true): ReturnType<typeof asRallyResult> => ({ ...asRallyResult(plan, { roadPlace: place, rank: place, n: 4, time: 90, points: 0, takedowns: 0, wrecks: 0, lapped: false, margin: 0, winners: [] }, finished), place, n: 4, finished });
+    const kindOf = (p: number, finished = true): string | undefined => {
+      const r = submitRace(enter(base2()), res(p, finished));
+      return r.screen?.kind === 'postrace' ? r.screen.summary.rewardKind : undefined;
+    };
+    expect(kindOf(1)).toBe('win');
+    expect(kindOf(2)).toBe('normal');
+    expect(kindOf(3)).toBe('plain');
+    expect(kindOf(4)).toBe('plain');
+    expect(kindOf(4, false)).toBe('plain');
+    // every placing, even a DNF, gets the card: three of them, mixed
+    for (const [p, fin, grade] of [[1, true, 'win'], [2, true, 'normal'], [3, true, 'plain'], [4, false, 'plain']] as const) {
+      const after = continueAfterRace(submitRace(enter(base2()), res(p, fin)));
+      expect(after.screen?.kind, `${p}`).toBe('reward');
+      if (after.screen?.kind !== 'reward') continue;
+      expect(after.screen.grade).toBe(grade);
+      expect(after.screen.choices.length + (after.screen.ups?.length ?? 0)).toBe(3);
+      expect(after.screen.choices.length).toBeGreaterThanOrEqual(1);
+      expect(after.screen.ups?.length ?? 0).toBeGreaterThanOrEqual(1);
+    }
+    // no second-place consolation of two any more
     const second = continueAfterRace(submitRace(enter(base2()), res(2)));
-    expect(second.screen?.kind === 'reward' && second.screen.source).toBe('consolation');
-    expect(second.screen?.kind === 'reward' && second.screen.choices.length).toBe(2);
-    expect(second.screen?.kind === 'reward' && second.screen.choices.every((id) => trinketById(id)?.rarity === 'common')).toBe(true);
-    // third place and no goal: nothing to pick (unless a challenge goal was met)
-    const third = submitRace(enter(base2()), res(3));
-    expect(third.screen?.kind === 'postrace' && third.screen.summary.reward).toBe(false);
+    expect(second.screen?.kind === 'reward' && second.screen.choices.length + (second.screen.ups?.length ?? 0)).toBe(3);
     // hearts: the rank on points is what counts (4th on the road but 1st on points keeps the heart)
     expect(costsHeart(1, 4, true)).toBe(false);
     expect(costsHeart(4, 4, true)).toBe(true);
+  });
+
+  it('the placing sets the odds: a win has better rarity odds than mid-field, an elite or boss win the best, and the bottom half only gets plain talismans and first-step nodes', () => {
+    const run = newRun({ seed: 9, calm: false, body: 'hatch', paint: '#e8412c' });
+    const share = (grade: RewardGrade): { rare: number; legend: number; tier: number; n: number } => {
+      let all = 0;
+      let rare = 0;
+      let legend = 0;
+      let tier = 0;
+      let ups = 0;
+      for (let k = 0; k < 400; k++) {
+        const o = rewardOffer({ ...run, seed: 500 + k }, `n${k}`, grade, 'mixed');
+        for (const id of o.choices) {
+          all++;
+          const rar = trinketById(id)!.rarity;
+          if (rar === 'rare') rare++;
+          if (rar === 'legendary') legend++;
+        }
+        for (const id of o.ups) {
+          ups++;
+          const u = upgradeById(id)!;
+          tier += u.cap ? 4 : u.tier;
+        }
+      }
+      return { rare: rare / all, legend: legend / all, tier: tier / ups, n: all };
+    };
+    const plain = share('plain');
+    const normal = share('normal');
+    const win = share('win');
+    const elite = share('elite');
+    const boss = share('boss');
+    console.log('offer odds: plain', JSON.stringify(plain), 'normal', JSON.stringify(normal), 'win', JSON.stringify(win), 'elite', JSON.stringify(elite), 'boss', JSON.stringify(boss));
+    expect(plain.rare + plain.legend).toBe(0);
+    expect(plain.tier).toBe(1);
+    expect(normal.rare + normal.legend).toBeGreaterThan(0.2);
+    expect(win.rare + win.legend).toBeGreaterThan(normal.rare + normal.legend + 0.1);
+    expect(win.legend).toBeGreaterThan(normal.legend);
+    expect(elite.rare + elite.legend).toBeGreaterThan(win.rare + win.legend);
+    expect(boss.legend).toBeGreaterThan(elite.legend);
+    expect(boss.rare + boss.legend).toBeGreaterThan(0.8);
   });
 
   it('normal mode: the bottom half costs a heart, a DNF two, losing a boss two; calm keeps the lenient rules', () => {

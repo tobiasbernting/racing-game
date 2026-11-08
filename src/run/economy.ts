@@ -3,7 +3,7 @@
 import { CAR_PARTS, type CarPart } from '../shared/rally.ts';
 import { kitOf, type Lean } from '../shared/abilities.ts';
 import { Rng } from './rng.ts';
-import { addKronor, addTrinket, addUp, healHeart, type RunState, type Screen, type ShopItem } from './state.ts';
+import { addKronor, addTrinket, addUp, healHeart, type RewardGrade, type RunState, type Screen, type ShopItem } from './state.ts';
 import { RARITIES, TRINKETS, TRINKET_PRICE, stackCap, trinketById, type Rarity } from './trinkets.ts';
 import { NODE_RISE, available, basePrice, canTake, lineById, runPerks, treeCount, upgradeById, type TreeId, type UpgradeDef } from './upgrades.ts';
 import { KIND_PATH, type RaceKind } from '../shared/kinds.ts';
@@ -12,14 +12,29 @@ import { DIFFS } from './difficulty.ts';
 type ShopScreen = Extract<Screen, { kind: 'shop' }>;
 
 /** How likely each rarity is, by where the trinket comes from (act 0..2 shifts a little towards rare). */
-const ODDS: Record<'shop' | 'race' | 'elite' | 'boss' | 'event' | 'consolation', Record<Rarity, number>> = {
-  consolation: { common: 100, rare: 0, legendary: 0 },
+const ODDS: Record<'shop' | 'plain' | 'race' | 'win' | 'elite' | 'boss' | 'event', Record<Rarity, number>> = {
+  plain: { common: 100, rare: 0, legendary: 0 },
   shop: { common: 62, rare: 31, legendary: 7 },
   race: { common: 70, rare: 27, legendary: 3 },
-  elite: { common: 40, rare: 45, legendary: 15 },
-  boss: { common: 15, rare: 55, legendary: 30 },
+  win: { common: 45, rare: 42, legendary: 13 },
+  elite: { common: 32, rare: 47, legendary: 21 },
+  boss: { common: 12, rare: 52, legendary: 36 },
   event: { common: 55, rare: 35, legendary: 10 },
 };
+/** The odds table of each reward grade (`race` is the ordinary one). */
+export const GRADE_ODDS: Record<RewardGrade, keyof typeof ODDS> = { plain: 'plain', normal: 'race', win: 'win', elite: 'elite', boss: 'boss' };
+
+/**
+ * How good the three cards after a race are, from where the player ended up: a win is better (and a win in a dödslopp or
+ * against a boss the best), the top half is ordinary, the bottom half and a DNF still get a pick but only plain things.
+ * A met challenge goal counts as a win. `place` is the rank (in Blodbad and the derby the rank on points).
+ */
+export function rewardGrade(r: { place: number; n: number; finished: boolean; nodeType: 'race' | 'challenge' | 'elite' | 'boss' | string; goalMet?: boolean }): RewardGrade {
+  const won = r.finished && r.place === 1 && r.n > 1;
+  if (won || r.goalMet) return r.nodeType === 'boss' ? 'boss' : r.nodeType === 'elite' ? 'elite' : 'win';
+  if (!r.finished) return 'plain';
+  return r.place <= Math.ceil(r.n / 2) ? 'normal' : 'plain';
+}
 
 /** Up to `n` different talismans from the whole pool (everything is open from the start), by rarity odds. Nothing but the seed and the run decides it. */
 export function drawTrinkets(run: RunState, rg: Rng, n: number, source: keyof typeof ODDS, lean?: 'ram' | 'race' | null): string[] {
@@ -38,14 +53,6 @@ export function drawTrinkets(run: RunState, rg: Rng, n: number, source: keyof ty
     out.push(lean ? rg.weighted(cands, (t) => (t.path === lean ? 2.4 : 1)).id : rg.pick(cands).id);
   }
   return out;
-}
-
-/** The trinkets offered after a race: three (more with perks), or two plain ones as a consolation. The upgrade cards come with `upgradeChoices`. */
-export function rewardChoices(run: RunState, nodeId: string, source: 'race' | 'elite' | 'boss' | 'event' | 'consolation', kind?: RaceKind): string[] {
-  const rg = Rng.for(run.seed, nodeId, 'reward', source);
-  const lean = kind ? KIND_PATH[kind] : null;
-  if (source === 'consolation') return drawTrinkets(run, rg, 2, 'consolation', lean);
-  return drawTrinkets(run, rg, 3 + runPerks(run.trinkets, run.up).choices, source, lean);
 }
 
 /** An offered id from the old part upgrades (only old saves have them). */
@@ -75,14 +82,26 @@ export function nodeWeight(run: RunState, u: UpgradeDef, source: keyof typeof OD
     // a tree you already walk comes up more often, so a build grows a shape
     deepen = 1 + 0.3 * Math.min(treeCount(run.up, u.tree), 5);
   }
-  const tierK = source === 'boss' ? (u.cap ? 2.2 : 1 + 0.25 * (u.tier - 1)) : source === 'elite' ? 1 + 0.15 * (u.tier - 1) : 1;
+  const tierK = source === 'boss' ? (u.cap ? 2.2 : 1 + 0.25 * (u.tier - 1)) : source === 'elite' ? (u.cap ? 1.8 : 1 + 0.25 * (u.tier - 1)) : source === 'win' ? (u.cap ? 1.4 : 1 + 0.12 * (u.tier - 1)) : 1;
   return line.weight * tree * deepen * tierK;
 }
 
-/** Up to `n` different open upgrades, by weight, from at least two trees when there are any to choose from. */
+/**
+ * Up to `n` different open upgrades, by weight, from at least two trees when there are any to choose from. `plain` keeps to the
+ * first steps of the lines (tier I, no capstones), widening to tier II and then to anything only when nothing else is open.
+ */
 export function drawUpgrades(run: RunState, rg: Rng, n: number, source: keyof typeof ODDS, kind?: RaceKind): string[] {
   const w = (u: UpgradeDef): number => nodeWeight(run, u, source, kind);
   let pool = available(run.up, run.car.body);
+  if (source === 'plain') {
+    for (const maxTier of [1, 2]) {
+      const cheap = pool.filter((u) => u.tier <= maxTier && !u.cap);
+      if (cheap.length >= n) {
+        pool = cheap;
+        break;
+      }
+    }
+  }
   const out: UpgradeDef[] = [];
   while (out.length < n && pool.length) {
     const pick = rg.weighted(pool, w);
@@ -96,11 +115,29 @@ export function drawUpgrades(run: RunState, rg: Rng, n: number, source: keyof ty
   return out.map((o) => o.id);
 }
 
-/** The upgrade cards after a win, an elite or a boss: three (more with perks), none for the consolation prize. */
-export function upgradeChoices(run: RunState, nodeId: string, source: 'race' | 'elite' | 'boss' | 'event' | 'consolation', kind?: RaceKind): string[] {
-  if (source === 'consolation') return [];
-  const rg = Rng.for(run.seed, nodeId, 'ups', source);
-  return drawUpgrades(run, rg, 3 + runPerks(run.trinkets, run.up).choices, source, kind);
+/** The three cards after a race (more with the perks that add a card): talismans and upgrade nodes together. */
+export interface RewardOffer {
+  choices: string[];
+  ups: string[];
+}
+
+/**
+ * What a player may take after a race: exactly three cards (plus any a perk adds), a seeded mix of talismans and upgrade nodes
+ * with at least one of each when both are on offer. The grade sets the quality (see `rewardGrade`): the rarity odds of the talismans
+ * and the tiers of the nodes. The kind of race leans the picks: Blodbad towards Ram and Fuffens, Rally towards Race and Stunt.
+ */
+export function rewardOffer(run: RunState, nodeId: string, grade: RewardGrade, kind?: RaceKind): RewardOffer {
+  const rg = Rng.for(run.seed, nodeId, 'offer', grade);
+  const source = GRADE_ODDS[grade];
+  const lean = kind ? KIND_PATH[kind] : null;
+  const total = 3 + runPerks(run.trinkets, run.up).choices;
+  // one or two of the three are talismans, the rest nodes
+  const wantT = rg.int(1, total - 1);
+  let ups = drawUpgrades(run, rg, total - wantT, source, kind);
+  let choices = drawTrinkets(run, rg, total - ups.length, source, lean);
+  // a pool that ran dry hands its place to the other kind
+  if (choices.length + ups.length < total) ups = drawUpgrades(run, rg, total - choices.length, source, kind);
+  return { choices, ups };
 }
 
 /** What a node costs in the workshop now: the base price, the act's markup, 7 % for every node already in the build, and the discounts. */

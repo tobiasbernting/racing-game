@@ -105,7 +105,7 @@ describe('kronor', () => {
     expect(r.kronor).toBeGreaterThan(base);
   });
 
-  it('a met challenge pays extra and gives a trinket pick, a missed one does not', () => {
+  it('a met challenge pays extra and counts as a win for the pick, a missed one gets the placing\'s own pick', () => {
     let ch: MapNode | null = null;
     let run = fresh();
     for (let seed = 1; seed < 200 && !ch; seed++) {
@@ -123,7 +123,10 @@ describe('kronor', () => {
     const lost = submitRace(run, result({ place: 4, kronor: 100 }));
     const lostCard = lost.screen?.kind === 'postrace' ? lost.screen.summary : null;
     expect(lostCard?.goal?.met).toBe(false);
-    expect(lostCard?.reward).toBe(false);
+    // every race gives a pick now: the missed goal in the bottom half is a plain one
+    expect(lostCard?.reward).toBe(true);
+    expect(lostCard?.rewardKind).toBe('plain');
+    expect(wonCard?.rewardKind).toBe('win');
     expect(won.kronor).toBeGreaterThan(lost.kronor);
   });
 });
@@ -207,7 +210,7 @@ describe('a whole run', () => {
 describe('trinkets from rewards', () => {
   it('picking adds it, picking it again stacks it, skipping gives a few kronor', () => {
     const run = fresh();
-    run.screen = { kind: 'reward', nodeId: mapOf(run).rows[0]![0]!.id, choices: ['gummianka', 'jattehjul', 'bananskal'], source: 'elite' };
+    run.screen = { kind: 'reward', nodeId: mapOf(run).rows[0]![0]!.id, choices: ['gummianka', 'jattehjul', 'bananskal'], grade: 'elite' };
     const a = pickReward(run, 0);
     expect(ownedN(a, 'gummianka')).toBe(1);
     const again = { ...a, screen: run.screen, at: null };
@@ -219,7 +222,7 @@ describe('trinkets from rewards', () => {
 
   it('the gingerbread heart adds a heart to the maximum and the purse', () => {
     const run = fresh();
-    run.screen = { kind: 'reward', nodeId: mapOf(run).rows[0]![0]!.id, choices: ['pepparkaka'], source: 'boss' };
+    run.screen = { kind: 'reward', nodeId: mapOf(run).rows[0]![0]!.id, choices: ['pepparkaka'], grade: 'boss' };
     const r = pickReward(run, 0);
     expect(r.maxHearts).toBe(START_HEARTS + 1);
     expect(r.hearts).toBe(START_HEARTS + 1);

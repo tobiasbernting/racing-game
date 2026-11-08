@@ -7,7 +7,7 @@ import { ACTS, BOSSES, BOSS_RENAMES, NODE_TYPES, findNode, actMap, type BossId, 
 import { cleanMeta, defaultMeta, type Meta } from './meta.ts';
 import { MEDALS } from './medals.ts';
 import { asDifficulty, isDifficulty, type Difficulty } from './difficulty.ts';
-import { emptyRunStats, maxHeartsOf, validPaint, type Acquired, type NodeLog, type RunEnd, type RunState, type Screen } from './state.ts';
+import { emptyRunStats, isRewardGrade, maxHeartsOf, validPaint, type RewardGrade, type Acquired, type NodeLog, type RunEnd, type RunState, type Screen } from './state.ts';
 import { MAX_STACK, isTrinket, type Owned } from './trinkets.ts';
 import { isRaceKind } from '../shared/kinds.ts';
 import { partOfChoice, workshopStock } from './economy.ts';
@@ -75,7 +75,7 @@ function cleanScreen(raw: unknown, act: number, seed: number, ups: readonly stri
           goal: isObj(s.goal) && typeof s.goal.text === 'string' ? { text: s.goal.text.slice(0, 80), met: s.goal.met === true } : undefined,
           medal: s.medal === 'gold' || s.medal === 'silver' || s.medal === 'bronze' ? s.medal : null,
           reward: s.reward === true,
-          rewardKind: s.rewardKind === 'win' || s.rewardKind === 'second' || s.rewardKind === 'elite' || s.rewardKind === 'boss' ? s.rewardKind : s.reward === true ? 'win' : undefined,
+          rewardKind: isRewardGrade(s.rewardKind) ? s.rewardKind : s.rewardKind === 'second' ? 'plain' : s.reward === true ? 'win' : undefined,
           kind: isRaceKind(s.kind) ? s.kind : undefined,
           roadPlace: typeof s.roadPlace === 'number' ? num(s.roadPlace, 1, 9, 1) : undefined,
           points: typeof s.points === 'number' ? num(s.points, 0, 9999, 0) : undefined,
@@ -99,8 +99,9 @@ function cleanScreen(raw: unknown, act: number, seed: number, ups: readonly stri
         }
       }
       if (!choices.length && !offered.length) return null;
-      const source = raw.source === 'race' || raw.source === 'elite' || raw.source === 'boss' || raw.source === 'event' || raw.source === 'consolation' ? raw.source : 'race';
-      return { kind: 'reward', nodeId, choices, ups: offered, source };
+      // a reward saved before the grades had a source: the second-place consolation was all plain, a boss or elite pick stays what it was
+      const grade: RewardGrade = isRewardGrade(raw.grade) ? raw.grade : raw.source === 'boss' ? 'boss' : raw.source === 'elite' ? 'elite' : raw.source === 'consolation' ? 'plain' : 'win';
+      return { kind: 'reward', nodeId, choices, ups: offered, grade };
     }
     case 'shop': {
       const stock = Array.isArray(raw.stock) ? raw.stock.filter((x): x is Record<string, unknown> => isObj(x) && isTrinket(x.id)).map((x) => ({ id: x.id as string, sold: x.sold === true })) : [];

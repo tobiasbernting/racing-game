@@ -147,6 +147,8 @@ const RIVAL_SURV = 0.8;
 const RIVAL_OFF = 0.85;
 /** How many of the hits a driver goes for actually land. */
 const AIM = { poor: 0.55, average: 0.8, good: 1, expert: 1.15 } as const;
+/** How often a driver of each kind is wrecked, relative to an average one (a good driver sees the hit coming, the flank is what the rivals aim for). */
+const WRECKED = { poor: 1.3, average: 1, good: 0.8, expert: 0.65 } as const;
 const DODGE = { poor: 0.8, average: 1, good: 1.25, expert: 1.5 } as const;
 
 /**
@@ -278,7 +280,7 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
       dealt[`ai${sp.slot}`] = take[`ai${sp.slot}`]! * 40 + poisson(rg, 2 + 4 * fight) * 5 * Math.sqrt(sp.ram);
     }
     const hunt = field.rivals.reduce((a, sp) => a + Math.max(0.3, sp.aggro) * sp.ram, 0);
-    myWrecks = poisson(rg, (0.25 + 0.3 * hunt * (stats.tough / Math.pow(stats.hp, 0.6))) / (0.7 + 0.3 * stats.mass));
+    myWrecks = poisson(rg, ((0.15 + 0.2 * hunt * (stats.tough / Math.pow(stats.hp, 0.6))) / (0.7 + 0.3 * stats.mass)) * WRECKED[m.skill]);
     // FEGIS: a quiet driver loses health to the clock as well as to the rivals
     if (m.aggression < 0.25) myWrecks += poisson(rg, 1.4 * (0.25 - m.aggression) / 0.25);
     for (let k = 0; k < myWrecks && field.rivals.length; k++) {

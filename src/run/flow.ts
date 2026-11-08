@@ -3,7 +3,7 @@
 // save after every step and tests can walk a whole run.
 import type { RallyResult } from '../rally/options.ts';
 import { ACTS, NODE_NAMES, type MapNode } from './map.ts';
-import { drawTrinkets, makeStock, rewardChoices, upgradeChoices, workshopStock } from './economy.ts';
+import { drawTrinkets, makeStock, rewardGrade, rewardOffer, workshopStock } from './economy.ts';
 import { eventById, pickEventId, resolveChoice } from './events.ts';
 import { BOSS_DEFS, goalMet, planRace, type RacePlan } from './plan.ts';
 import { addRaceStats } from './stats.ts';
@@ -11,7 +11,7 @@ import { RALLY_COURSE_NAMES } from '../shared/names.ts';
 import { ARENAS } from '../shared/derby.ts';
 import { Rng } from './rng.ts';
 import { DIFFS } from './difficulty.ts';
-import { actScale, addKronor, addTrinket, addUp, ownedN, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, scrapHearts, type NodeLog, type RaceSummary, type RunState } from './state.ts';
+import { type RewardGrade, actScale, addKronor, addTrinket, addUp, ownedN, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, scrapHearts, type NodeLog, type RaceSummary, type RunState } from './state.ts';
 import { available, interestOn, isUpgrade, runPerks } from './upgrades.ts';
 
 /** Trophies and the end screen come from here when status is not 'running'. */
@@ -85,19 +85,13 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
   if (res.finished && (st.bestPlace === 0 || res.place < st.bestPlace)) st.bestPlace = res.place;
   const tdBefore = st.takedowns;
   addRaceStats(st, res);
-  // the reward: every win (in Blodbad: most points) is a pick of three, second place a smaller pick of two, an
-  // elite or a boss always pays, and a challenge pays when its goal is met
+  // the reward: after EVERY race a pick of three (talismans and upgrade nodes mixed), the quality set by where you ended up:
+  // a win (in Blodbad and the derby: the rank on points) is better, the top half ordinary, the bottom half and a DNF plain
   let reward = false;
   let rewardKind: RaceSummary['rewardKind'];
   if (r.status === 'running') {
-    const won = res.finished && res.place === 1 && res.n > 1;
-    const second = res.finished && res.place === 2 && res.n > 2;
-    if (won) rewardKind = 'win';
-    else if (node.type === 'boss') rewardKind = 'boss';
-    else if (node.type === 'elite') rewardKind = 'elite';
-    else if (node.type === 'challenge' && met === true) rewardKind = 'win';
-    else if (second) rewardKind = 'second';
-    reward = !!rewardKind;
+    rewardKind = rewardGrade({ place: res.place, n: res.n, finished: res.finished, nodeType: node.type, goalMet: met === true });
+    reward = true;
   }
   // Skrotpant: the wrecks of a rammer buy hearts back (not on the run's last breath)
   let scrapBack = 0;
@@ -158,16 +152,17 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
 }
 
 /** Where a reward came from, as the build section tells it ("Vann Sura Bengt"). */
-function rewardFrom(r: RunState, nodeId: string, source: 'race' | 'elite' | 'boss' | 'event' | 'consolation'): string {
+function rewardFrom(r: RunState, nodeId: string, grade: RewardGrade): string {
   const node = nodeOf(r, nodeId);
   const course = node?.course ? RALLY_COURSE_NAMES[node.course] : 'banan';
-  if (source === 'boss') return `Vann ${node?.boss ? BOSS_DEFS[node.boss].name : 'bossen'}`;
-  if (source === 'elite') return `Dödslopp: ${course}`;
-  if (source === 'consolation') return `Tvåa på ${course}`;
+  if (grade === 'boss') return `Vann ${node?.boss ? BOSS_DEFS[node.boss].name : 'bossen'}`;
+  if (grade === 'elite') return `Vann dödsloppet: ${course}`;
+  if (grade === 'plain') return `Skräp efter ${course}`;
+  if (grade === 'normal') return `Byte efter ${course}`;
   return node?.type === 'challenge' ? `Utmaning: ${course}` : `Vann på ${course}`;
 }
 
-/** After the race card: the trinket pick if there is one, otherwise on with the map. */
+/** After the race card: the pick of three (every race gives one), otherwise on with the map. */
 export function continueAfterRace(run: RunState): RunState {
   if (run.screen?.kind !== 'postrace') return run;
   if (run.status !== 'running') return run;
@@ -175,22 +170,21 @@ export function continueAfterRace(run: RunState): RunState {
   if (!summary.reward) return finishNode(run);
   const r = copyRun(run);
   const node = nodeOf(r, nodeId)!;
-  const source = summary.rewardKind === 'second' ? 'consolation' : node.type === 'boss' ? 'boss' : node.type === 'elite' ? 'elite' : 'race';
-  const choices = rewardChoices(r, nodeId, source, node.kind);
-  const ups = upgradeChoices(r, nodeId, source, node.kind);
-  // nothing left to offer (every trinket maxed and the trees full): a little kronor instead
+  const grade: RewardGrade = summary.rewardKind ?? 'win';
+  const { choices, ups } = rewardOffer(r, nodeId, grade, node.kind);
+  // nothing left to offer (every talisman maxed and the trees full): a little kronor instead
   if (!choices.length && !ups.length) { addKronor(r, 40); return finishNode(r); }
-  r.screen = { kind: 'reward', nodeId, choices, ups, source };
+  r.screen = { kind: 'reward', nodeId, choices, ups, grade };
   return r;
 }
 
-/** Takes one of the offered cards: an index into the trinkets and then the upgrades, or none (-1: a few kronor instead). */
+/** Takes one of the offered cards: an index into the talismans and then the upgrades, or none (-1: a few kronor instead). */
 export function pickReward(run: RunState, index: number): RunState {
   if (run.screen?.kind !== 'reward') return run;
   const r = copyRun(run);
   const scr = run.screen;
   const id = [...scr.choices, ...(scr.ups ?? [])][index];
-  const from = rewardFrom(r, scr.nodeId, scr.source);
+  const from = rewardFrom(r, scr.nodeId, scr.grade);
   if (id && isUpgrade(id)) addUp(r, id, { from, node: scr.nodeId });
   else if (id) addTrinket(r, id, { from, node: scr.nodeId });
   else addKronor(r, 30);

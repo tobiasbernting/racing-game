@@ -98,9 +98,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 - **Tak mot skenande staplar** (`capTune` i `src/rally/mods.ts`, `maxStack` på talismanerna): kraft, grepp, nitrolängd och antal, sladdturbo,
   knuff, tålighet, mynt, kronor och bilens totala kraft och grepp har mjuka tak (linjärt till ett knä, sedan mot ett max). Nitro
   räcker högst 12 sekunder per lopp. Talismaner som skenar (Pruttboost, Chilikorven, Dino-Dieseln …) slutar ge mer efter 2-3 exemplar.
-- **Byte efter varje vinst**: vinner du (i Blodbad: mest poäng) väljer du 1 av 6: tre talismaner eller tre uppgraderingskort (se "Bilen som växer" nedan), lutat mot sorten
-  (efter Blodbad fler rammar-talismaner, efter Rally fler fart-talismaner). Tvåan får ett tröstpris: 1 av 2 skräp-talismaner. Dödslopp och bossar ger
-  fortfarande alltid ett val, med bättre odds.
+- **Byte efter varje lopp** (fas 17, se längst ner): efter VARJE lopp i varje akt får du välja 1 av 3 kort, en slumpad (seedad) blandning av talismaner och uppgraderingar, och placeringen avgör kvaliteten. Ingen flikväljare och inget tröstpris för tvåan längre.
 - **Humor**: kaos, inte toalett. Högst tre talismaner handlar om prutt och bajs (Pruttboost är sällsynt, Bajsraketen legendarisk); bara de pruttar och lämnar det gröna molnet. Resten har egna effekter (konfetti, gnistor, glitter, studsar). Nya slumpade talismaner: Platsbytar-Pelle, Kon från ovan, Slumpväxeln och Tombolan. Inga svordomar: `src/language.test.ts` skannar alla texter.
 - **Talismanernas vägar** (`path` på alla 52): `ram`, `race`, `fuffens`, `stunt`, `girig`, `kaos`. Fas 9 bygger på dem.
 - **Balanssimuleringen** (`src/run/balance.test.ts`, `src/run/racesim.ts`, `src/shared/pace.ts`) räknar med varvtider i stället för tärningar:
@@ -321,7 +319,7 @@ vilka noder, talismaner och förmågor du har bestämmer hur rundan känns. Allt
 effekt efter användning (`plus`: olja, höbalar, stötvåg, boost, rök, kronor, nitro, lockbil, lagning, mina). Traktorns Rammbock blir 50 % längre och släpper sedan också höbalar, moppens Väj! blir längre och lämnar en lockbil som bilarna bakom saktar in för, golfbilens Hole in one laddar fortare och slår en stötvåg där bollen landar.
 De visas bara för den som kör det fordonet.
 
-**Hur man får dem.** Efter en vinst (och efter dödslopp och bossar) visar belöningsskärmen två flikar: 🛠️ Uppgraderingar (tre kort) och 🎁 Talismaner (tre kort); du tar EN av sex. Tvåan får fortfarande bara ett tröstpris med två skräp-talismaner. Korten dras ur de öppna noderna (`drawUpgrades`
+**Hur man får dem.** Efter varje lopp visar belöningsskärmen tre kort, en blandning av 🛠️ uppgraderingar och 🎁 talismaner (fas 17, inga flikar); du tar ETT. Korten ger bättre eller sämre kvalitet efter placeringen. Korten dras ur de öppna noderna (`drawUpgrades`
 i `economy.ts`) och lutas av sorten (`KIND_TREE_BIAS`): Blodbad ger Ram (×2,6) och Fuffens (×1,9), Rally ger Race (×2,6) och Stunt (×1,9), Blandat är öppet. Fordonets lutning (Ram/Race) ger en liten extra knuff, ett träd man redan går i kommer upp oftare (så ett bygge får en form), tre kort
 från minst två träd, bossar bjuder oftare på toppar och högre nivåer. Ett kort som väcker en kombo har en stjärna. I **Skruvhörnan** ligger sedan fas 17 bara 2-3 slumpade noder på hyllan: en nivå I eller II är gratis, resten kostar kronor (`upgradePrice`, se tabellen i Fas 17: pengarna). Händelser som "tunar bilen" ger en slumpad nod.
 
@@ -548,3 +546,24 @@ Kartan görs som förut (samma rader, samma vägar, samma frö) och typerna rät
 fortfarande har en kiosk, en Skruvhörna, ett dödslopp och en händelse någonstans (en plats byter typ och en annan blir lopp för att ge plats). Med eget seedat slumptal (`Rng.for(seed, 'mapfix', act)`), så resten av kartan är orörd.
 Per akt blir det i snitt 7,5 lopp, 2,4 utmaningar, 1,4 dödslopp, 1,6 kiosker, 1,5 Skruvhörnor och 1,9 händelser; en väg har i snitt 1,5 platser som inte är lopp. Testet (`map.test.ts`) går igenom 1500 frön × 3 akter.
 Pågående rundor: kartan räknas om från fröet, så platsernas typer kan ha ändrats i en runda som sparades före ändringen (rader, vägar och id:n är desamma).
+
+## Fas 17: byte efter varje lopp, tre kort
+
+Efter **varje** lopp (inte bara vinster) visar belöningsskärmen exakt **tre kort** (`rewardOffer` i `src/run/economy.ts`): en seedad blandning av 🎁 **Talisman** och uppgraderingar. En eller två av tre är talismaner, resten noder, så det är alltid en blandning om båda finns att dra. Spelaren tar ett. Perks som "ett kort till" (Kapitalisten) lägger fortfarande till ett kort ovanpå de tre.
+Talismankorten har en lila "🎁 Talisman"-flik och sin raritetsfärg; uppgraderingskorten har en flik med trädets ikon och namn ("🛡️ Uppgradering"), trädets färg på kanten och "Nivå I av III" i foten. På mobil i stående är det tre kort under varandra, i liggande tre bredvid varandra.
+Fliken Uppgraderingar/Talismaner och tröstpriset för tvåan är borta.
+
+**Placeringen sätter kvaliteten** (`rewardGrade`; placeringen är rangen på poäng i Blodbad och derby, ett uppfyllt utmaningsmål räknas som vinst):
+
+| Placering | Grad | Talismanernas odds (Skräp / Grym / Legendarisk) | Uppgraderingsnoder |
+|---|---|---|---|
+| Nedre halvan eller bruten | plain | 100 / 0 / 0 (bara Skräp) | bara nivå I, inga toppar |
+| Övre halvan, men inte etta | normal | 70 / 27 / 3 | alla nivåer lika sannolika |
+| Vinst | win | 45 / 42 / 13 | högre nivåer något oftare (+12 % per nivå, topp ×1,4) |
+| Vinst i dödslopp | elite | 32 / 47 / 21 | +25 % per nivå, topp ×1,8 |
+| Vinst mot en boss | boss | 12 / 52 / 36 | +25 % per nivå, topp ×2,2 |
+
+Sortens lutning är kvar: efter Blodbad kommer fler Ram- och Fuffens-kort, efter Rally fler Race- och Stunt-kort (både bland talismaner och noder). Kortet efter loppet säger vad placeringen gav ("🏆 Vinst! Välj ditt byte: tre kort med bättre odds ...", "🧰 Nedre halvan eller bruten: du får välja ett byte, men bara bland Skräp och första stegen") och knappen heter **Välj ditt byte 🎁**.
+`Screen.reward` har nu `grade` i stället för `source`; en gammal sparad belöning läses om (tröstpriset blir plain, boss och dödslopp behåller sin grad) och `RaceSummary.rewardKind` 'second' blir 'plain'.
+
+**Balans** (`balance.test.ts`, `racesim.ts`, `field.ts`): kartan har fler lopp per runda och byten kommer efter varje, så rivalernas delnivå (`partLevel`) går från 4,7 till 4,0 i slutet: de följer det en bra spelare numera köper. Boten (`bot.ts`) spenderar i Skruvhörnan (gratisvalet först, sedan det kassan räcker till) och kör Race med aggressionen 0,75, Blandat 0,55, Ram 1. Simuleringen låter en dålig förare träffa färre av de träffar den går efter och en bra förare bli vrakad mer sällan.

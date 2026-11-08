@@ -18,14 +18,14 @@ import { MEDALS, earned, medalCount, progressText } from '../run/medals.ts';
 import { parseSeedCode, seedLabelOf } from '../run/seedcode.ts';
 import { LEANS, LEAN_EMOJI, LEAN_NAMES, LEAN_TEXT, kitOf, type Lean } from '../shared/abilities.ts';
 import { healPrice, repairPrice, rerollPrice, trinketPrice, upgradePrice, workshopFree } from '../run/economy.ts';
-import { NODE_RISE } from '../run/upgrades.ts';
+import { NODE_RISE, upgradeById } from '../run/upgrades.ts';
 import { EVENTS, choiceAllowed, eventById } from '../run/events.ts';
 import { currentNode, currentPlan } from '../run/flow.ts';
 import { DIFFICULTIES, DIFFS, diffOf, heartRuleText, type Difficulty } from '../run/difficulty.ts';
-import { mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
+import { mapOf, reachable, type RewardGrade, type RunState, type Screen } from '../run/state.ts';
 import { TRINKETS, trinketById } from '../run/trinkets.ts';
 import { btn, el, plural } from './dom.ts';
-import { upgradeCard } from './upgrades.ts';
+import { treeLabel, upgradeCard } from './upgrades.ts';
 import { ACT_NAMES, arrowSvg, chip, seedChip, statusBar, trinketCard, trinketIcons } from './parts.ts';
 import { countUp } from './juice.ts';
 import type { Settings } from '../settings.ts';
@@ -630,48 +630,57 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
   if (s.scrapHearts) lines.push(el('div', 'rg-heartline', '🔩 Skrotpant: ❤️ tillbaka för vraken', el('small', null, ` (${DIFFS[run.diff].scrapEvery} vrak = ett hjärta)`)));
   else if ((s.takedowns ?? 0) > 0 && s.scrapCount !== undefined && DIFFS[run.diff].scrapEvery > 0) lines.push(el('div', 'rg-scrap', `🔩 Skrotpant: ${s.scrapCount} av ${DIFFS[run.diff].scrapEvery} vrak till nästa ❤️`));
   if (s.goal) lines.push(el('div', `rg-goal ${s.goal.met ? 'ok' : 'miss'}`, s.goal.met ? '✅ Utmaning krossad! ' : '❌ Misslyckades. Skärp dig. ', el('small', null, s.goal.text)));
-  if (s.reward) lines.push(el('div', 'rg-goal ok', s.rewardKind === 'second' ? '🥈 Tröstpris: välj en av två.' : s.rewardKind === 'win' ? '🏆 Vinst! Välj ditt byte.' : '🎁 Du får välja en talisman.'));
-  return screen('rg-post', statusBar(run), el('div', 'rg-postbody', el('h2', 'rg-bigh', head), ...lines), foot(go(run.status === 'dead' ? 'Fortsätt' : s.reward ? (s.rewardKind === 'second' ? 'Ta tröstpriset 🎁' : 'Välj ditt byte 🎁') : 'Till kartan', o.onNext)));
+  if (s.reward) lines.push(el('div', `rg-goal ${s.rewardKind === 'plain' ? 'miss' : 'ok'}`, REWARD_LINE[s.rewardKind ?? 'win']));
+  return screen('rg-post', statusBar(run), el('div', 'rg-postbody', el('h2', 'rg-bigh', head), ...lines), foot(go(run.status === 'dead' ? 'Fortsätt' : s.reward ? 'Välj ditt byte 🎁' : 'Till kartan', o.onNext)));
 }
 
 // ---- reward ----
 
+/** The line on the card after a race: what the placing earned (every race gives a pick of three). */
+const REWARD_LINE: Record<RewardGrade, string> = {
+  boss: '👑 Bossen är slagen! Välj ditt byte: tre kort med de bästa oddsen.',
+  elite: '💀 Dödsloppet vunnet! Välj ditt byte: tre kort med extra bra odds.',
+  win: '🏆 Vinst! Välj ditt byte: tre kort med bättre odds på Grym och Legendarisk.',
+  normal: '🎁 Bra körning. Välj ditt byte: tre kort med vanliga odds.',
+  plain: '🧰 Nedre halvan eller bruten: du får välja ett byte, men bara bland Skräp och första stegen.',
+};
+const REWARD_TITLE: Record<RewardGrade, string> = {
+  boss: 'Bossen ligger i diket! Ta ett byte',
+  elite: 'Du vann dödsloppet! Ta ett byte',
+  win: 'Vinst! Välj ditt byte',
+  normal: 'Bra körning. Välj ditt byte',
+  plain: 'Bara skräp kvar. Välj ändå',
+};
+
 export function rewardView(run: RunState, scr: Extract<Screen, { kind: 'reward' }>, o: { onPick(i: number): void }): HTMLElement {
-  const title =
-    scr.source === 'boss' ? 'Bossen ligger i diket! Ta ett byte' : scr.source === 'elite' ? 'Du överlevde dödsloppet! Ta ett byte' : scr.source === 'consolation' ? 'Tvåa. Ta ett tröstpris' : 'Vinst! Välj ditt byte';
   const ups = scr.ups ?? [];
+  const kindTag = (card: HTMLElement, text: string): HTMLElement => {
+    card.prepend(el('span', 'rg-kt', text));
+    return card;
+  };
+  // three cards in one row, talismans and upgrades mixed (the picks index the talismans first, then the nodes)
   const trinkets = scr.choices.map((id, i) => {
     const d = trinketById(id)!;
-    return trinketCard(d, { n: run.trinkets.find((t) => t.id === id)?.n, onClick: () => o.onPick(i), tag: run.trinkets.some((t) => t.id === id) ? 'Staplas! Stinkigare!' : undefined });
+    return kindTag(trinketCard(d, { n: run.trinkets.find((t) => t.id === id)?.n, onClick: () => o.onPick(i), tag: run.trinkets.some((t) => t.id === id) ? 'Staplas! Stinkigare!' : undefined }), '🎁 Talisman');
   });
-  const upCards = ups.map((id, j) => upgradeCard(run, id, { onClick: () => o.onPick(scr.choices.length + j) }));
-  const trinketGrid = el('div', 'rg-cards', ...trinkets);
-  const upGrid = el('div', 'rg-cards up-cards', ...upCards);
-  const both = trinkets.length > 0 && upCards.length > 0;
-  let show: 'ups' | 'trinkets' = upCards.length ? 'ups' : 'trinkets';
-  const tabs = el('div', 'rg-rtabs');
-  const draw = (): void => {
-    trinketGrid.hidden = show !== 'trinkets';
-    upGrid.hidden = show !== 'ups';
-    tabs.replaceChildren(
-      ...(
-        [
-          ['ups', `🛠️ Uppgraderingar (${upCards.length})`],
-          ['trinkets', `🎁 Talismaner (${trinkets.length})`],
-        ] as const
-      ).map(([k, label]) => {
-        const b = btn('rg-chipbtn rg-rtab', label, () => {
-          show = k;
-          draw();
-        });
-        b.setAttribute('aria-pressed', String(show === k));
-        return b;
-      }),
-    );
-  };
-  draw();
-  const hint = both ? el('small', 'rg-rhint', 'Du får EN av dem. Bilen växer av uppgraderingar, talismaner ändrar reglerna.') : null;
-  return screen('rg-reward', statusBar(run), el('div', 'rg-rhead', el('h2', 'rg-h', title), both ? tabs : null), hint, upGrid, trinketGrid, foot(ghost('Nej tack (+30 kr)', () => o.onPick(-1))));
+  const upCards = ups.map((id, j) => {
+    const lab = treeLabel(upgradeById(id)!.tree, run.car.body);
+    return kindTag(upgradeCard(run, id, { onClick: () => o.onPick(scr.choices.length + j) }), `${lab.emoji} Uppgradering`);
+  });
+  const cards: HTMLElement[] = [];
+  const [more, less] = trinkets.length >= upCards.length ? [trinkets, upCards] : [upCards, trinkets];
+  for (let k = 0; k < more.length; k++) {
+    cards.push(more[k]!);
+    if (less[k]) cards.push(less[k]!);
+  }
+  return screen(
+    `rg-reward g-${scr.grade}`,
+    statusBar(run),
+    el('div', 'rg-rhead', el('h2', 'rg-h', REWARD_TITLE[scr.grade])),
+    el('small', 'rg-rhint', 'Du tar ETT kort. 🎁 Talismaner ändrar reglerna, uppgraderingar bygger bilen.'),
+    el('div', 'rg-cards rg-three', ...cards),
+    foot(ghost('Nej tack (+30 kr)', () => o.onPick(-1))),
+  );
 }
 
 // ---- shop ----
@@ -724,7 +733,7 @@ export function workshopView(run: RunState, scr: Extract<Screen, { kind: 'worksh
     const free = workshopFree(run, id);
     const price = upgradePrice(run, id);
     const poor = !taken && !free && run.kronor < price;
-    const card = upgradeCard(run, id, { onClick: () => o.onBuy(id), price: taken ? 'Tagen ✔' : free ? 'GRATIS' : `${price} kr`, disabled: taken || poor });
+    const card = upgradeCard(run, id, { onClick: () => o.onBuy(id), price: taken ? 'Tagen ✔' : free ? (scr.stock.filter((x) => workshopFree(run, x)).length > 1 ? 'GRATIS · ett val' : 'GRATIS') : `${price} kr`, disabled: taken || poor });
     if (poor) card.classList.add('poor');
     if (taken) card.classList.add('sold');
     return card;

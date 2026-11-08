@@ -6,7 +6,7 @@ import { kitOf } from '../shared/abilities.ts';
 import { capGrip, capPower, MAX_CHARGES, neutralTune } from '../rally/mods.ts';
 import { bodySpecOf } from '../rally/models.ts';
 import { addUpgradeLook } from '../rally/modlook.ts';
-import { drawUpgrades, KIND_TREE_BIAS, upgradeChoices, upgradePrice, workshopBuy } from './economy.ts';
+import { drawUpgrades, KIND_TREE_BIAS, rewardOffer, upgradePrice, workshopBuy } from './economy.ts';
 import { continueAfterRace, enterNode, finishNode, pickReward, submitRace } from './flow.ts';
 import { emptyRunStats, newRun, reachable, type RunState } from './state.ts';
 import { parseRun } from './save.ts';
@@ -412,9 +412,9 @@ describe('old part levels become nodes', () => {
     const run = fresh('hatch');
     run.up = ['ram.plates1'];
     const id = reachable(run)[0]!.id;
-    run.screen = { kind: 'reward', nodeId: id, choices: ['gummianka', 'part:armour', 'part:turbo'], source: 'race' };
+    run.screen = { kind: 'reward', nodeId: id, choices: ['gummianka', 'part:armour', 'part:turbo'], source: 'race' } as never;
     const back = parseRun(JSON.parse(JSON.stringify(run)))!;
-    expect(back.screen).toEqual({ kind: 'reward', nodeId: id, choices: ['gummianka'], ups: ['ram.plates2', 'race.nitro1'], source: 'race' });
+    expect(back.screen).toEqual({ kind: 'reward', nodeId: id, choices: ['gummianka'], ups: ['ram.plates2', 'race.nitro1'], grade: 'win' });
     const mixed = parseRun({ ...JSON.parse(JSON.stringify(run)), screen: null, up: ['car.tractor1', 'car.hatch1', 'nonsense', 'ram.plates3'] })!;
     expect(mixed.up).toEqual(['car.hatch1', 'ram.plates1', 'ram.plates2', 'ram.plates3']);
   });
@@ -426,26 +426,28 @@ describe('the offers after a win', () => {
     const run = fresh(body, ups);
     for (let seed = 0; seed < n; seed++) {
       const r = { ...run, seed: seed + 1 };
-      for (const id of upgradeChoices(r, 'a0r2c0', 'race', kind)) out[upgradeById(id)!.tree]++;
+      for (const id of rewardOffer(r, 'a0r2c0', 'normal', kind).ups) out[upgradeById(id)!.tree]++;
     }
     return out;
   };
 
-  it('three different open cards from at least two trees, none for the consolation prize, and an extra with the capstone perk', () => {
+  it('three cards in all, talismans and open nodes mixed and all different; a perk adds a card; the same seed and node give the same cards', () => {
     const run = fresh('hatch', ['ram.plates1', 'ram.plates2', 'ram.spikes1', 'ram.hammer1']);
-    for (let seed = 1; seed < 60; seed++) {
+    let mixedOnce = 0;
+    for (let seed = 1; seed < 80; seed++) {
       const r = { ...run, seed };
-      const ups = upgradeChoices(r, 'a1r1c0', 'elite', 'mixed');
-      expect(ups).toHaveLength(3);
-      expect(new Set(ups).size).toBe(3);
-      for (const id of ups) expect(canTake(r.up, id, 'hatch'), id).toBe(true);
-      expect(new Set(ups.map((id) => upgradeById(id)!.tree)).size).toBeGreaterThanOrEqual(2);
+      const offer = rewardOffer(r, 'a1r1c0', 'elite', 'mixed');
+      expect(offer.choices.length + offer.ups.length).toBe(3);
+      expect(new Set([...offer.choices, ...offer.ups]).size).toBe(3);
+      for (const id of offer.ups) expect(canTake(r.up, id, 'hatch'), id).toBe(true);
+      if (offer.choices.length && offer.ups.length) mixedOnce++;
     }
-    expect(upgradeChoices(run, 'a0r1c0', 'consolation', 'rally')).toEqual([]);
+    // every offer is a mix of both kinds
+    expect(mixedOnce).toBe(79);
     const rich = fresh('hatch', ['girig.interest1', 'girig.interest2', 'girig.disc1', 'girig.gold1', 'girig.cap1']);
-    expect(upgradeChoices(rich, 'a0r1c0', 'race', 'mixed')).toHaveLength(4);
-    // the same seed and node give the same cards (a reload does not reroll them)
-    expect(upgradeChoices(run, 'a0r1c0', 'race', 'rally')).toEqual(upgradeChoices(run, 'a0r1c0', 'race', 'rally'));
+    const o4 = rewardOffer(rich, 'a0r1c0', 'normal', 'mixed');
+    expect(o4.choices.length + o4.ups.length).toBe(4);
+    expect(rewardOffer(run, 'a0r1c0', 'normal', 'rally')).toEqual(rewardOffer(run, 'a0r1c0', 'normal', 'rally'));
   });
 
   it('the kind of race leans the offer: Blodbad brings Ram and Fuffens, Rally brings Race and Stunt, Blandat is open', () => {
@@ -492,10 +494,12 @@ describe('the offers after a win', () => {
     run = continueAfterRace(run);
     expect(run.screen?.kind).toBe('reward');
     const scr = run.screen as Extract<NonNullable<RunState['screen']>, { kind: 'reward' }>;
-    expect(scr.choices.length).toBeGreaterThanOrEqual(3);
-    expect(scr.ups!.length).toBeGreaterThanOrEqual(3);
-    const pickIdx = scr.choices.length + 1;
-    const want = scr.ups![1]!;
+    expect(scr.choices.length + scr.ups!.length).toBe(3);
+    expect(scr.grade).toBe('win');
+    // a seed with two nodes among the three cards, so that the second node can be taken
+    expect(scr.ups!.length).toBeGreaterThanOrEqual(1);
+    const pickIdx = scr.choices.length;
+    const want = scr.ups![0]!;
     run = pickReward(run, pickIdx);
     expect(run.up).toContain(want);
     expect(run.trinkets).toEqual([]);
