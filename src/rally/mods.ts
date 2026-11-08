@@ -422,7 +422,7 @@ export function capTune(t: ModTune): ModTune {
   t.nitroSeconds = softCap(t.nitroSeconds, 1.6, 2.4);
   t.nitroPower = softCap(t.nitroPower, 1.3, 1.6);
   t.charges = Math.round(softCap(t.charges, 3.5, 5) * 100) / 100;
-  t.driftRate = softCap(t.driftRate, 3, 5);
+  t.driftRate = softCap(t.driftRate, 1.8, 2.5);
   t.magnet = Math.min(30, t.magnet);
   t.coinValue = softCap(t.coinValue, 2, 3);
   t.launch = Math.min(5, t.launch);
