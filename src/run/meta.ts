@@ -1,23 +1,20 @@
-// Progress that outlives a run: trophies 🏆 earned by runs put more trinkets in the pool, vehicles are unlocked by
-// challenges (run/unlocks.ts) and the collection remembers which trinkets have been seen.
+// Progress that outlives a run: trophies 🏆 (a score, nothing is locked behind them), medals (run/medals.ts, shown in
+// Skrytlådan) and which talismans have been seen. Every vehicle and every talisman is open from the first launch, and
+// nothing in here may ever change what a seeded run generates (a test holds it to that).
 import { CAR_BODIES, CAR_PAINTS, isCarBody, type CarBody, type CarDriver, CAR_DRIVERS } from '../shared/rally.ts';
-import { TRINKETS, isTrinket, type TrinketDef } from './trinkets.ts';
+import { isTrinket } from './trinkets.ts';
 import { ACTS } from './map.ts';
-import { CHALLENGES } from './unlocks.ts';
+import { MEDALS } from './medals.ts';
 import { DIFFICULTIES, asDifficulty, isDifficulty, type Difficulty } from './difficulty.ts';
 
-/** The vehicles everybody starts with. */
+/** The five vehicles that used to be the only open ones (they have no medal). */
 export const STARTERS: readonly CarBody[] = ['hatch', 'buggy', 'pickup', 'moped', 'tractor'];
 
 /**
- * The old rule, kept only for old saves: vehicles used to unlock by trophies. A save from before the challenges is
- * lifted with it once, so nobody loses a vehicle they already had.
+ * The oldest rule, kept only for old saves: vehicles used to unlock by trophies. A save from before the challenges is
+ * lifted with it once, so nobody loses the medals those vehicles stand for.
  */
 export const LEGACY_BODY_UNLOCK: Record<string, number> = { hatch: 0, buggy: 0, pickup: 3, moped: 4, atv: 6, coupe: 8, tractor: 11, moto: 13, monster: 15, sofa: 20 };
-
-export const unlockedBodies = (meta: Pick<Meta, 'bodies'>): CarBody[] => CAR_BODIES.filter((b) => meta.bodies.includes(b));
-export const isUnlocked = (meta: Pick<Meta, 'bodies'>, b: CarBody): boolean => meta.bodies.includes(b);
-export const unlockedTrinkets = (trophies: number): TrinketDef[] => TRINKETS.filter((t) => t.unlock <= trophies);
 
 /** Starters, plus (for a save that has none of its own yet) everything the trophies once opened. */
 export const legacyBodies = (trophies: number): CarBody[] => CAR_BODIES.filter((b) => STARTERS.includes(b) || (LEGACY_BODY_UNLOCK[b] ?? Infinity) <= trophies);
@@ -36,22 +33,22 @@ export interface Meta {
   wins: number;
   /** Furthest act reached (1..3). */
   bestAct: number;
-  /** Trinket ids that have turned up in a shop, a reward or a bag. */
+  /** Talisman ids that have turned up in a shop, a reward or a bag. */
   seen: string[];
   /** The difficulty chosen last: the default on the pick screen (an old save's `calm: true` reads as Söndagsåkare). */
   diff: Difficulty;
   /** The furthest act (1..3) and the runs won, for each difficulty (Skrytlådan). */
   best: Record<Difficulty, DiffBest>;
-  /** The vehicles that are open. */
-  bodies: CarBody[];
-  /** Progress on each challenge (run/unlocks.ts), by challenge id. */
+  /** 1 once the save is in the medal format: saves without it still carry the old list of open vehicles (or none), which becomes medals once. */
+  medals: 1;
+  /** Progress on each medal (run/medals.ts), by medal id; a medal is earned when it reaches its goal. */
   progress: Record<string, number>;
   body: CarBody;
   paint: string;
   driver: CarDriver;
 }
 
-export const defaultMeta = (): Meta => ({ v: 1, trophies: 0, runs: 0, wins: 0, bestAct: 0, seen: [], diff: 'normal', best: emptyBest(), bodies: [...STARTERS], progress: {}, body: 'hatch', paint: CAR_PAINTS[0], driver: 'human' });
+export const defaultMeta = (): Meta => ({ v: 1, trophies: 0, runs: 0, wins: 0, bestAct: 0, seen: [], diff: 'normal', best: emptyBest(), medals: 1, progress: {}, body: 'hatch', paint: CAR_PAINTS[0], driver: 'human' });
 
 /** Trophies a finished run is worth: 2 for each boss beaten, 3 more for winning, 1 for a run with a few races. */
 export function trophiesFor(r: { bossesBeaten: number; won: boolean; races: number }): number {
@@ -65,15 +62,16 @@ export function cleanMeta(raw: unknown): Meta {
   const o = raw as Record<string, unknown>;
   const int = (v: unknown, hi: number): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(hi, Math.floor(v))) : 0);
   const trophies = int(o.trophies, 9999);
-  // a save from before the challenges has no list: it keeps everything the trophies had opened
-  const stored = Array.isArray(o.bodies) ? o.bodies.filter(isCarBody) : null;
-  const bodies = CAR_BODIES.filter((b) => STARTERS.includes(b) || (stored ? stored.includes(b) : legacyBodies(trophies).includes(b)));
-  const body = isCarBody(o.body) && bodies.includes(o.body) ? o.body : d.body;
+  const body = isCarBody(o.body) ? o.body : d.body;
   const rawProgress = o.progress && typeof o.progress === 'object' && !Array.isArray(o.progress) ? (o.progress as Record<string, unknown>) : {};
   const progress: Record<string, number> = {};
-  for (const c of CHALLENGES) {
+  // the old list of open vehicles (or, in the oldest saves, what the trophies had opened) is medals earned: nothing is lost
+  // (only a save from before the medals has a list or none; a save in the medal format never lifts anything)
+  const had = o.medals === 1 ? [] : Array.isArray(o.bodies) ? o.bodies.filter(isCarBody) : legacyBodies(trophies);
+  for (const c of MEDALS) {
     const v = rawProgress[c.id];
     if (typeof v === 'number' && Number.isFinite(v) && v > 0) progress[c.id] = Math.min(c.goal, Math.floor(v));
+    if (had.includes(c.body)) progress[c.id] = c.goal;
   }
   return {
     v: 1,
@@ -84,7 +82,7 @@ export function cleanMeta(raw: unknown): Meta {
     seen: Array.isArray(o.seen) ? [...new Set(o.seen.filter(isTrinket))] : [],
     diff: isDifficulty(o.diff) ? o.diff : asDifficulty(o.calm === true),
     best: cleanBest(o.best),
-    bodies,
+    medals: 1,
     progress,
     body,
     paint: typeof o.paint === 'string' && (CAR_PAINTS as readonly string[]).includes(o.paint) ? o.paint : d.paint,

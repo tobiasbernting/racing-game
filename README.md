@@ -1,10 +1,10 @@
 # Galna Rallyt
 
-Ett 3D-rallyspel i webbläsaren (three.js): kom först i mål mot en gäng galna förare på tolv banor. Spelet är gjort för en vuxen och en tioåring som spelar tillsammans: absurt, oförutsägbart och bonkers: ingen runda blir den andra lik, det beror på vilka prylar du råkar få (korvkanoner, flygande kor, plats­byten mitt i farten, en och annan prutt). Det är
+Ett 3D-rallyspel i webbläsaren (three.js): kom först i mål mot en gäng galna förare på tolv banor. Spelet är gjort för en vuxen och en tioåring som spelar tillsammans: absurt, oförutsägbart och bonkers: ingen runda blir den andra lik, det beror på vilka talismaner du råkar få (korvkanoner, flygande kor, plats­byten mitt i farten, en och annan prutt). Det är
 en egen fristående version av rallyt från Lilla Gården och ska bli en roguelite (se [PLAN.md](PLAN.md)).
 Fas 1 var porten (ett lopp på dator, surfplatta och mobil), fas 2 gjorde det till en roguelite: en runda är tre
-akter med varsin förgrenad karta och en boss, och på vägen samlar man galna prylar. Fas 3 (den här) lägger till
-fem nya fordon, fem nya banor, banor som ser olika ut varje gång, fler prylar, händelser och en ny boss.
+akter med varsin förgrenad karta och en boss, och på vägen samlar man galna talismaner. Fas 3 (den här) lägger till
+fem nya fordon, fem nya banor, banor som ser olika ut varje gång, fler talismaner, händelser och en ny boss.
 
 Styrning: piltangenter/WASD, mellanslag = handbroms, L = nitro, **F = fordonets förmåga** (handkontroll Y), C = kamera, R = tillbaka på vägen,
 Escape = paus, E / Q = växla upp / ned (om du slagit på Manuell växling). Handkontroll (RB / LB växlar) och pekknappar på skärmen
@@ -13,20 +13,21 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 ## Så fungerar en runda
 
 - **Titel**: Ny runda, Fortsätt runda (rundan sparas i localStorage efter varje plats), Snabbrace (ett enda lopp som förr),
-  Skrytlådan (upplåsta bilar och sedda prylar, och bästa rundan per svårighet). Svårigheten väljs på bilsidan, inte här; titeln visar bara vad som valdes sist.
+  Skrytlådan (medaljer med framsteg, sedda talismaner, och bästa rundan per svårighet). Svårigheten väljs på bilsidan, inte här; titeln visar bara vad som valdes sist.
 - **Karta**: tre akter (Bondlandet, Vildmarken, Galna stan), fem rader med 2–4 platser och sedan en boss. Platserna är
   🏁 lopp, ⏱️ utmaning (vinn eller skäms, topp 2 i spöregn, mörkerrallyt, slå klockan), 💀 dödslopp, 🛒 Mackens kiosk, 🔧 Skruvhörnan,
   ❓ helt random och 👑 boss (Sura Bengt med höbalar, Ingrid Ingenväjning som hoppar, Frost-Frida med isig väg, Kapten Kanin på månen).
   Tolv rivaler med eget skryt och eget hån när de kör om dig (`src/shared/rivals.ts`).
 - **Hjärtan och kronor**: kommer man sist (nedersta tredjedelen) eller bryter förlorar man ett hjärta; vid 0 är rundan slut.
-  Loppen ger kronor (pris + mynt på banan + prylbonus, skalat per akt) som går till kiosken (prylar, laga bilen, läka
+  Loppen ger kronor (pris + mynt på banan + talismanbonus, skalat per akt) som går till kiosken (talismaner, laga bilen, läka
   hjärta, nya varor) och verkstaden Skruvhörnan (en gratis uppgradering på nivå I eller II, resten för kronor, eller måla om).
-- **Prylar** (`src/run/trinkets.ts`, 52 st): vanlig/ovanlig/legendarisk, samma pryl två gånger gör den starkare. Varje pryl är
+- **Talismaner** (`src/run/trinkets.ts`, 72 st): vanlig/ovanlig/legendarisk, samma talisman två gånger gör den starkare. Varje talisman är
   data: `tune` ändrar siffror när loppet startar, `hooks` reagerar på tick/boost/sladd/stöt/varv/pickup/mål, `perk` ändrar
   rundan (rabatt, hjärtan, fler val). Loppet får dem som `RallyOptions.mods` (`src/rally/mods.ts`); bossarnas trick går via
-  `RallyOptions.twist`. Lägg till en pryl genom att lägga till en rad i listan.
-- **Troféer** 🏆 efter varje runda (2 per besegrad boss, 3 för seger) lägger fler prylar i potten. Fordon låses upp med
-  utmaningar, se "Fordon med förmågor" nedan.
+  `RallyOptions.twist`. Lägg till en talisman genom att lägga till en rad i listan.
+- **Allt är öppet från början**: alla 20 fordon och alla talismaner finns i varje runda redan första gången du startar. Variationen kommer av vad du
+  får under rundan. **Troféer** 🏆 efter varje runda (2 per besegrad boss, 3 för seger, gånger svårighetens multiplikator) är bara poäng, de låser inget.
+  Det som förr var utmaningar är **Medaljer**, se "Medaljer och frökoder" nedan.
 - Rundan är deterministisk från ett frö: kartor, kioskens varor och händelsernas utfall räknas ut från fröet och behöver
   aldrig sparas.
 
@@ -49,8 +50,8 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
   regn väljs (aldrig regn på månen, i köket eller i öknen). Pads, mynt och höbalar placeras också från fröet.
 - **Bossar**: Bonden Bengt kör traktor och släpper höbalar, Älgen Ingrid kör fyrhjuling och hoppar, Isdrottningen gör vägen
   isig (akt 2 har Ingrid eller Isdrottningen, fröet väljer) och **Kapten Kanin** kör soffa på månen i jättehopp (akt 3).
-- **Prylar för fordonen**: Sidvagn (motorcykel), Turbofläkt (traktor), Ringklocka i guld (moppe), Ångvisslan, Fordonskarusellen
-  (byter fordon varje varv) med flera. `buildMods(owned, body)` låter en pryl veta vilket fordon man kör.
+- **Talismaner för fordonen**: Sidvagn (motorcykel), Turbofläkt (traktor), Ringklocka i guld (moppe), Ångvisslan, Fordonskarusellen
+  (byter fordon varje varv) med flera. `buildMods(owned, body)` låter en talisman veta vilket fordon man kör.
 
 ## Enheter och finish (fas 4)
 
@@ -96,16 +97,16 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
   mycket mindre och får svagare catch-up.
 - **Svårare banor**: akt 3 körs över tre varv, fler hinder (höbalar, oljeflaskor som snurrar dig, potthål), något smalare väg och
   tajtare mål i klockutmaningar. Rivaler med Oljeläckan släpper egna fläckar.
-- **Tak mot skenande staplar** (`capTune` i `src/rally/mods.ts`, `maxStack` på prylarna): kraft, grepp, nitrolängd och antal, sladdturbo,
+- **Tak mot skenande staplar** (`capTune` i `src/rally/mods.ts`, `maxStack` på talismanerna): kraft, grepp, nitrolängd och antal, sladdturbo,
   knuff, tålighet, mynt, kronor och bilens totala kraft och grepp har mjuka tak (linjärt till ett knä, sedan mot ett max). Nitro
-  räcker högst 12 sekunder per lopp. Prylar som skenar (Pruttboost, Chilikorven, Dino-Dieseln …) slutar ge mer efter 2-3 exemplar.
-- **Byte efter varje vinst**: vinner du (i Blodbad: mest poäng) väljer du 1 av 6: tre prylar eller tre uppgraderingskort (se "Bilen som växer" nedan), lutat mot sorten
-  (efter Blodbad fler rammar-prylar, efter Rally fler fart-prylar). Tvåan får ett tröstpris: 1 av 2 skräp-prylar. Dödslopp och bossar ger
+  räcker högst 12 sekunder per lopp. Talismaner som skenar (Pruttboost, Chilikorven, Dino-Dieseln …) slutar ge mer efter 2-3 exemplar.
+- **Byte efter varje vinst**: vinner du (i Blodbad: mest poäng) väljer du 1 av 6: tre talismaner eller tre uppgraderingskort (se "Bilen som växer" nedan), lutat mot sorten
+  (efter Blodbad fler rammar-talismaner, efter Rally fler fart-talismaner). Tvåan får ett tröstpris: 1 av 2 skräp-talismaner. Dödslopp och bossar ger
   fortfarande alltid ett val, med bättre odds.
-- **Humor**: kaos, inte toalett. Högst tre prylar handlar om prutt och bajs (Pruttboost är sällsynt, Bajsraketen legendarisk); bara de pruttar och lämnar det gröna molnet. Resten har egna effekter (konfetti, gnistor, glitter, studsar). Nya slumpprylar: Platsbytar-Pelle, Kon från ovan, Slumpväxeln och Tombolan. Inga svordomar: `src/language.test.ts` skannar alla texter.
-- **Prylarnas vägar** (`path` på alla 52): `ram`, `race`, `fuffens`, `stunt`, `girig`, `kaos`. Fas 9 bygger på dem.
+- **Humor**: kaos, inte toalett. Högst tre talismaner handlar om prutt och bajs (Pruttboost är sällsynt, Bajsraketen legendarisk); bara de pruttar och lämnar det gröna molnet. Resten har egna effekter (konfetti, gnistor, glitter, studsar). Nya slumpade talismaner: Platsbytar-Pelle, Kon från ovan, Slumpväxeln och Tombolan. Inga svordomar: `src/language.test.ts` skannar alla texter.
+- **Talismanernas vägar** (`path` på alla 52): `ram`, `race`, `fuffens`, `stunt`, `girig`, `kaos`. Fas 9 bygger på dem.
 - **Balanssimuleringen** (`src/run/balance.test.ts`, `src/run/racesim.ts`, `src/shared/pace.ts`) räknar med varvtider i stället för tärningar:
-  spelarens varv från bil, delar, prylar och skicklighet, varje rivals varv från dess skalade kit, och loppet körs sida vid sida
+  spelarens varv från bil, delar, talismaner och skicklighet, varje rivals varv från dess skalade kit, och loppet körs sida vid sida
   med catch-up, hinder, kontakt och (i Blodbad) takedowns. Varvtidsmodellen är anpassad mot den riktiga fysiken (`src/rally/pace.test.ts`).
 
 ## Resultatskärmen (fas 6b)
@@ -115,14 +116,14 @@ Efter en seger, efter sista hjärtat och efter en omladdning på sista kortet vi
 
 - **Huvud**: stor dom (seger, eller vilken akt och plats du föll på), fordon, förare, lack, frö, total åktid och en bricka för svårigheten (🛋️ Söndagsåkare, 🔥 Hård, 💀 Ett liv).
 - **Rundans mest galna siffra** med en rolig rad, sedan 6-10 sifferkort och "Visa alla" för resten. Loppen sparar nu bland annat toppfart,
-  längsta sladd, tid i luften och hopp, nitrosekunder, oljefläckar, omkörningar, utlagda fällor, bästa varv och hur ofta varje pryl utlöstes
+  längsta sladd, tid i luften och hopp, nitrosekunder, oljefläckar, omkörningar, utlagda fällor, bästa varv och hur ofta varje talisman utlöstes
   (`RaceStats` och `RallyResult`, summeras i `src/run/stats.ts`; toppfart och längsta sladd är maxvärden). Rundan räknar också pallplatser,
   kronor spenderade och åktid. Gamla sparningar laddas med nollor.
 - **Tidslinje**: varje besökt plats i ordning (`RunState.log`) med typ, sort (Rally/Blandat/Blodbad), bana, placering eller poäng, belöning och
   förlorade hjärtan, med aktavskiljare. En horisontell remsa på dator och surfplatta, en lista på mobil.
-- **Bygget**: varje pryl med antal och varifrån den kom ("Vann Sura Bengt", "Köpt i kiosken", "Händelse: …", `RunState.got`), uppgraderingsträden med taget nod för nod och kombona,
+- **Bygget**: varje talisman med antal och varifrån den kom ("Vann Sura Bengt", "Köpt i kiosken", "Händelse: …", `RunState.got`), uppgraderingsträden med taget nod för nod och kombona,
   byggets mix per väg som en stapel ("55 % Ram · 30 % Fuffens · 15 % Race") och fordonets förmåga (`abilityOf`: aktiv förmåga med hur många gånger du använde den, och passiven).
-- **Troféer och upplåst**: varför troféerna blev så många, nya bilar och prylar, hur långt det är till nästa pryl-upplåsning och de **utmaningar** rundan flyttade ("Takedowns i en runda: 6/10", eller "✅ Monstertruck upplåst!").
+- **Troféer och upplåst**: varför troféerna blev så många, nya bilar och talismaner, nästa medalj att jaga och de **medaljer** rundan flyttade ("Takedowns i en runda: 6/10", eller "🏅 MEDALJ! Krossmästaren").
 - **Svårighet**: på pekskärmar får rivalerna inte längre någon extra lättnad i normalt läge, bara i Söndagsåkare. Se "Fyra svårigheter" nedan.
 
 ## Kontroller och växlar (fas 7)
@@ -183,7 +184,7 @@ node server.mjs   # serverar dist/ på PORT (standard 8080), GET /health -> ok
 ```
 
 Kod: `src/rally/` (spelet), `src/shared/` (bilar, banor, regler, priser), `src/arcade/` (loop, input, ljud,
-GameContext), `src/run/` (rena regler för rundan: karta, prylar, ekonomi, händelser, sparning, meta), `src/ui/` (skärmarna)
+GameContext), `src/run/` (rena regler för rundan: karta, talismaner, ekonomi, händelser, sparning, meta), `src/ui/` (skärmarna)
 och `src/app.ts` (skalet: paus, pekkontroller, flödet mellan skärmar och lopp). Ett lopp startas med `RallyOptions`
 (`src/rally/options.ts`) och rapporterar `RallyResult` via `onDone`.
 
@@ -207,10 +208,10 @@ docker run --rm -p 8080:8080 racing-game
 
 Varje fordon är en egen figur, som i Tape to Tape (`src/shared/abilities.ts`, testat i `abilities.test.ts` och `passives.test.ts`): en **lutning**
 (🛡️ Ram, 🏎️ Race eller ⚖️ Blandat), en **passiv** som alltid är på, en **aktiv förmåga** på egen knapp med nedkylning och laddningsring, och en
-**startpryl** som följer med fordonet in i rundan (`newRun` lägger den i väskan). Loppet gör det som id:na säger (`useAbility`, `abilityStep` och passiverna i
+**starttalisman** som följer med fordonet in i rundan (`newRun` lägger den i väskan). Loppet gör det som id:na säger (`useAbility`, `abilityStep` och passiverna i
 `src/rally/index.ts`); passiverna som är körkänsla ligger i `feel` i `src/shared/rally.ts` (sandbuggyns `roll`, sportbilens luftmotstånd, monstrets och pickupens massa).
 
-| Fordon | Lutning | Passiv | Aktiv (F) | Nedkylning | Startpryl |
+| Fordon | Lutning | Passiv | Aktiv (F) | Nedkylning | Starttalisman |
 |---|---|---|---|---|---|
 | 🚗 Rallybil | Blandat | Perfekt sladd: en lång sladd fyller på nitron | ⚡ Kickstart: kort rusning och extra grepp | 12 s | Soptunneturbon |
 | 🏜️ Sandbuggy | Race | Sandkungen: sand, gräs och grus bromsar inte | 🦘 Hopp: ett jättehopp | 9 s | Mammas tofflor |
@@ -221,27 +222,27 @@ Varje fordon är en egen figur, som i Tape to Tape (`src/shared/abilities.ts`, t
 | 🏍️ Motorcykel | Race | Wheelie på boost: framhjulet lyfter, lite mer fart | 🚀 Wheelie-raket: lång raketboost, svårstyrd | 16 s | Snusmotorn |
 | 🛵 Moppe | Race | Smal som en planka: halka och höbalar stör knappt, mindre träffyta | 💨 Väj!: en sekund oberörbar | 9 s | Terrorklockan |
 | 🚜 Traktor | Ram | Knuffar allt: tung och ramm 1,8 | 🚜 Rammbock: rusa fram, slunga bort bilar (skrot i Blodbad) | 17 s | Stulna älghorn |
-| 🛋️ Soffbil | Blandat | Kaosarvet: en slumpad pryl varje akt | 🛋️ Soffkudde-kaos: slumpar rusning, hopp, höbalar, pannkaka, platsbyte, korvkanon, slem eller spöke | 11 s | Slumpväxeln |
+| 🛋️ Soffbil | Blandat | Kaosarvet: en slumpad talisman varje akt | 🛋️ Soffkudde-kaos: slumpar rusning, hopp, höbalar, pannkaka, platsbyte, korvkanon, slem eller spöke | 11 s | Slumpväxeln |
 
 Datorförarna använder sina fordons förmågor lite grann (racers en fartstöt, rammare en stöt mot någon nära framför, bara i Blandat och Blodbad), högst var 15:e–40:e sekund.
 Förmågorna är av i Snabbracets rättvisa läge (`rules.sameCars`). Balansen: de som ändrar farten finns i `src/shared/abilities.ts` (`PASSIVE_LAP`, `PASSIVE_RAM`, `save` per förmåga)
-och går in i `playerStats` i `racesim.ts`; rivalernas mod blev lite skarpare med ökande akt (`rivalSkill`) för att kompensera startpryl och förmåga.
+och går in i `playerStats` i `racesim.ts`; rivalernas mod blev lite skarpare med ökande akt (`rivalSkill`) för att kompensera starttalisman och förmåga.
 
-**Start och upplåsning** (`src/run/unlocks.ts`, `meta.ts`): fem fordon är öppna från början (rallybil, sandbuggy, pickup, moppe, traktor); de andra fem låses upp av utmaningar, en per fordon:
+**Medaljer** (`src/run/medals.ts`, `meta.ts`; förr utmaningar som låste upp fordon): femton medaljer, en per fordon som inte är en av de fem första, och ingen låser något. Alla fordon är öppna, medaljerna är att skryta med:
 
-| Fordon | Utmaning |
+| Medalj | Mål |
 |---|---|
-| Sportbil | Vinn en runda |
-| Fyrhjuling | Vinn en runda på Söndagsåkare |
-| Monstertruck | Gör 10 takedowns i en runda |
-| Motorcykel | Slå Sura Bengt med moppen |
-| Soffbil | Vinn akt 2 utan att tappa ett hjärta |
+| Rundvinnaren | Vinn en runda |
+| Söndagsvinnaren | Vinn en runda på Söndagsåkare |
+| Krossmästaren | Gör 10 takedowns i en runda |
+| Moppen mot Bengt | Slå Sura Bengt med moppen |
+| Helt orörd | Vinn akt 2 utan att tappa ett hjärta |
+| … | (och tio till, se `MEDALS`) |
 
-En utmaning är data (`CHALLENGES`): vilket fordon den öppnar, ett mål, och en `measure(run)` som säger vad en runda kommit fram till. `mode: 'best'` är mest i en runda och kollas efter varje steg
-(`checkChallenges` i `commit`, med en liten "UPPLÅST!"-remsa i hörnet, aldrig mitt i bilden), `mode: 'total'` summeras över rundor och räknas en gång när rundan tar slut (`RunEnd` skyddar mot dubbelräkning).
-Framstegen sparas i `Meta.progress`, de öppna fordonen i `Meta.bodies`. Nya fordon (fas 10, se nedan) är fler rader i `CHALLENGES` och `KITS`; testerna kräver en utmaning för varje fordon som inte är en starter.
-**Migrering**: en gammal sparning utan `bodies` får starters plus allt troféerna en gång öppnat (`LEGACY_BODY_UNLOCK`), så ingen förlorar något. Troféer låser fortfarande upp prylar i potten.
-Bilvalet visar lutning, stjärnor, passiv, aktiv (namn, rad, nedkylning) och startpryl, och för låsta fordon villkoret med en framstegsstapel ("Takedowns i en runda: 6/10").
+En medalj är data (`MEDALS`): namn, bild, ett mål och en `measure(run)` som säger vad en runda kommit fram till. `mode: 'best'` är mest i en runda och kollas efter varje steg
+(`checkMedals` i `commit`, med en liten "MEDALJ!"-remsa i hörnet, aldrig mitt i bilden), `mode: 'total'` summeras över rundor och räknas en gång när rundan tar slut (`RunEnd` skyddar mot dubbelräkning).
+Skrytlådan visar alla medaljer med framstegsstapel och en "MEDALJ!"-lapp på de intjänade, resultatskärmen de som flyttade sig och nästa medalj att jaga. Framstegen ligger i `Meta.progress`, med samma id:n som utmaningarna hade.
+**Migrering**: `Meta.bodies` finns inte längre. En sparning från före medaljerna har en lista över öppna fordon (eller, i de allra äldsta, bara troféer: `LEGACY_BODY_UNLOCK`), och varje fordon som var öppet blir en intjänad medalj en enda gång, framsteg som redan fanns behålls. Sparningen skrivs sedan i medaljformat (`Meta.medals: 1`) och lyfts aldrig igen, så troféer ensamma delar aldrig ut medaljer. Fält i sparfilerna som `chal0`, `opened` och `unlockedBodies` heter som förut.
 
 ## Grövre look (fas 9)
 
@@ -274,15 +275,15 @@ Den gemensamma stilen bor i `src/rally/look.ts` så att fas 10:s tio nya fordon 
 
 ## Tio fordon till (fas 10)
 
-Nu finns det **20 fordon**: fem som alla har från början och femton som låses upp av utmaningar. De tio nya är gjorda i samma stil som de andra (konturer, sponsorlappar, smuts och skador, en förare i hjälm; modellerna ligger i `src/rally/vehicles2.ts`),
+Nu finns det **20 fordon**: fem som förr var de enda öppna och femton som förr låstes upp av utmaningar (nu är alla öppna och utmaningarna är medaljer). De tio nya är gjorda i samma stil som de andra (konturer, sponsorlappar, smuts och skador, en förare i hjälm; modellerna ligger i `src/rally/vehicles2.ts`),
 och varje fordon har egen körkänsla (`CAR_BODY_DEFS` i `src/shared/rally.ts`), egen växellåda (`gears.ts`), eget motorljud (`audio.ts`), en lutning, en passiv, en aktiv förmåga med nedkylning (`src/shared/abilities.ts`, gör sitt i `src/rally/index.ts`),
-en startpryl och en utmaning. Tre nya körkänslor finns i `Feel`: `loose` (snö, is och sand greppar som asfalt: snöskotern), `grass` (högre fart och nästan ingen broms på gräs: gräsklipparen) och `slide` (när bakdelen väl släpper fortsätter sladden: limousinen).
+en starttalisman och en utmaning. Tre nya körkänslor finns i `Feel`: `loose` (snö, is och sand greppar som asfalt: snöskotern), `grass` (högre fart och nästan ingen broms på gräs: gräsklipparen) och `slide` (när bakdelen väl släpper fortsätter sladden: limousinen).
 
-| Fordon | Lutning | Passiv | Aktiv (F) | Nedkylning | Växellåda | Startpryl | Låses upp av |
+| Fordon | Lutning | Passiv | Aktiv (F) | Nedkylning | Växellåda | Starttalisman | Medalj |
 |---|---|---|---|---|---|---|---|
 | ⚠️ EPA-traktor | Blandat | Spärr 30: topp ca 40 km/h, men inget bromsar (gräs, lera, olja, höbalar) | ⚠️ Gasa på EPA: spärren av, kraftig fartstöt | 8 s | 5, långsam | Pensionärsrabatten | Slå Sura Bengt |
 | 🍦 Glassbil | Blandat | Glassmelodin: bilar inom 15 m saktar ner och en melodi spelas | 🍦 Glasskanon: tre glaskulor landar framför dig och gör vägen hal | 13 s | 4, lat | Lördagsgodiset | Samla 150 mynt i en runda |
-| 🗑️ Sopbil | Ram | Plockar upp: fällor du kör på plockas upp, varje bit ger lite pansar (max 6) | 🗑️ Tömning: en hög skräp bakom dig, större ju mer du plockat | 12 s | 6, tung | Pantmotorn | Samla ihop 12 prylar i en runda |
+| 🗑️ Sopbil | Ram | Plockar upp: fällor du kör på plockas upp, varje bit ger lite pansar (max 6) | 🗑️ Tömning: en hög skräp bakom dig, större ju mer du plockat | 12 s | 6, tung | Pantmotorn | Samla ihop 12 talismaner i en runda |
 | ❄️ Snöskoter | Race | Allt grepp: full grepp på is, snö och sand | ❄️ Pudersvans: snömoln som gör bilarna bakom blinda och långsamma | 11 s | 3, snabb | Bastu på taket | Slå Frost-Frida |
 | 🏁 Gokart | Race | Sugen i rygg: slipströmmen fylls dubbelt så fort, fullt ger en gratis fartstöt | 🏁 Gokartsladd: en perfekt sladd direkt, ger nitro | 10 s | 4, blixtsnabb | Frityroljan | Sladda i 40 sekunder i en runda |
 | ⛳ Golfbil | Blandat | Tyst som en mus: rivalerna går inte på dig och blockerar dig inte | ⛳ Hole in one: en golfboll slår ledaren i sidan | 15 s | 3, eldrift | Pappas pokal | Kom till akt 2 på Söndagsåkare |
@@ -292,7 +293,7 @@ en startpryl och en utmaning. Tre nya körkänslor finns i `Feel`: `loose` (snö
 | 🛒 Raketvagnen | Race | Skranglig: vagnen vinglar slumpmässigt | 🛒 Raketen: gigantisk fart i knappt 3 sekunder, svår att styra | 15 s | 1 + raket | Chilikorven | Vinn en runda med moppen eller traktorn |
 
 Tre av dem är lätta för en tioåring: golfbilen (nå akt 2 på Söndagsåkare), husbilen (spela fem rundor) och gräsklipparen (tryck på knappen). Raketvagnen är den svåraste.
-Utmaningarna räknar sådant som rundan redan sparar (`RunStats`), så sparfilen är oförändrad: gamla sparningar behåller sina fordon och de nya är låsta tills deras utmaning är klar.
+Medaljerna räknar sådant som rundan redan sparar (`RunStats`), så rundsparningen är oförändrad.
 
 - **Rivaler**: datorförarna kör ibland de nya fordonen efter humör (`archetypeBodies` i `src/shared/field.ts`): rammare i sopbil och husbil, racers i gokart, limousin och snöskoter, de blandade i glassbil, golfbil, gräsklippare och raketvagn.
   De använder sina förmågor som förut (en fartstöt eller en stöt mot någon nära framför).
@@ -305,9 +306,9 @@ Utmaningarna räknar sådant som rundan redan sparar (`RunStats`), så sparfilen
 ## Bilen som växer (fas 11)
 
 Som i Tape to Tape blir det svårare genom rundan (rivalerna växer lite brantare än förut) medan din bil blir bättre, eller åtminstone annorlunda:
-vilka noder, prylar och förmågor du har bestämmer hur rundan känns. Allt ligger i `src/run/upgrades.ts` och är testat i `src/run/upgrades.test.ts`.
+vilka noder, talismaner och förmågor du har bestämmer hur rundan känns. Allt ligger i `src/run/upgrades.ts` och är testat i `src/run/upgrades.test.ts`.
 
-**Fem träd, tre eller fler rader i varje, 2-3 nivåer per rad och en topp.** En rad är data: `tune` ändrar siffror när loppet startar, `hooks` reagerar på vad som händer (som en pryl), `perk` ändrar rundan. En nod är en nivå av en rad ("ram.plates2"); nivå 2 kräver nivå 1, toppen kräver 4 noder i trädet.
+**Fem träd, tre eller fler rader i varje, 2-3 nivåer per rad och en topp.** En rad är data: `tune` ändrar siffror när loppet startar, `hooks` reagerar på vad som händer (som en talisman), `perk` ändrar rundan. En nod är en nivå av en rad ("ram.plates2"); nivå 2 kräver nivå 1, toppen kräver 4 noder i trädet.
 
 | Träd | Rader (nivåer) och vad de gör |
 |---|---|
@@ -316,18 +317,18 @@ vilka noder, prylar och förmågor du har bestämmer hur rundan känns. Allt lig
 | 🦨 **Fuffens** | Oljeläcka (2): olja bakom dig på boost. Minor (2): en mina under hård bromsning eller på handbromsen. Falska mynt (2): guldmynt som poppar och snurrar bilen. Rökgranat (2): nitron lämnar en blindande rökridå. Höbalskastaren (2): hö landar framför närmaste bil. **Fuffens-mästaren**: knepen 45 % oftare, en fälla gratis varje varv. |
 | 🤸 **Stunt** | Stötdämpare (3): mjukare landningar. Flygtid (2): långa hopp ger nitro och kronor. Volter (2): bilen tar en volt i luften. Två hjul (2): långa sladdar och wheelies fyller nitron. Nära ögat (2): omkörningar på en hårsmån ger nitro och kronor. **Stuntstjärnan**: 40 % mer från alla stunts. |
 | 🤑 **Girig** | Ränta (3): 5/10/15 % av kronorna efter varje plats (högst 60). Dusör på ledaren (2). Vrakförsäkring (2): kronor vid hård smäll och vrak. Rabattkort (2): 10 % per nivå i kiosken och Skruvhörnan. Guldkant (2): dyrare mynt, bilen får guldkant. **Kapitalisten**: 15 % mer kronor och ett extra kort. |
-| 🎲 **Kaos** | Inget träd: en smak på de legendariska prylarna (och en halva av Lotterivinsten). |
+| 🎲 **Kaos** | Inget träd: en smak på de legendariska talismanerna (och en halva av Lotterivinsten). |
 
 **Fordonets egna uppgraderingar**: varje fordon har två, tagna i ordning (`car.<fordon>1` och `2`), som stretchar eller förgrenar dess aktiva förmåga: kortare nedkylning (`abilCd`), längre varaktighet (`abilDur`, stretchar alla timers som förmågan just startade) eller en extra
 effekt efter användning (`plus`: olja, höbalar, stötvåg, boost, rök, kronor, nitro, lockbil, lagning, mina). Traktorns Rammbock blir 50 % längre och släpper sedan också höbalar, moppens Väj! blir längre och lämnar en lockbil som bilarna bakom saktar in för, golfbilens Hole in one laddar fortare och slår en stötvåg där bollen landar.
 De visas bara för den som kör det fordonet.
 
-**Hur man får dem.** Efter en vinst (och efter dödslopp och bossar) visar belöningsskärmen två flikar: 🛠️ Uppgraderingar (tre kort) och 🎁 Prylar (tre kort); du tar EN av sex. Tvåan får fortfarande bara ett tröstpris med två skräp-prylar. Korten dras ur de öppna noderna (`drawUpgrades`
+**Hur man får dem.** Efter en vinst (och efter dödslopp och bossar) visar belöningsskärmen två flikar: 🛠️ Uppgraderingar (tre kort) och 🎁 Talismaner (tre kort); du tar EN av sex. Tvåan får fortfarande bara ett tröstpris med två skräp-talismaner. Korten dras ur de öppna noderna (`drawUpgrades`
 i `economy.ts`) och lutas av sorten (`KIND_TREE_BIAS`): Blodbad ger Ram (×2,6) och Fuffens (×1,9), Rally ger Race (×2,6) och Stunt (×1,9), Blandat är öppet. Fordonets lutning (Ram/Race) ger en liten extra knuff, ett träd man redan går i kommer upp oftare (så ett bygge får en form), tre kort
 från minst två träd, bossar bjuder oftare på toppar och högre nivåer. Ett kort som väcker en kombo har en stjärna. I **Skruvhörnan** är första uppgraderingen på nivå I eller II gratis; alla noder går att köpa för kronor (`upgradePrice`: 90, 150, 240, topp 420, fordon 130, plus aktens påslag och rabatter), med en flik per träd. Händelser som "tunar bilen" ger en slumpad nod.
 
-**Kombos** (10 st, `COMBOS`): två saker du äger väcker en kombo, och den visas som en liten "KOMBO!"-lapp i hörnet (aldrig mitt på skärmen) och som en guldkantad ikon först i loppets pryl-remsa.
-Spikmattan (Spikar + Oljeläcka: smällar lämnar olja), Luftburen (Flygtid + Nitro: landningar fyller nitro), Lotterivinsten (Ränta + valfri Kaos-pryl: lott efter varje varv), Eldkastaren (Pruttboost + Chilikorven: en kort eldstråle bakåt, sällsynt),
+**Kombos** (10 st, `COMBOS`): två saker du äger väcker en kombo, och den visas som en liten "KOMBO!"-lapp i hörnet (aldrig mitt på skärmen) och som en guldkantad ikon först i loppets talisman-remsa.
+Spikmattan (Spikar + Oljeläcka: smällar lämnar olja), Luftburen (Flygtid + Nitro: landningar fyller nitro), Lotterivinsten (Ränta + valfri Kaos-talisman: lott efter varje varv), Eldkastaren (Pruttboost + Chilikorven: en kort eldstråle bakåt, sällsynt),
 Pansarraketen (Stötvåg + Nitro), Sladdmolnet (Rökgranat + Sladd), Dödsföraktet (Nära ögat + Vrakförsäkring), Prisjakten (Dusör + Slägga: kronor och nitro för varje vrak), Minfältet (Minor + Flygtid) och Stålspargrisen (Pansarplåt + Ränta). Fliken Kombos i Bygget visar alla tio med receptet.
 
 **Bilen syns.** `src/rally/modlook.ts` bygger bult-on-delar för varje rad och nivå ovanpå trimgeometrin, från de mått varje kropp redan ger bygget (bredd, nos, akter, tröskel, bälte, tak, hjul), så alla tjugo fordon får dem och en ny kropp får dem gratis
@@ -337,16 +338,16 @@ Fuffens: oljefat, rökgranat, minor på stötfångaren, ett falskt mynt i en tr�
 
 **Bygget** (☰ Paus → 🧰 Bygget, och 🧰 i kartans övre list): bilen på skivspelare med sina mods, byggets mix per väg, och träden som flikar med tagna, öppna och låsta noder (tryck för att läsa; kombofliken visar alla recept). Samma panel är Skruvhörnans butik.
 
-**Ge upp rundan** (☰ Paus → 🏳️ Ge upp rundan, med bekräftelse: "Nej" är förvald, Escape betyder nej): rundan räknas som en runda men ger inga troféer, utmaningar av typen "bäst i en runda" behåller det som redan klarats, de som räknas över rundor ("Vinn en runda", "Kör klart 5 rundor") räknar den inte. Sedan väljer du fordon på nytt med samma fordon, förare och lack förvalda. "Ge upp och visa resultatet" visar resultatsidan ("Gav upp i Akt X"). Logiken ligger i src/run/giveup.ts.
+**Ge upp rundan** (☰ Paus → 🏳️ Ge upp rundan, med bekräftelse: "Nej" är förvald, Escape betyder nej): rundan räknas som en runda men ger inga troféer, medaljer av typen "bäst i en runda" behåller det som redan klarats, de som räknas över rundor ("Vinn en runda", "Kör klart 5 rundor") räknar den inte. Sedan väljer du fordon på nytt med samma fordon, förare och lack förvalda. "Ge upp och visa resultatet" visar resultatsidan ("Gav upp i Akt X"). Logiken ligger i src/run/giveup.ts.
 Telefon på sidan: bilen till vänster, träden till höger, panelen scrollar inuti; surfplatta stående: bilen överst. Alla knappar är minst 44 px och sidan scrollar aldrig. Resultatskärmen visar träden nod för nod (med varifrån varje kom), fordonets uppgraderingar och de aktiva kombona.
 
 **Sparningar.** `RunState.up` är listan av noder. Äldre sparningar har sex delnivåer (`car.parts`) i stället: vid inläsning blir varje nivå den nod den blev (`PART_LINE`: motor → Motor, däck → Grepp, bromsar → Bromsar, turbo → Nitro, pansar → Pansarplåt, fjädring → Stötdämpare; `partsToNodes`),
-delarna nollas, gamla "del"-poster i byggloggen blir noder och ett gammalt belöningskort `part:armour` blir nästa nod i den raden. Testat i `upgrades.test.ts` och `save.test.ts`. Pausmenyns bygge och prylremsan i loppet läser samma data.
+delarna nollas, gamla "del"-poster i byggloggen blir noder och ett gammalt belöningskort `part:armour` blir nästa nod i den raden. Testat i `upgrades.test.ts` och `save.test.ts`. Pausmenyns bygge och talismanremsan i loppet läser samma data.
 
-**Balans.** Mjuka tak gäller som förut (`capTune`: byggets egna kraft och grepp tas nu med uppgraderingar och prylar tillsammans, kroppens total tas av `capPower`/`capGrip`; nitroladdningar 5 och 12 sekunder i högsta fall). Rivalernas kurva växer lite brantare
+**Balans.** Mjuka tak gäller som förut (`capTune`: byggets egna kraft och grepp tas nu med uppgraderingar och talismaner tillsammans, kroppens total tas av `capPower`/`capGrip`; nitroladdningar 5 och 12 sekunder i högsta fall). Rivalernas kurva växer lite brantare
 (`partLevel` upp till 4,9, catch-up i akt 3 16 %) för att hänga med. Mätt i `balance.test.ts` med bottar som köper noder (ett kort av sex, den fria noden i verkstaden): en bra spelare vinner ungefär 58 / 28 / 47 % av normala rundor med Race / Ram / Blandat som strategi
 (Ram vinner mest via Blodbad: 0,54 mot 0,35 för en renodlad racer, medan racern tar Rally 0,88 mot 0,69), en stark spelare 77 / 72 / 90 %, Söndagsåkare är kvar över 90 % för en genomsnittlig spelare, och ingen färdig uppsättning (Ram, Race, Stunt, Fuffens, Girig) varvar fältet i akt 3,
-inte ens "alla noder + alla prylar" (bästa spelare vinner under 99 % av loppen).
+inte ens "alla noder + alla talismaner" (bästa spelare vinner under 99 % av loppen).
 
 ## Rivningsderby, stuntramper och balans (fas 12)
 
@@ -372,13 +373,13 @@ tung stötfångare lönar sig i Blandat och Blodbad (modellen: sekunder per varv
 Det som hålls: ingen varvas i akt 3, Söndagsåkare går att vinna nästan alltid, ingen fordonsvinnare dominerar.
 
 **Småfixar**: tidslinjens kioskkort och verkstadskort upprepar inte längre sitt namn, "UPPLÅST!"-lappen sitter nere till vänster på resultatskärmen i stället för över chipsen, kortet för platsen där rundan tog slut har läsbar text, och de fem moddar som inte syntes på bilen får en bult-on: Bromsar (röda och gula bromsok på blanka skivor), Nitrolängd (långa blå nitrorör längs sidorna),
-Sladd (lila fenor och en ankstjärt), Stötdämpare (gula spiralfjädrar över hjulen) och Rabattkort (ett RABATT-kort i backspegeln). Tak-prylar på cyklarna sitter på bagagehyllan bakom föraren eller på hjälmen (hatten), rullburet är en hög bygel bakom sadeln.
+Sladd (lila fenor och en ankstjärt), Stötdämpare (gula spiralfjädrar över hjulen) och Rabattkort (ett RABATT-kort i backspegeln). Tak-talismaner på cyklarna sitter på bagagehyllan bakom föraren eller på hjälmen (hatten), rullburet är en hög bygel bakom sadeln.
 
 ## Fyra svårigheter
 
 Svårigheten väljs överst på bilsidan (Ny runda), med fyra knappar och en rad som förklarar den valda. Valet sparas som standard till nästa gång
 (`Meta.diff`). Reglerna ligger som data i `src/run/difficulty.ts` (`DIFFS`) och används av `state.ts` (hjärtan), `flow.ts` (läkning, Skrotpant), `economy.ts`
-(kiosken, vilka prylar som erbjuds) och `giveup.ts` (troféerna). Rivalerna är desamma som i Normal för alla utom Söndagsåkare (`RunState.calm` är `diff === 'calm'`).
+(kiosken, vilka talismaner som erbjuds) och `giveup.ts` (troféerna). Rivalerna är desamma som i Normal för alla utom Söndagsåkare (`RunState.calm` är `diff === 'calm'`).
 
 | | 🛋️ Söndagsåkare | 🏁 Normal | 🔥 Hård | 💀 Ett liv |
 |---|---|---|---|---|
@@ -388,14 +389,56 @@ Svårigheten väljs överst på bilsidan (Ny runda), med fyra knappar och en rad
 | Hjärta i kiosken | ja | ja | ja, 50 % dyrare | finns inte |
 | Boss | läker 2 hjärtan | vinst läker 1 | läker inget | läker inget |
 | Skrotpant | var 4:e vrak | var 4:e vrak | var 6:e vrak | ingen |
-| Hjärtprylar och händelser | ja | ja | ja | prylen ger 60 kr och erbjuds inte; läkande händelser ger 40 kr |
+| Hjärttalismaner och händelser | ja | ja | ja | talismanen ger 60 kr och erbjuds inte; läkande händelser ger 40 kr |
 | Troféer | ×1 | ×1 | ×1,5 | ×2 |
 
 Brickan (emoji och namn) syns i statusraden på kartan och alla loppkort, i loppkortets hjärtregel ("💀 Ett liv: hamnar du på nedre halvan eller bryter är rundan slut."),
 och på resultatskärmen och i troféraderna ("💀 Ett liv: 2× troféer"). Normal visar ingen bricka. Skrytlådan visar längsta akt och antal segrar för varje svårighet (`Meta.best`).
 
 **Sparningar**: en gammal sparning har bara `calm`: `true` blir Söndagsåkare, allt annat Normal, och en pågående runda behåller sitt läge och sina hjärtan (`parseRun`). `calm` finns kvar i rundan som en genväg till rivalerna.
-Utmaningarna som säger "på Söndagsåkare" räknar som förut. Ingen ny utmaning för Ett liv: varje fordon har redan sin, så bästa akten per svårighet sparas i stället.
+Medaljerna som säger "på Söndagsåkare" räknar som förut. Ingen ny medalj för Ett liv: bästa akten per svårighet sparas i stället.
 
 **Balans** (`balance.test.ts`, 200 simulerade rundor per ruta, vinstandel för Race / Ram / Blandat): Söndagsåkare ≈ alltid vinnbart (genomsnittlig spelare 100 %); Normal oförändrad (bra spelare 42 / 48 / 53 %, stark 72 / 83 / 82 %);
 Hård bra spelare 14 / 24 / 23 %, stark 38 / 55 / 53 %; Ett liv bra spelare 1 / 2 / 4 %, stark 9 / 16 / 19 %.
+
+## Talismaner, medaljer och frökoder (fas 14)
+
+**Namnet**: *prylar* heter *talismaner* i hela spelet (singular talisman, "Ny talisman!", "Dina talismaner", "Starttalisman", kioskens och belöningarnas texter). Det är bara visningstext: id:n och sparnycklar är oförändrade, och fordonets aktiva heter fortfarande förmåga. Raritetsnamnen Skräp, Grym och Legendarisk fick stå kvar.
+
+**Allt öppet**: ingen talisman har längre ett `unlock`-värde, kioskens och belöningarnas pool är alla 72, alla 20 fordon går att välja direkt och låsikonerna är borta från bilvalet. Det som sparas mellan rundor är troféer (poäng, med svårighetens multiplikator), medaljer, sedda talismaner och bästa rundan per svårighet. Ingenting av det får påverka en genererad runda (se frökoder).
+
+**Frökoder** (`src/run/seedcode.ts`): fröet visas som ett ord och fyra siffror, `KOSSA-4821`, och är hela fröet: `seed = ordets nummer × 10000 + siffrorna + 1`. 100 svenska lant-, rally- och rackartyg-ord, en miljon rundor. Samma kod och samma svårighet ger exakt samma runda för alla (karta, banor, varianter, kioskens varor, belöningar, händelser). På bilvalet finns en liten länk **🌱 Frö** i fotraden: den fäller ut fältet "Eget frö" (hopfällt som standard), där man kan skriva koden med stora eller små bokstäver och med bindestreck, mellanslag eller utan. Fel input stoppar starten med en vänlig rad ("Koden ska se ut som KOSSA-4821…", "Jag känner inte igen ordet …"). Kartans hjälprad, pausmenyn och resultatskärmen visar koden, och på kartan och resultatet finns en **📋**-knapp som kopierar den (`navigator.clipboard`, med en dold textruta som reserv). En gammal runda med ett fröet utan kod visar det gamla korta base-36-fröet.
+Det enda av metan som en ny runda får med sig är medaljframstegen vid starten (`chal0`, för att kunna visa vad rundan flyttade). `seedcode.test.ts` håller fast att två helt olika metan ger identiska rundor: ny runda, kiosk, belöningar, uppgraderingserbjudanden och en hel spelad runda med boten.
+
+**Tjugo nya talismaner** (mest kaos och synergier med fordonens förmågor, uppgraderingsträden och kombona; tre vägar till nya krokar: `ModHooks.ability`, `TickState.carnage/derby` och fyra nya `RaceApi`-anrop `rerollAbility`, `abilityCooldown`, `copyLeaderAbility`, `repeatAbility`):
+
+| Talisman | Sort | Vad den gör |
+|---|---|---|
+| 🎰 Förmågerouletten | legendarisk, kaos | förmågan slumpas om vid varje varv |
+| 💉 Adrenalinsprutan | sällsynt, ram | varje takedown kortar förmågans nedkylning (3 s) |
+| 📠 Kopiatorn | sällsynt, kaos | när du använder din förmåga använder du ledarens senaste också |
+| 🎟️ Nitrolotten | sällsynt, kaos | kortare nitro, men varje tändning drar en slumpad effekt |
+| 🌧️ Regnmakaren | sällsynt, fuffens | regn i varje lopp, du får grepp och stövlar |
+| ☀️ Solstrålen | vanlig, girig | aldrig regn, alltid dag, +8 % kronor |
+| 🌙 Nattskiftet | sällsynt, kaos | alla lopp i natten, mynt värda +25 % |
+| ⛈️ Åskmolnet | legendarisk, fuffens | regn, och blixten slår ner i ledaren efter varje varv |
+| 🧰 Verktygslådan | legendarisk, kaos | en slumpad uppgradering vid varje akts början |
+| 🪙 Dubbelt eller inget | sällsynt, girig | myntkast i mål: dubbla loppets kronor eller inga |
+| 🧲 Vrakplockaren | vanlig, ram | varje vrak ger 12 kr och lite nitro |
+| 💣 Hämndsprängaren | sällsynt, ram | när du vrakas smäller en stötvåg |
+| 🛝 Rampgalningen | sällsynt, stunt | en lång flygning och landning ger kronor och en rusning |
+| 🥤 Kraftdrycken | vanlig, race | varje förmåga fyller en bit nitro |
+| 🔁 Efterklangen | legendarisk, race | förmågan används en gång till strax efter |
+| ☕ Termosen | vanlig, race | förmågan laddar 12 % fortare per exemplar |
+| 🔔 Arenaklockan | sällsynt, ram | lagar dig en bit var åttonde sekund i Blodbad och derby |
+| 🎲 Slumpgeneratorn | legendarisk, kaos | var 22:a sekund händer något slumpat |
+| 🎡 Lyckohjulet | sällsynt, kaos | var tionde mynt snurrar ett hjul med en belöning |
+| ⛽ Reservdunken | vanlig, race | förmågan får en extra rusning |
+
+Vädertalismanerna (Regnmakaren, Solstrålen, Nattskiftet, Åskmolnet) ändrar himlen i varje lopp av rundan via `TrinketDef.sky` och `withSky` (regn slår sol på vädret, sol håller dagen; Kapten Kanins dag på månen rörs aldrig). Verktygslådan skruvar på noden i `finishNode` (`toolboxGift`, valet kommer från rundans frö). Alla har `maxStack` (de som är engångsgrejer har 1), kasten går genom `capTune` (Termosen mot `abilCd`-golvet 0,5, Rampgalningen mot stuntgränsen 2,2) och `chaosEffect` delar slumpeffekterna med de andra kaostalismanerna.
+Två nya kombon (12 i allt): ☔ **Skyfallet** (Regnmakaren + Åskmolnet: efter varje varv en stötvåg som sköljer undan bilarna runt dig) och 🌀 **Förmågekaoset** (Förmågerouletten + Kopiatorn: en chans på tre att förmågan ekar tillbaka med en rusning).
+Balanssimulationen (`racesim.ts`, `pace.ts`) räknar Termosen via `abilCd`, Kraftdrycken, Efterklangen och Rampgalningen som fartkrokar (`HOOK_SAVE`) och Arenaklockan som mer hälsa. Eftersom hela potten nu är öppen vinner en bra spelare något oftare på Hård (testgränsen flyttades från 32 till 35 %). Datorförarna har en `lastAbil` som Kopiatorn kan kopiera.
+
+**Pop-ups mitt på skärmen** (`Hud.pop`): när en talisman utlöses, förmågan används, en passiv slår till eller du får en boost, takedown eller kombo visas en stor emoji och ett kort ord ("KRAFT!", "NITRO!", "TAKEDOWN!") i övre mitten, ovanför bilen och aldrig över vägen framför den: ingen bakgrundsruta, bara kontur och skugga, skalas in och tonas ut på under en sekund. Högst tre åt gången, nyaste närmast horisonten, och varje källa visar sig högst var 2,5:e sekund. Ikonen i remsan uppe till höger pulserar som förut. Inställningar → **Pop-ups: Mitten / Hörnet / Av** (förval Mitten; Hörnet är en liten rad under positionsrutan).
+
+**Bilvalet på mobil**: stående telefon (smal och inte kort) får ett kompakt bilval utan sidscroll: svårighetsraderna överst (Söndagsåkare får plats), bilarna som en sidledes svepbar rad med lean-filtret ovanför, fordonets kort, förare och färg som svepbara rader och längst ner en fotrad med ← Tillbaka, 🌱 Frö och KÖR! som alltid syns. Liggande telefon, surfplatta och dator behåller sina layouter; alla knappar är minst 44 px. Kartans övre list fick plats för alla tre knappar på smala skärmar.

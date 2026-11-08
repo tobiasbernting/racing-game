@@ -1,5 +1,5 @@
 // Small bits of fun for the menus: paper confetti that rains over a screen, numbers that count up, and the
-// "NY PRYL!" banner with its fanfare. Everything cleans up after itself and respects reduced motion.
+// "NY TALISMAN!" banner with its fanfare. Everything cleans up after itself and respects reduced motion.
 import { tone } from '../arcade/sfx.ts';
 import { el } from './dom.ts';
 
@@ -94,7 +94,7 @@ export const sfx = {
   tick(a: AudioContext | null, out: AudioNode | null): void {
     tone(a, out, 900 + Math.random() * 300, 0.05, { type: 'square', vol: 0.04 });
   },
-  /** NY PRYL! */
+  /** NY TALISMAN! */
   fanfare(a: AudioContext | null, out: AudioNode | null): void {
     const notes = [523, 659, 784, 1047];
     notes.forEach((f, i) => tone(a, out, f, 0.16, { type: 'square', vol: 0.09, at: i * 0.09 }));
@@ -106,10 +106,10 @@ export const sfx = {
   },
 };
 
-/** The big "NY PRYL!" banner over whatever screen is up; it goes by itself after a moment. */
-export function pryl(host: HTMLElement, emoji: string, name: string): void {
-  host.querySelectorAll('.arc-pryl').forEach((n) => n.remove());
-  const b = el('div', 'arc-pryl', el('div', 'arc-pryl-h', 'NY PRYL!'), el('div', 'arc-pryl-b', `${emoji} ${name}`));
+/** The big "NY TALISMAN!" banner over whatever screen is up; it goes by itself after a moment. */
+export function talisman(host: HTMLElement, emoji: string, name: string): void {
+  host.querySelectorAll('.arc-talisman').forEach((n) => n.remove());
+  const b = el('div', 'arc-talisman', el('div', 'arc-talisman-h', 'NY TALISMAN!'), el('div', 'arc-talisman-b', `${emoji} ${name}`));
   b.setAttribute('role', 'status');
   host.append(b);
   confettiRain(host, 70, 1.8);
@@ -121,7 +121,7 @@ function placeRibbon(host: HTMLElement, b: HTMLElement): void {
   if (host.querySelector('.rs-res')) b.classList.add('low');
 }
 
-/** A small "KOMBO!" ribbon in the corner: two things you own just woke a combo. Like UPPLÅST!, it never blocks anything and goes by itself. */
+/** A small "KOMBO!" ribbon in the corner: two things you own just woke a combo. Like MEDALJ!, it never blocks anything and goes by itself. */
 export function kombo(host: HTMLElement, emoji: string, name: string, text: string): void {
   host.querySelectorAll('.arc-unl.kombo').forEach((n) => n.remove());
   const b = el('div', 'arc-unl kombo', el('span', 'arc-unl-i', emoji), el('div', 'arc-unl-t', el('b', null, 'KOMBO!'), el('span', null, name), el('small', null, text)));
@@ -131,10 +131,10 @@ export function kombo(host: HTMLElement, emoji: string, name: string, text: stri
   setTimeout(() => b.remove(), 5200);
 }
 
-/** A small "UPPLÅST!" ribbon in the corner of whatever screen is up: a new vehicle is open. It never blocks anything and goes by itself. */
-export function upplast(host: HTMLElement, emoji: string, name: string, why: string): void {
+/** A small ribbon in the corner of whatever screen is up ("MEDALJ!": a medal was just earned). It never blocks anything and goes by itself. */
+export function medalRibbon(host: HTMLElement, emoji: string, name: string, why: string): void {
   host.querySelectorAll('.arc-unl').forEach((n) => n.remove());
-  const b = el('div', 'arc-unl', el('span', 'arc-unl-i', emoji), el('div', 'arc-unl-t', el('b', null, 'UPPLÅST!'), el('span', null, name), el('small', null, why)));
+  const b = el('div', 'arc-unl', el('span', 'arc-unl-i', emoji), el('div', 'arc-unl-t', el('b', null, 'MEDALJ!'), el('span', null, name), el('small', null, why)));
   b.setAttribute('role', 'status');
   placeRibbon(host, b);
   host.append(b);

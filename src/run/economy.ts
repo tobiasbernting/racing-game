@@ -4,10 +4,9 @@ import { CAR_PARTS, type CarPart } from '../shared/rally.ts';
 import { kitOf, type Lean } from '../shared/abilities.ts';
 import { Rng } from './rng.ts';
 import { addKronor, addTrinket, addUp, healHeart, type RunState, type Screen, type ShopItem } from './state.ts';
-import { RARITIES, TRINKET_PRICE, stackCap, trinketById, type Rarity } from './trinkets.ts';
+import { RARITIES, TRINKETS, TRINKET_PRICE, stackCap, trinketById, type Rarity } from './trinkets.ts';
 import { available, basePrice, canTake, lineById, runPerks, treeCount, upgradeById, type TreeId, type UpgradeDef } from './upgrades.ts';
 import { KIND_PATH, type RaceKind } from '../shared/kinds.ts';
-import { unlockedTrinkets } from './meta.ts';
 import { DIFFS } from './difficulty.ts';
 
 type ShopScreen = Extract<Screen, { kind: 'shop' }>;
@@ -22,11 +21,11 @@ const ODDS: Record<'shop' | 'race' | 'elite' | 'boss' | 'event' | 'consolation',
   event: { common: 55, rare: 35, legendary: 10 },
 };
 
-/** Up to `n` different trinkets from the unlocked pool, by rarity odds. */
+/** Up to `n` different talismans from the whole pool (everything is open from the start), by rarity odds. Nothing but the seed and the run decides it. */
 export function drawTrinkets(run: RunState, rg: Rng, n: number, source: keyof typeof ODDS, lean?: 'ram' | 'race' | null): string[] {
   // a trinket already at its highest stack adds nothing, so it is not offered again
   const noHearts = !DIFFS[run.diff].heartPerks;
-  const pool = unlockedTrinkets(run.pool).filter((t) => (run.trinkets.find((o) => o.id === t.id)?.n ?? 0) < stackCap(t) && !(noHearts && t.perk?.maxHearts));
+  const pool = TRINKETS.filter((t) => (run.trinkets.find((o) => o.id === t.id)?.n ?? 0) < stackCap(t) && !(noHearts && t.perk?.maxHearts));
   const out: string[] = [];
   const odds = ODDS[source];
   const actBoost = 1 + run.act * 0.25;

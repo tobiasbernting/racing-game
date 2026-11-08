@@ -163,9 +163,11 @@ export interface RunEnd {
   /** What the difficulty multiplied the trophies by (older runs: 1). */
   trophyMul?: number;
   total: number;
+  /** The medals earned in this run (by the vehicle each stands for). */
   unlockedBodies: CarBody[];
+  /** Always empty now (every talisman is open from the start); older saves may have some. */
   unlockedTrinkets: string[];
-  /** The challenge progress when the run ended (the result screen compares it with `RunState.chal0`). */
+  /** The medal progress when the run ended (the result screen compares it with `RunState.chal0`). */
   progress?: Record<string, number>;
   /** The run was given up ("Ge upp rundan"): it counts as a run but paid no trophies. */
   gaveUp?: boolean;
@@ -178,8 +180,6 @@ export interface RunState {
   calm: boolean;
   /** The difficulty chosen for this run (run/difficulty.ts). Older saves have only `calm`. */
   diff: Difficulty;
-  /** The meta trophies when the run began: which trinkets are in the pool. */
-  pool: number;
   act: number;
   /** The last node finished in this act (null at the start of an act). */
   at: string | null;
@@ -203,7 +203,7 @@ export interface RunState {
   nodeLost: number;
   /** The kronor of interest the last node paid (Girig), shown on the map. */
   interest?: number;
-  /** Challenge progress when the run began, and the vehicles it opened on the way (run/unlocks.ts). */
+  /** Medal progress when the run began, and the medals (by their vehicle) it earned on the way (run/medals.ts). */
   chal0: Record<string, number>;
   opened: CarBody[];
   /** Present once a finished run has been counted. */
@@ -218,8 +218,7 @@ export interface NewRunOpts {
   body: CarBody;
   driver: CarDriver;
   paint: string;
-  trophies: number;
-  /** Challenge progress now, to tell afterwards what the run moved. */
+  /** Medal progress now, to tell afterwards what the run moved. Nothing else from the meta goes in: a seed alone decides the run. */
   progress?: Record<string, number>;
 }
 
@@ -228,9 +227,9 @@ export function newRun(o: NewRunOpts): RunState {
   car.style.driver = o.driver;
   const diff = asDifficulty(o.diff ?? o.calm);
   const hearts = DIFFS[diff].hearts;
-  const run: RunState = { v: 1, seed: o.seed, calm: diff === 'calm', diff, pool: o.trophies, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], up: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0, log: [], got: [], nodeLost: 0, chal0: { ...(o.progress ?? {}) }, opened: [] };
+  const run: RunState = { v: 1, seed: o.seed, calm: diff === 'calm', diff, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], up: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0, log: [], got: [], nodeLost: 0, chal0: { ...(o.progress ?? {}) }, opened: [] };
   // every vehicle starts with a trinket that fits it
-  addTrinket(run, kitOf(o.body).trinket, { from: `Startpryl: ${CAR_BODY_NAMES[o.body]}`, node: '' });
+  addTrinket(run, kitOf(o.body).trinket, { from: `Starttalisman: ${CAR_BODY_NAMES[o.body]}`, node: '' });
   return run;
 }
 

@@ -1,11 +1,11 @@
 // Settling a run: the one place where a finished run is counted into the meta progress. A run that ends by dying or
-// winning pays trophies; a run given up ("Ge upp rundan") counts as a run but pays nothing, and the challenges that
-// add up over runs ("Vinn en runda", "Kör klart 5 rundor") do not count it, while "best in one run" progress that was
-// already earned stays. `RunState.end` guards it: a run is only ever settled once, so a reload cannot count it twice.
+// winning pays trophies (a score, nothing is locked behind them); a run given up ("Ge upp rundan") counts as a run but
+// pays nothing, and the medals that add up over runs ("Vinn en runda", "Kör klart 5 rundor") do not count it, while
+// "best in one run" progress that was already earned stays. `RunState.end` guards it: a run is only ever settled once, so a reload cannot count it twice.
 import { diffOf, trophyScale, type Difficulty } from './difficulty.ts';
-import { trophiesFor, unlockedTrinkets, type Meta } from './meta.ts';
+import { trophiesFor, type Meta } from './meta.ts';
 import type { RunState } from './state.ts';
-import { checkChallenges } from './unlocks.ts';
+import { checkMedals } from './medals.ts';
 
 export interface Settled {
   meta: Meta;
@@ -20,17 +20,12 @@ export function settleRun(meta: Meta, run: RunState, gaveUp = false): Settled {
   const gain = gaveUp ? 0 : trophyScale(run.diff, trophiesFor({ bossesBeaten: run.stats.bossesBeaten, won, races: run.stats.races }));
   const old = meta.trophies;
   const total = old + gain;
-  // the end of the run counts for the challenges that add up over runs; a given-up run only keeps what it already earned
-  const chk = checkChallenges(meta, run, !gaveUp);
-  const bodies = [...new Set([...run.opened, ...chk.unlocked.map((c) => c.body)])];
-  const trinkets = unlockedTrinkets(total)
-    .filter((t) => t.unlock > old)
-    .map((t) => t.id);
-  const seen = new Set(meta.seen);
-  trinkets.forEach((id) => seen.add(id));
-  const next: Meta = { ...chk.meta, trophies: total, runs: meta.runs + 1, wins: meta.wins + (won ? 1 : 0), bestAct: Math.max(meta.bestAct, won ? 3 : run.act + 1), seen: [...seen], best: bestWith(meta, run.diff, won ? 3 : run.act + 1, won) };
+  // the end of the run counts for the medals that add up over runs; a given-up run only keeps what it already earned
+  const chk = checkMedals(meta, run, !gaveUp);
+  const bodies = [...new Set([...run.opened, ...chk.earned.map((c) => c.body)])];
+  const next: Meta = { ...chk.meta, trophies: total, runs: meta.runs + 1, wins: meta.wins + (won ? 1 : 0), bestAct: Math.max(meta.bestAct, won ? 3 : run.act + 1), best: bestWith(meta, run.diff, won ? 3 : run.act + 1, won) };
   run.opened = bodies;
-  run.end = { won, trophies: gain, trophyMul: diffOf(run.diff).trophyMul, total, unlockedBodies: bodies, unlockedTrinkets: trinkets, progress: { ...next.progress }, ...(gaveUp ? { gaveUp: true } : {}) };
+  run.end = { won, trophies: gain, trophyMul: diffOf(run.diff).trophyMul, total, unlockedBodies: bodies, unlockedTrinkets: [], progress: { ...next.progress }, ...(gaveUp ? { gaveUp: true } : {}) };
   return { meta: next, run };
 }
 

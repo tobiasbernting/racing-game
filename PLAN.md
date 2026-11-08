@@ -10,7 +10,7 @@ depending on the trinkets you get. A fart or two is fine, toilet humour is not t
 
 - Vite + TypeScript (strict) + three.js, pnpm. No framework, plain DOM for menus.
 - `server.mjs`: a dependency-free Node static server for `dist/`, port 8080, `GET /health` → 200.
-- Progress (unlocks, best runs, a run in progress) in `localStorage`, versioned, wrapped in try/catch.
+- Progress (medals, best runs, a run in progress) in `localStorage`, versioned, wrapped in try/catch.
 - Dockerfile (multi-stage, node:24-alpine, runs as `node`, HEALTHCHECK on /health).
 - `.github/workflows/docker.yml`: on push to main builds and pushes `ghcr.io/tobiasbernting/racing-game`
   (`:latest` and `:<sha>`), PRs only build. The package stays private (GitHub package setting).
@@ -25,7 +25,7 @@ depending on the trinkets you get. A fart or two is fine, toilet humour is not t
 path, as in Tape to Tape / Slay the Spire. Node types:
 - 🏁 **Race**: 3 laps vs AI. Placing earns 💰 kronor; finishing last-but-not-DNF still moves on.
 - ⏱️ **Time trial / challenge**: beat a target time, drift-points, smash N haybales, collect coins.
-- 💀 **Elite race**: tougher rivals with their own trinkets, better reward (a trinket pick).
+- 💀 **Elite race**: tougher rivals with their own trinkets, better reward (a talisman pick).
 - 🛒 **Shop** (Mackens kiosk): buy trinkets, repairs, a reroll.
 - 🔧 **Workshop**: upgrade a part, or swap the vehicle.
 - ❓ **Event**: a silly choice ("En ko blockerar vägen…"), with a risky or safe outcome.
@@ -35,7 +35,7 @@ path, as in Tape to Tape / Slay the Spire. Node types:
 **Lives, not instant death**: the run has ❤️ hearts (start 3). Finishing in the bottom places or a DNF
 costs a heart; 0 hearts ends the run. Forgiving but with stakes.
 
-**Trinkets** (the heart of it, aim for 40+), each one a small, loud rule change, with stacking and
+**Talismans** (formerly trinkets; the heart of it, aim for 40+), each one a small, loud rule change, with stacking and
 synergies, rarity common/rare/legendary, emoji icon + a short Swedish line. Examples:
 - Gummianka på huven: every bump makes you bounce higher (and quack).
 - Raketkorv: boost is twice as long, but the car goes in a wiggly line.
@@ -63,7 +63,7 @@ themes pick from (e.g. act 1 countryside, act 2 wild: desert/volcano/swamp, act 
 the moon (low gravity), a kitchen with giant cereal). Procedural variation per node from a seed so
 the same theme never plays exactly the same.
 
-**Between runs (meta)**: 🏆 trophies from runs unlock vehicles, trinkets into the pool, drivers,
+**Between runs (meta)**: 🏆 trophies from runs are a score and medals are achievements (since phase 14 nothing is locked: every vehicle and talisman is open from the start); drivers,
 paint/liveries. A run summary screen shows the trinket build and the funniest stat ("Studsade 47 gånger").
 
 **Polish**: big juicy feedback (screen shake, confetti, quack sounds), a seed shown for a run, pause,
@@ -132,7 +132,7 @@ run strong, which is right; the rivals and courses must keep up. Design directio
 8. **Vehicles with abilities**: passives, active ability button, starting trinkets, ram/race lean, 5 starters
    (rallybil, sandbuggy, pickup, moppe, traktor), 15 to unlock by a mix of wins and challenges.
    Built (see README): a kit per vehicle (lean, passive, active with cooldown and a charge ring on its button, starting trinket), F / gamepad Y /
-   the touch button in every scheme, computer drivers using their actives, a data-driven challenge system (`src/run/unlocks.ts`) with progress in
+   the touch button in every scheme, computer drivers using their actives, a data-driven challenge system (`src/run/unlocks.ts`, since phase 14 the medals in `src/run/medals.ts`) with progress in
    the meta save, an "UPPLÅST!" ribbon, old saves keep every vehicle, the pick screen and result screen show it all. 5 starters and 5 challenges now;
    phase 10 adds ten more entries.
 9. **Art direction**: grittier, Tape to Tape-inspired: stronger contrast and colour grade, light outlines,
@@ -163,6 +163,13 @@ run strong, which is right; the rivals and courses must keep up. Design directio
 13. **Four difficulties**: chosen on the pick screen and remembered: 🛋️ Söndagsåkare (5 hearts, gentle rivals), 🏁 Normal (3), 🔥 Hård (2 hearts, hearts cost
     50 % more, boss wins heal nothing, Skrotpant every 6th wreck, 1,5× trophies) and 💀 Ett liv (1 heart, no heart purchases or heals, any heart lost ends the run,
     2× trophies). Badge on the map HUD, race cards and result; best act per difficulty in Skrytlådan. Built (see README, "Fyra svårigheter").
+
+14. **Talismans, medals, seed codes**: "prylar" became **Talismaner** (display text only; ids and save keys unchanged); everything is unlocked from the first launch
+    (all 20 vehicles, all talismans in every pool) and the challenge system became **Medaljer** (achievements in Skrytlådan with progress and a MEDALJ! ribbon; old progress
+    and old vehicle unlocks migrate into medals); trophies stay as a score. **Seed codes** like `KOSSA-4821` (word + four digits), a collapsed "🌱 Frö" field on the car pick,
+    the code with a copy button on the map and result, and a test that two different metas give identical runs for one code. **20 new talismans** (72 in all: ability tricks,
+    weather, coin flips, derby and ramps) and two new combos. **Pop-ups** in the upper middle of the screen for talismans, abilities, passives and boosts (setting Mitten/Hörnet/Av).
+    A compact car pick for a phone held upright. Built (see README, "Talismaner, medaljer och frökoder"). A follow-up removes the animal driver picker and renames the rivals.
 
 **House rules for all text**: Swedish; no swearing or vulgar words (enforced by src/language.test.ts); toilet
 humour only as an occasional random item, never the focus: the humour is unpredictable chaos.

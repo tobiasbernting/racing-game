@@ -18,8 +18,9 @@ import { chooseEvent, continueAfterRace, currentNode, currentPlan, enterNode, fi
 import { buyHeart, buyRepair, buyTrinket, reroll, workshopBuy, workshopPaint, workshopRepair } from './run/economy.ts';
 import { activeCombos, buildRunMods, lookOf } from './run/upgrades.ts';
 import { buildScreen } from './ui/upgrades.ts';
-import { unlockedBodies, type Meta } from './run/meta.ts';
-import { checkChallenges } from './run/unlocks.ts';
+import type { Meta } from './run/meta.ts';
+import { checkMedals } from './run/medals.ts';
+import { withSky } from './run/trinkets.ts';
 import { giveUpRun, restartPick, settleRun } from './run/giveup.ts';
 import { kitOf } from './shared/abilities.ts';
 import { newSeed } from './run/rng.ts';
@@ -27,7 +28,7 @@ import { allNodes, type NodeType } from './run/map.ts';
 import { clearRun, loadMeta, loadRun, saveMeta, saveRun } from './run/save.ts';
 import { mapOf, newRun, trinketCount, type RunState } from './run/state.ts';
 import { btn, arrowNav, el } from './ui/dom.ts';
-import { confettiRain, kombo, pryl, sfx, upplast } from './ui/juice.ts';
+import { confettiRain, kombo, medalRibbon, sfx, talisman } from './ui/juice.ts';
 import { saveSettings, settings } from './settings.ts';
 import { trinketById } from './run/trinkets.ts';
 import { bagView, collectionView, eventView, mapView, menuView, overView, pickView, restartConfirmView, postraceView, preraceView, rewardView, settingsView, shopView, titleView, workshopView, type PickSel } from './ui/views.ts';
@@ -595,8 +596,6 @@ export class App {
   }
 
   private pickScreen(): void {
-    // a car locked since (cleaned meta) falls back to the rally car
-    if (!unlockedBodies(this.meta).includes(this.sel.body)) this.sel.body = 'hatch';
     this.showScreen(
       pickView(this.meta, this.sel, {
         onChange: () => this.preview?.update(this.selCar()),
@@ -616,7 +615,7 @@ export class App {
     this.meta.paint = s.paint;
     saveMeta(this.meta);
     clearRun();
-    this.commit(newRun({ seed: newSeed(), diff: s.diff, body: s.body, driver: s.driver, paint: s.paint, trophies: this.meta.trophies, progress: this.meta.progress }));
+    this.commit(newRun({ seed: s.seed ?? newSeed(), diff: s.diff, body: s.body, driver: s.driver, paint: s.paint, progress: this.meta.progress }));
   }
 
   private resumeRun(r: RunState): void {
@@ -642,12 +641,12 @@ export class App {
       this.meta.seen = [...seen];
       saveMeta(this.meta);
     }
-    // the challenges that open vehicles: checked after every step of the run (the end of the run checks again)
-    const chk = checkChallenges(this.meta, r);
-    if (chk.steps.length || chk.unlocked.length) {
+    // the medals: checked after every step of the run (the end of the run checks again)
+    const chk = checkMedals(this.meta, r);
+    if (chk.steps.length) {
       this.meta = chk.meta;
       saveMeta(this.meta);
-      for (const c of chk.unlocked) if (!r.opened.includes(c.body)) r.opened.push(c.body);
+      for (const c of chk.earned) if (!r.opened.includes(c.body)) r.opened.push(c.body);
     }
     if (r.status === 'running') saveRun(r);
     else this.endRun(r);
@@ -657,23 +656,23 @@ export class App {
     if (prev) {
       const had = new Set(activeCombos({ owned: prev.trinkets, ups: prev.up }).map((c) => c.id));
       const fresh = activeCombos({ owned: r.trinkets, ups: r.up }).filter((c) => !had.has(c.id));
-      if (fresh.length && !chk.unlocked.length) {
+      if (fresh.length && !chk.earned.length) {
         sfx.fanfare(this.audio, this.master);
         kombo(this.card, fresh[0]!.emoji, fresh.length > 1 ? `${fresh[0]!.name} +${fresh.length - 1}` : fresh[0]!.name, fresh[0]!.text);
       }
     }
-    for (const c of chk.unlocked) {
+    for (const c of chk.earned) {
       sfx.fanfare(this.audio, this.master);
-      upplast(this.card, kitOf(c.body).active.emoji, CAR_BODY_NAMES[c.body], c.title);
+      medalRibbon(this.card, c.emoji, c.name, c.title);
     }
   }
 
-  /** NY PRYL! A banner, confetti and a little tune over the next screen. */
+  /** NY TALISMAN! A banner, confetti and a little tune over the next screen. */
   private fanfare(id: string): void {
     const d = trinketById(id);
     if (!d) return;
     sfx.fanfare(this.audio, this.master);
-    pryl(this.card, d.emoji, d.name);
+    talisman(this.card, d.emoji, d.name);
   }
 
   /** Draws whatever the run is doing now: the map, or the node it is in. */
@@ -809,7 +808,7 @@ export class App {
     // dev builds only: a test can force the course of the next race
     const forced = import.meta.env.DEV ? (window as unknown as { __forceCourse?: RallyCourse }).__forceCourse : undefined;
     return {
-      rules: forced ? { ...plan.rules, course: forced } : plan.rules,
+      rules: withSky(forced ? { ...plan.rules, course: forced } : plan.rules, run.trinkets, node.boss),
       car: run.car,
       seed: node.seed,
       mods: buildRunMods(run.trinkets, run.up, run.car.body),

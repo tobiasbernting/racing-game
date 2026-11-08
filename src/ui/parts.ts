@@ -1,9 +1,10 @@
-// Pieces shared by the run screens: the status bar, trinket cards and chips.
+// Pieces shared by the run screens: the status bar, talisman cards and chips.
 import { ACTS } from '../run/map.ts';
 import { type RunState } from '../run/state.ts';
 import { RARITY_NAMES, trinketById, type Owned, type TrinketDef } from '../run/trinkets.ts';
 import { btn, el } from './dom.ts';
 import { DIFFS } from '../run/difficulty.ts';
+import { seedCode, seedLabelOf } from '../run/seedcode.ts';
 
 export { ACT_NAMES } from '../run/summary.ts';
 import { ACT_NAMES } from '../run/summary.ts';
@@ -73,8 +74,49 @@ export function trinketCard(def: TrinketDef, o: { n?: number; price?: number; on
   return b;
 }
 
-/** The run's seed as a short code a kid can read out ("Frö: 3K9XQ2"). */
-export const seedLabel = (seed: number): string => `Frö: ${(seed >>> 0).toString(36).toUpperCase()}`;
+/** The run's seed as a short code a kid can read out ("Frö: KOSSA-4821"). */
+export const seedLabel = (seed: number): string => `Frö: ${seedLabelOf(seed)}`;
+
+/** Copies text to the clipboard: the async API where the page may use it, else a hidden textarea. True when it worked. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // blocked (an insecure page, no permission): fall through to the old way
+  }
+  try {
+    const t = document.createElement('textarea');
+    t.value = text;
+    t.setAttribute('readonly', '');
+    t.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+    document.body.append(t);
+    t.select();
+    t.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    t.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/** The seed code with a small copy button ("📋"): on a press it says "Kopierat!" for a moment. */
+export function seedChip(seed: number, cls = 'rg-seed'): HTMLElement {
+  const code = seedCode(seed);
+  const text = seedLabelOf(seed);
+  const b = btn('rg-copy', '📋', () => {
+    void copyText(text).then((ok) => {
+      b.textContent = ok ? '✓ Kopierat' : 'Markera och kopiera själv';
+      setTimeout(() => (b.textContent = '📋'), 1600);
+    });
+  });
+  b.setAttribute('aria-label', `Kopiera frökoden ${text}`);
+  b.title = code ? 'Kopiera koden. Samma kod och svårighet ger exakt samma runda.' : 'Kopiera koden';
+  return el('span', cls, 'Frö: ', el('b', 'rg-code', text), b);
+}
 
 /** A hand-drawn arrow, a wobbly stroke with a two-line head, for the sticker look (colour from CSS `color`). */
 export function arrowSvg(cls: string): SVGSVGElement {

@@ -70,7 +70,8 @@ export function playerStats(run: RunState, m: PlayerModel): PlayerStats {
     driftSaved: Math.min(1.7, driftSaving(human, t.driftRate) + run.trinkets.reduce((a, o) => a + (HOOK_SAVE[o.id] ?? 0) * Math.min(o.n, 3), 0) * skillK + upSave) + activeLapSave(run.car.body, 50, skillK) + abilityMore,
     ram: Math.max(ramPowerOf(t.shove), PASSIVE_RAM[run.car.body] ?? 1) * (1 + 0.04 * tierOf(run.up, 'ram.boost')),
     dmg: t.spike,
-    hp: t.hp,
+    // Arenaklockan heals a bit every eight seconds in Blodbad and the derby: worth about a quarter more health a copy
+    hp: t.hp * (1 + 0.25 * Math.min(3, run.trinkets.find((o) => o.id === 'arenaklocka')?.n ?? 0)),
     mass: body.feel.mass * Math.pow(t.mass, 0.7),
     tough: Math.max(0.2, t.tough) / body.tough,
     grip,

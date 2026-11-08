@@ -123,7 +123,7 @@ export const KITS: Record<CarBody, VehicleKit> = {
     'sofa',
     'mixed',
     'slumpvaxel',
-    { id: 'chaosHeir', name: 'Kaosarvet', text: 'En slumpad pryl dimper ner varje akt. Ingen vet varför.' },
+    { id: 'chaosHeir', name: 'Kaosarvet', text: 'En slumpad talisman dimper ner varje akt. Ingen vet varför.' },
     { id: 'cushionChaos', name: 'Soffkudde-kaos', emoji: '🛋️', text: 'Slumpar en effekt: rusning, hopp, höbalar, pannkaka eller byte av plats.', cooldown: 11, ai: 'speed', save: 0.05 },
   ),
   epa: kit(

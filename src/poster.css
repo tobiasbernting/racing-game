@@ -159,12 +159,6 @@
   border-color: var(--ink);
   box-shadow: 4px 4px 0 var(--spray-r);
 }
-.rg-chipbtn.locked {
-  background: #3a3530;
-  color: #d8cfb8;
-  border-style: dashed;
-  border-color: #8a8070;
-}
 .rg-btn.warn {
   background: var(--spray-r);
   color: #fff;
@@ -236,7 +230,7 @@
 .rg-goal,
 .rg-kindbox,
 .rg-overright,
-.rg-body-card,
+.rg-medal,
 .rg-talk {
   color: var(--ink);
 }
@@ -327,18 +321,12 @@ div.rg-tcard {
 .rg-goal,
 .rg-kindbox,
 .rg-talk,
-.rg-body-card {
+.rg-medal {
   background: var(--paper) var(--noise);
   background-blend-mode: multiply;
   border: 2px solid var(--ink);
   border-radius: 3px 8px 4px 9px;
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
-}
-.rg-kit.locked,
-.rg-body-card.locked {
-  background: #3a352f;
-  color: #d8cfb8;
-  border-style: dashed;
 }
 .rg-kit-k {
   background: #2a2519;
@@ -366,30 +354,6 @@ div.rg-tcard {
 }
 .rg-kit-bar i {
   background: var(--spray-r);
-}
-.rg-kit-lock b {
-  color: #a3280f;
-}
-/* a locked vehicle's card is dark, so its text has to be light (it was ink on charcoal) */
-.rg-kit.locked .rg-kit-row small,
-.rg-kit.locked .rg-kit-text,
-.rg-kit.locked .rg-kit-head small,
-.rg-kit.locked .rg-kit-lock small {
-  color: #efe6cc;
-}
-.rg-kit.locked .rg-kit-row em {
-  color: #cfc29c;
-}
-.rg-kit.locked .rg-kit-stars,
-.rg-kit.locked .rg-lean,
-.rg-kit.locked .rg-kit-lock b {
-  color: #ffd23f;
-}
-.rg-kit.locked .rg-kit-bar {
-  background: rgba(255, 255, 255, 0.25);
-}
-.rg-kit.locked .rg-kit-bar i {
-  background: #ffd23f;
 }
 .rg-kindbox {
   border-left: 8px solid var(--kc);

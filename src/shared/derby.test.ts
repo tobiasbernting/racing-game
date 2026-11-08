@@ -161,7 +161,7 @@ describe('the run rules for a derby', () => {
   const runAtDerby = (calm = false) => {
     let seed = 1;
     for (;; seed++) {
-      const r0 = newRun({ seed, calm, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
+      const r0 = newRun({ seed, calm, body: 'hatch', driver: 'human', paint: '#e8412c' });
       const nodes = allNodes(generateAct(seed, 0));
       const derby = nodes.find((n) => n.derby && n.type === 'elite');
       if (!derby) continue;

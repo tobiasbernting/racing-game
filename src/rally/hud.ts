@@ -4,6 +4,7 @@
 // result table and a little touch button for the camera.
 import type { Track } from './track.ts';
 import { clamp, fmtTime } from './util.ts';
+import { settings } from '../settings.ts';
 
 const CSS = `
 .rl-hud { position: absolute; inset: 0; pointer-events: none; color: #fff; z-index: 1; --s: 1;
@@ -97,6 +98,17 @@ const CSS = `
 .rl-pop.abil { color: #d6b8ff; }
 @keyframes rl-rise { from { opacity: 0; transform: translate(-50%, 10px) scale(0.6); } 15% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
   to { opacity: 0; transform: translate(-50%, -70px) scale(1); } }
+.rl-pops { position: absolute; left: 50%; bottom: 62%; transform: translateX(-50%); display: flex; flex-direction: column-reverse; align-items: center; gap: calc(2px * var(--s)); pointer-events: none; z-index: 2; }
+.rl-bigpop { display: flex; align-items: center; gap: calc(8px * var(--s)); white-space: nowrap; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; color: #fff2b0;
+  font-size: calc(28px * var(--s)); line-height: 1.05; -webkit-text-stroke: calc(5px * var(--s)) rgba(10, 8, 24, 0.78); paint-order: stroke fill;
+  text-shadow: 0 calc(3px * var(--s)) calc(10px * var(--s)) rgba(0, 0, 0, 0.55); animation: rl-bigpop 0.85s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+.rl-bigpop i { font-style: normal; font-size: calc(44px * var(--s)); -webkit-text-stroke: 0; filter: drop-shadow(0 calc(2px * var(--s)) calc(3px * var(--s)) rgba(0, 0, 0, 0.7)); }
+.rl-bigpop.abil { color: #e4d0ff; }
+.rl-bigpop.boost { color: #ffb347; }
+.rl-bigpop.hit { color: #ff9aa8; }
+@keyframes rl-bigpop { 0% { opacity: 0; transform: scale(0.4) translateY(10px); } 20% { opacity: 1; transform: scale(1.15) translateY(0); } 34% { transform: scale(1); } 68% { opacity: 1; } 100% { opacity: 0; transform: scale(1) translateY(-14px); } }
+@media (max-height: 520px) { .rl-bigpop { font-size: calc(22px * var(--s)); } .rl-bigpop i { font-size: calc(32px * var(--s)); } .rl-pops { bottom: 60%; } }
+@media (prefers-reduced-motion: reduce) { .rl-bigpop { animation-duration: 0.01s; animation-delay: 0.6s; } }
 .rl-tags { position: absolute; inset: 0; overflow: hidden; }
 .rl-tag { position: absolute; left: 0; top: 0; padding: calc(2px * var(--s)) calc(8px * var(--s)); border-radius: 999px; white-space: nowrap;
   background: rgba(16, 20, 34, 0.6); font-size: calc(13px * var(--s)); font-weight: 800; transform: translate(-50%, -100%); display: none; }
@@ -244,6 +256,10 @@ export class Hud {
   private tagsEl: HTMLElement;
   private trinketRow: HTMLElement;
   private trinketEls = new Map<string, HTMLElement>();
+  /** What each owned talisman looks like, for the pop-up in the middle of the screen. */
+  private trinketInfo = new Map<string, { emoji: string; name: string }>();
+  private popsEl: HTMLElement;
+  private popAt = new Map<string, number>();
   private discoEl: HTMLElement;
   private coinChip: HTMLElement;
   private tagEls = new Map<string, HTMLElement>();
@@ -272,6 +288,7 @@ export class Hud {
     const tl = el('div', 'rl-tl', this.root);
     const top = el('div', 'rl-panel rl-top', tl);
     this.feed = el('div', 'rl-feed', top);
+    this.popsEl = el('div', 'rl-pops', this.root);
     this.pos = el('div', 'rl-pos', top);
     this.lap = el('div', 'rl-lap', top);
     this.scoreEl = el('div', 'rl-score', top);
@@ -470,6 +487,8 @@ export class Hud {
   setTrinkets(items: { id: string; emoji: string; name: string; n: number }[]): void {
     this.trinketRow.replaceChildren();
     this.trinketEls.clear();
+    this.trinketInfo.clear();
+    for (const it of items) this.trinketInfo.set(it.id, { emoji: it.emoji, name: it.name });
     const shown = items.length > 10 ? items.slice(0, 9) : items;
     if (shown.length < items.length) {
       const more = el('div', 'rl-tr more', this.trinketRow);
@@ -483,6 +502,36 @@ export class Hud {
       el('span', 'rl-trl', e);
       this.trinketEls.set(it.id, e);
     }
+  }
+
+  /**
+   * A brief pop-up for something that just happened (a talisman, the ability, a passive, a boost): a big emoji and a short word
+   * in the upper middle of the screen, above the car, that scales in and fades within a second. `key` is the source: the same
+   * source pops at most every 2.5 s. The setting "Pop-ups" picks the middle (default), the corner (a small line under the
+   * position box) or nothing.
+   */
+  pop(key: string, emoji: string, text: string, cls = ''): void {
+    const mode = settings.popups;
+    if (mode === 'off') return;
+    const now = performance.now();
+    if (now - (this.popAt.get(key) ?? -1e9) < 2500) return;
+    this.popAt.set(key, now);
+    if (mode === 'corner') return this.toast(`${emoji} ${text}`);
+    const e = document.createElement('div');
+    e.className = `rl-bigpop ${cls}`.trim();
+    const pic = document.createElement('i');
+    pic.textContent = emoji;
+    e.append(pic, document.createTextNode(text));
+    // the newest is nearest the horizon, older ones sit above it; never more than three
+    this.popsEl.prepend(e);
+    while (this.popsEl.childElementCount > 3) this.popsEl.lastElementChild?.remove();
+    setTimeout(() => e.remove(), 900);
+  }
+
+  /** A talisman did something: the pop-up with its picture and `text` (its name when there is none). */
+  popFor(id: string, text?: string): void {
+    const info = this.trinketInfo.get(id);
+    if (info) this.pop(`t:${id}`, info.emoji, text ?? info.name);
   }
 
   /** A trinket just did something: its icon pulses, and `text` (if any) pops up. */

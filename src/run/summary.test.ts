@@ -7,11 +7,11 @@ import { parseRun } from './save.ts';
 import { addRaceStats } from './stats.ts';
 import { emptyRunStats, newRun, reachable, type RunState } from './state.ts';
 import { TRINKETS, trinketById } from './trinkets.ts';
-import { abilityOf, allStats, buildMix, buildTimeline, buildView, nextUnlock, statView, trophyReasons, verdictOf } from './summary.ts';
+import { abilityOf, allStats, buildMix, buildTimeline, buildView, statView, trophyReasons, verdictOf } from './summary.ts';
 import { trophiesFor } from './meta.ts';
 
 const fresh = (): RunState => {
-  const r = newRun({ seed: 7, calm: false, body: 'hatch', driver: 'cow', paint: '#e8412c', trophies: 0 });
+  const r = newRun({ seed: 7, calm: false, body: 'hatch', driver: 'cow', paint: '#e8412c' });
   r.trinkets = [];
   r.got = [];
   return r;
@@ -167,15 +167,6 @@ describe('trophies and unlock progress', () => {
     }
   });
 
-  it('finds the next unlock above the trophies', () => {
-    const n = nextUnlock(0)!;
-    expect(n.need).toBeGreaterThan(0);
-    expect(n.from).toBe(0);
-    const m = nextUnlock(n.need)!;
-    expect(m.need).toBeGreaterThan(n.need);
-    expect(m.from).toBe(n.need);
-    expect(nextUnlock(99999)).toBeNull();
-  });
 });
 
 describe('old saves', () => {

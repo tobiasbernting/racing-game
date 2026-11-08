@@ -9,8 +9,8 @@ import { Rng } from './rng.ts';
 import { CALM_HEARTS, START_HEARTS, costsHeart, heartsLost, mapOf, newRun, ownedN, reachable, type RunState } from './state.ts';
 
 /** A run with nothing in the bag (the starting trinket of the vehicle is taken out, so the tests count only what they add). */
-const fresh = (o: Partial<{ seed: number; calm: boolean; trophies: number }> = {}): RunState => {
-  const r = newRun({ seed: o.seed ?? 42, calm: o.calm ?? false, body: 'hatch', driver: 'cow', paint: '#e8412c', trophies: o.trophies ?? 0 });
+const fresh = (o: Partial<{ seed: number; calm: boolean }> = {}): RunState => {
+  const r = newRun({ seed: o.seed ?? 42, calm: o.calm ?? false, body: 'hatch', driver: 'cow', paint: '#e8412c' });
   r.trinkets = [];
   r.got = [];
   return r;
@@ -227,7 +227,7 @@ describe('trinkets from rewards', () => {
 
 describe('the shop', () => {
   const inShop = (kr: number): RunState => {
-    const run = fresh({ trophies: 20 });
+    const run = fresh();
     run.kronor = kr;
     const m = mapOf(run);
     const shop = m.rows.flat().find((n) => n.type === 'shop')!;
@@ -250,9 +250,11 @@ describe('the shop', () => {
     expect(makeStock(run, 'x', 1)).not.toEqual(s);
   });
 
-  it('only stocks what the trophies have unlocked', () => {
-    const run = fresh({ trophies: 0 });
-    for (let i = 0; i < 40; i++) for (const it of makeStock(run, `n${i}`, 0)) expect(['disco', 'tidsvrida', 'dino']).not.toContain(it.id);
+  it('stocks from the whole pool: what trophies used to gate turns up from the first launch', () => {
+    const run = fresh();
+    const seen = new Set<string>();
+    for (let i = 0; i < 200; i++) for (const it of makeStock(run, `n${i}`, 0)) seen.add(it.id);
+    for (const id of ['discokula', 'tidsvrida', 'dino']) expect(seen.has(id), id).toBe(true);
   });
 
   it('buying takes kronor, adds the trinket and cannot be done twice', () => {
