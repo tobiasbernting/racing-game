@@ -5,6 +5,7 @@ import type { GarageCar, RaceRules } from '../shared/rally.ts';
 import type { RaceMods, RaceStats, RaceTwist } from './mods.ts';
 import type { FieldPlan } from '../shared/field.ts';
 import type { RaceKind } from '../shared/kinds.ts';
+import type { ArenaId } from '../shared/derby.ts';
 
 /** What a finished race reports (through RallyOptions.onDone, once, before ctx.end). */
 export interface RallyResult {
@@ -42,6 +43,22 @@ export interface RallyResult {
   wrecked?: number;
   /** Where the player crossed the line on the road (1 = first), whatever the points said. */
   roadPlace?: number;
+  /** A Rivningsderby: how it ended. In a derby `place` is the placing (the order of elimination), `time` the length in ms. */
+  derby?: DerbyOutcome;
+}
+
+/** How a Rivningsderby ended, for the result card: the final table, and whether the clock ran out. */
+export interface DerbyOutcome {
+  arena: ArenaId;
+  /** Seconds the derby lasted, and the clock it had. */
+  seconds: number;
+  limit: number;
+  /** The player was still running at the end. */
+  alive: boolean;
+  /** The clock ran out with more than one car running. */
+  timeUp: boolean;
+  /** Everyone, in placing order. `outAt` is the second the car was wrecked (null if it was still running). */
+  table: { name: string; place: number; alive: boolean; takedowns: number; hp: number; outAt: number | null; me: boolean }[];
 }
 
 export interface RallyOptions {

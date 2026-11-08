@@ -18,7 +18,8 @@ function statCard(c: StatCard): HTMLElement {
 
 function timelineItem(t: TimelineItem): HTMLElement {
   const top = el('div', 'rs-tl-top', el('span', 'rs-tl-ico', t.icon), t.kind ? el('span', `rs-kind k-${t.kind.kind}`, `${t.kind.emoji} ${t.kind.name}`) : el('span', 'rs-kind plain', t.typeName));
-  const kids: (Node | string | null)[] = [top, el('b', 'rs-tl-title', t.title)];
+  // a shop or the workshop has no name of its own: the chip above already says it
+  const kids: (Node | string | null)[] = [top, t.title === t.typeName ? null : el('b', 'rs-tl-title', t.title)];
   if (t.result) kids.push(el('span', 'rs-tl-res', t.result));
   if (t.lost > 0) kids.push(el('span', 'rs-tl-lost', '💔'.repeat(Math.min(t.lost, 3)), el('small', null, ` −${t.lost} ${t.lost === 1 ? 'hjärta' : 'hjärtan'}`)));
   if (t.rewards.length) kids.push(el('span', 'rs-tl-rew', ...t.rewards.map((r) => el('span', null, r))));

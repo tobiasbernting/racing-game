@@ -3,6 +3,7 @@
 // every time it is asked for and never has to be saved.
 import { RALLY_COURSES, type RallyCourse } from '../shared/rally.ts';
 import { KIND_MIX, RACE_KINDS, type RaceKind } from '../shared/kinds.ts';
+import { ARENA_IDS, DERBY_BOSS_CHANCE, DERBY_EMOJI, type ArenaId } from '../shared/derby.ts';
 import { Rng, hashSeed } from './rng.ts';
 
 export const NODE_TYPES = ['race', 'challenge', 'elite', 'shop', 'workshop', 'event', 'boss'] as const;
@@ -53,7 +54,12 @@ export interface MapNode {
   boss?: BossId;
   /** Races, challenges, elites and bosses: Rally, Blandat or Blodbad. */
   kind?: RaceKind;
+  /** A Rivningsderby (an arena, last car running wins): some elites and the odd last boss. Its kind is always Blodbad. */
+  derby?: ArenaId;
 }
+
+/** The icon of a node on the map: the stadium for a derby, otherwise the node type's own. */
+export const nodeEmoji = (n: Pick<MapNode, 'type' | 'derby'>): string => (n.derby ? DERBY_EMOJI : NODE_EMOJI[n.type]);
 
 export interface ActMap {
   act: number;
@@ -185,6 +191,7 @@ export function generateAct(seed: number, act: number): ActMap {
     }
   }
   assignKinds(seed, act, rows);
+  assignDerbys(seed, act, rows);
   return { act, rows };
 }
 
@@ -216,6 +223,24 @@ function assignKinds(seed: number, act: number, rows: MapNode[][]): void {
   }
   const boss = rows[ROWS]![0]!;
   if (boss.boss) boss.kind = BOSS_KIND[boss.boss];
+}
+
+/**
+ * Some elites and bosses are a Rivningsderby: an enclosed arena where the last car running wins. About one elite an act
+ * (the seed picks which; with no elite on the map there is none), and the last boss now and then. Own seeded generator,
+ * so the rest of the map is untouched; a derby is always Blodbad (health, wrecks, takedowns).
+ */
+function assignDerbys(seed: number, act: number, rows: MapNode[][]): void {
+  const rg = Rng.for(seed, 'derby', act);
+  const elites = rows.flat().filter((n) => n.type === 'elite');
+  const arenas = rg.shuffle([...ARENA_IDS]);
+  const mark = (n: MapNode, id: ArenaId): void => {
+    n.derby = id;
+    n.kind = 'carnage';
+  };
+  if (elites.length) mark(rg.pick(elites), arenas[act % arenas.length]!);
+  const boss = rows[ROWS]![0]!;
+  if (boss.boss === 'kanin' && rg.chance(DERBY_BOSS_CHANCE)) mark(boss, arenas[(act + 1) % arenas.length]!);
 }
 
 /** Every node of an act, flat. */

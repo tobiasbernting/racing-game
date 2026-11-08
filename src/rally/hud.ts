@@ -150,6 +150,13 @@ const CSS = `
   animation: rl-disco 2.4s linear infinite; }
 .rl-disco.on { opacity: 0.55; }
 @keyframes rl-disco { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
+.rl-derby { position: absolute; left: 50%; top: max(calc(10px * var(--s)), env(safe-area-inset-top)); transform: translateX(-50%); display: none; align-items: center; gap: calc(14px * var(--s));
+  padding: calc(5px * var(--s)) calc(16px * var(--s)); border-radius: calc(14px * var(--s)); background: rgba(16, 20, 34, 0.62); box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  font-weight: 900; font-size: calc(17px * var(--s)); white-space: nowrap; font-variant-numeric: tabular-nums; border: 2px solid rgba(255, 138, 31, 0.55); }
+.rl-derby.show { display: flex; }
+.rl-derby b { font-family: var(--display, Impact, system-ui); font-weight: 400; font-style: italic; font-size: calc(27px * var(--s)); color: #ffd23f; margin-right: calc(2px * var(--s)); }
+.rl-derby .low b { color: #ff7a5a; }
+.rl-derby .t.low { color: #ff7a5a; animation: rl-blink 0.7s steps(2) infinite; }
 .rl-hint { position: absolute; left: 50%; bottom: max(calc(14px * var(--s)), env(safe-area-inset-bottom)); transform: translateX(-50%); font-size: calc(14px * var(--s));
   font-weight: 800; opacity: 0.8; text-shadow: 0 1px 0 rgba(0,0,0,0.5); display: none; }
 .rl-hint.show { display: block; }
@@ -178,6 +185,8 @@ export interface Racer {
   /** Blodbad: points if the race ended now, and whether the car is wrecked. */
   pts?: number;
   out?: boolean;
+  /** Derby: the small text on the right of the name (health left, or "ute"). */
+  tag?: string;
 }
 
 function el(tag: string, cls: string, parent: HTMLElement): HTMLElement {
@@ -197,6 +206,9 @@ export class Hud {
   private boardKey = '';
   private map: HTMLCanvasElement;
   private mapBase: HTMLCanvasElement | null = null;
+  /** Half the floor's width when the race is a derby in an arena (0 = a road). */
+  private arenaHw = 0;
+  private derbyEl: HTMLElement;
   private speedo: HTMLCanvasElement;
   private msgEl: HTMLElement;
   private sub: HTMLElement;
@@ -265,6 +277,7 @@ export class Hud {
     this.scoreEl = el('div', 'rl-score', top);
     this.times = el('div', 'rl-panel rl-times', tl);
     this.board = el('ul', 'rl-panel rl-board', tl);
+    this.derbyEl = el('div', 'rl-derby', this.root);
     this.map = el('canvas', 'rl-map', this.root) as HTMLCanvasElement;
     this.speedo = el('canvas', 'rl-speedo', this.root) as HTMLCanvasElement;
     this.lightsEl = el('div', 'rl-lights', this.root);
@@ -388,6 +401,26 @@ export class Hud {
       i.style.background = b.hp > 0.55 ? '#5fdc6a' : b.hp > 0.25 ? '#ffd23f' : '#ff5a3a';
     }
     for (const [id, e] of this.barEls) if (!seen.has(id)) e.style.display = 'none';
+  }
+
+  /** This race is a derby in an arena `hw` metres half-wide: the minimap draws the floor, not a road. */
+  setArena(hw: number): void {
+    this.arenaHw = hw;
+    this.mapBase = null;
+    // no lap times in a derby: the clock is in the derby panel
+    this.times.style.display = 'none';
+  }
+
+  /** The derby panel: cars still running, the clock and the player's takedowns (null hides it). */
+  setDerby(info: { alive: number; total: number; left: number; takedowns: number } | null): void {
+    const key = info ? `${info.alive}/${info.total}/${Math.ceil(info.left)}/${info.takedowns}` : '-';
+    if (this.same('derby', key)) return;
+    this.derbyEl.classList.toggle('show', !!info);
+    if (!info) return;
+    const m = Math.floor(info.left / 60);
+    const sec = Math.ceil(info.left % 60) % 60;
+    const clock = `${m}:${String(info.left > 0 && sec === 0 && info.left % 60 > 0 ? 59 : sec).padStart(2, '0')}`;
+    this.derbyEl.innerHTML = `<span class="${info.alive <= 2 ? 'low' : ''}">🚗 <b>${info.alive}</b>/${info.total} kvar</span><span class="t${info.left <= 15 ? ' low' : ''}">⏱️ ${clock}</span><span>💥 <b>${info.takedowns}</b></span>`;
   }
 
   /** The damage bar (null hides it). */
@@ -527,8 +560,9 @@ export class Hud {
     const html = `<b>${place}</b><i>:${suf}</i><small>av ${of}</small>`;
     if (this.pos.innerHTML !== html) this.pos.innerHTML = html;
     this.pos.classList.toggle('first', place === 1);
-    const lt = lap > laps ? 'I mål!' : `Varv ${lap}/${laps}`;
+    const lt = lap <= 0 ? '' : lap > laps ? 'I mål!' : `Varv ${lap}/${laps}`;
     if (this.lap.textContent !== lt) this.lap.textContent = lt;
+    this.lap.style.display = lap <= 0 ? 'none' : '';
     this.lap.classList.toggle('last', lap === laps);
   }
 
@@ -537,11 +571,11 @@ export class Hud {
   }
 
   setBoard(order: Racer[]): void {
-    const key = order.map((r) => r.name + (r.done ? '!' : '') + (r.pts ?? '') + (r.out ? 'x' : '')).join('|');
+    const key = order.map((r) => r.name + (r.done ? '!' : '') + (r.pts ?? '') + (r.tag ?? '') + (r.out ? 'x' : '')).join('|');
     if (key === this.boardKey) return;
     this.boardKey = key;
     this.board.innerHTML = order
-      .map((r, i) => `<li class="${r.me ? 'me' : ''} ${r.done ? 'done' : ''}"><span>${i + 1}.</span><span class="rl-dot" style="background:${r.color}"></span>${escape(r.name)}${r.done ? ' 🏁' : ''}${r.out ? ' 💥' : ''}${r.pts !== undefined ? `<small>${r.pts} p</small>` : ''}</li>`)
+      .map((r, i) => `<li class="${r.me ? 'me' : ''} ${r.done ? 'done' : ''}"><span>${i + 1}.</span><span class="rl-dot" style="background:${r.color}"></span>${escape(r.name)}${r.done ? ' 🏁' : ''}${r.out ? ' 💥' : ''}${r.tag !== undefined ? `<small>${escape(r.tag)}</small>` : r.pts !== undefined ? `<small>${r.pts} p</small>` : ''}</li>`)
       .join('');
   }
 
@@ -577,7 +611,7 @@ export class Hud {
     cv.height = W;
     const g = cv.getContext('2d')!;
     const pad = W * 0.1;
-    const span = Math.max(t.maxX - t.minX, t.maxZ - t.minZ);
+    const span = Math.max(t.maxX - t.minX, t.maxZ - t.minZ) + (this.arenaHw > 0 ? this.arenaHw * 2 + 6 : 0);
     const k = (W - pad * 2) / span;
     this.mapScale = k;
     this.mapOx = (t.minX + t.maxX) / 2 - W / 2 / k;
@@ -599,6 +633,18 @@ export class Hud {
     };
     g.lineJoin = 'round';
     g.lineCap = 'round';
+    if (this.arenaHw > 0) {
+      // an arena: the floor is the wide ring, with the island as the dark hole in the middle
+      path(0, t.n);
+      g.closePath();
+      g.strokeStyle = 'rgba(0,0,0,0.6)';
+      g.lineWidth = this.arenaHw * 2 * k + W * 0.025;
+      g.stroke();
+      g.strokeStyle = '#8f7c5c';
+      g.lineWidth = this.arenaHw * 2 * k;
+      g.stroke();
+      return cv;
+    }
     path(0, t.n);
     g.strokeStyle = 'rgba(0,0,0,0.55)';
     g.lineWidth = W * 0.06;

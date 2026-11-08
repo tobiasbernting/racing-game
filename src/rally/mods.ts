@@ -140,9 +140,11 @@ export interface RaceStats {
   hazards: number;
   /** Times the vehicle's active ability was used. */
   abilityUses: number;
+  /** Shortcut jumps taken (a clean take-off and landing over a ramp's gap). */
+  shortcuts: number;
 }
 
-export const emptyStats = (): RaceStats => ({ bounces: 0, driftSeconds: 0, bananas: 0, bananaHits: 0, boosts: 0, coins: 0, squashed: 0, quacks: 0, jumps: 0, airSeconds: 0, airJumps: 0, topSpeed: 0, longestDrift: 0, nitroSeconds: 0, oilHits: 0, overtakes: 0, hazards: 0, abilityUses: 0 });
+export const emptyStats = (): RaceStats => ({ bounces: 0, driftSeconds: 0, bananas: 0, bananaHits: 0, boosts: 0, coins: 0, squashed: 0, quacks: 0, jumps: 0, airSeconds: 0, airJumps: 0, topSpeed: 0, longestDrift: 0, nitroSeconds: 0, oilHits: 0, overtakes: 0, hazards: 0, abilityUses: 0, shortcuts: 0 });
 
 /** The player's car as a hook sees it each frame. */
 export interface TickState {

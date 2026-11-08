@@ -4,6 +4,7 @@
 // and damage 0..100. Prizes come from `racePrize`.
 
 import { isRaceKind, type RaceKind } from './kinds.ts';
+import { isArenaId, type ArenaId } from './derby.ts';
 
 // ---------------------------------------------------------------------------
 // Bodies
@@ -381,6 +382,8 @@ export interface RaceRules {
   pickups: boolean;
   /** Rally, Blandat or Blodbad (see kinds.ts). */
   kind: RaceKind;
+  /** A Rivningsderby in this arena (see derby.ts): no laps, the last car running wins. Always with kind Blodbad. */
+  arena?: ArenaId;
 }
 
 export const MAX_LAPS = 5;
@@ -412,6 +415,7 @@ export function cleanRules(r: unknown): RaceRules {
     sameCars: o.sameCars === true,
     pickups: o.pickups !== false,
     kind: isRaceKind(o.kind) ? o.kind : 'rally',
+    ...(isArenaId(o.arena) ? { arena: o.arena, kind: 'carnage' as const } : {}),
   };
 }
 

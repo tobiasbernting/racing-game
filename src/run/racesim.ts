@@ -6,7 +6,8 @@
 import { MAX_CHARGES, MAX_NITRO_SECONDS, capGrip, capPower } from '../rally/mods.ts';
 import { ramPowerOf } from '../rally/combat.ts';
 import { LASTLAP_BOOST, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
-import { pointsTable } from '../shared/kinds.ts';
+import { carnagePoints, pointsTable } from '../shared/kinds.ts';
+import { DERBY_SECONDS } from '../shared/derby.ts';
 import { BODY_LAP, HOOK_SAVE, HUMAN_FACTOR, NITRO_SAVE, baseLap, carGain, driftSaving, rivalLap, type HumanSkill } from '../shared/pace.ts';
 import { CAR_BODY_DEFS, NITRO_SECONDS } from '../shared/rally.ts';
 import { PASSIVE_LAP, PASSIVE_RAM, activeLapSave, kitOf, usesPerLap } from '../shared/abilities.ts';
@@ -136,8 +137,89 @@ interface Car {
   pen: number;
 }
 
+/** How well a driver of each kind dodges the hits in a derby (a good player sees them coming). */
+const DODGE = { poor: 0.82, average: 1, good: 1.22, expert: 1.45 } as const;
+
+/**
+ * A Rivningsderby as a sequence of eliminations. Every car has a survival number (health, mass, armour: the stats the
+ * collision numbers use) and an offence number (ram, mass, appetite for contact); a car's chance of being the next one
+ * wrecked is what the others throw at it divided by what it can take and how well it dodges. The weakest tend to go
+ * first, the striker who knocks out the field survives, and when the clock runs out the cars still running are ranked by
+ * health. Takedowns go to whoever dealt the blow.
+ */
+function simulateDerby(plan: RacePlan, run: RunState, m: PlayerModel, rg: Rng, stats: PlayerStats): SimResult {
+  const field = plan.field;
+  interface D {
+    id: string;
+    surv: number;
+    off: number;
+    dodge: number;
+    alive: boolean;
+    take: number;
+    outAt: number;
+  }
+  const mine: D = {
+    id: 'me',
+    surv: (Math.pow(stats.hp, 0.65) * (0.7 + 0.3 * stats.mass)) / Math.max(0.25, stats.tough),
+    off: stats.ram * stats.dmg * Math.sqrt(stats.mass) * (0.3 + 0.9 * m.aggression),
+    dodge: DODGE[m.skill] * (0.9 + 0.1 * Math.min(1.4, stats.grip)),
+    alive: true,
+    take: 0,
+    outAt: 0,
+  };
+  const cars: D[] = [mine];
+  for (const sp of field.rivals) {
+    const skillK = 0.85 + 0.6 * Math.max(0, Math.min(1, (sp.skill - 0.8) / 0.26));
+    cars.push({
+      id: `ai${sp.slot}`,
+      surv: (Math.pow(sp.hp * 1.0, 0.65) * (0.7 + 0.3 * sp.mass)) / Math.max(0.25, sp.dmgTaken),
+      off: sp.ram * Math.sqrt(sp.mass) * (0.25 + 0.75 * sp.aggro),
+      dodge: skillK,
+      alive: true,
+      take: 0,
+      outAt: 0,
+    });
+  }
+  const noise = (): number => Math.exp(0.45 * gauss(rg));
+  const pickBy = (list: D[], w: (c: D) => number): D => {
+    const ws = list.map((c) => Math.max(1e-6, w(c)));
+    let x = rg.float() * ws.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < list.length; i++) {
+      x -= ws[i]!;
+      if (x <= 0) return list[i]!;
+    }
+    return list[list.length - 1]!;
+  };
+  let t = 0;
+  const out: D[] = [];
+  while (cars.filter((c) => c.alive).length > 1) {
+    const alive = cars.filter((c) => c.alive);
+    // one wreck every half minute or so, quicker when there are many cars left
+    t += -Math.log(Math.max(1e-6, rg.float())) * 24 * Math.pow(4 / alive.length, 0.35);
+    if (t >= DERBY_SECONDS) break;
+    const threat = (c: D): number => alive.reduce((a, o) => a + (o === c ? 0 : o.off), 0);
+    const victim = pickBy(alive, (c) => (threat(c) * noise()) / (c.surv * c.dodge));
+    const attacker = pickBy(
+      alive.filter((c) => c !== victim),
+      (c) => Math.pow(c.off, 1.3),
+    );
+    victim.alive = false;
+    victim.outAt = t;
+    attacker.take++;
+    out.push(victim);
+  }
+  // who is left when the clock runs out is ranked by health: what a car can take, a little luck
+  const left = cars.filter((c) => c.alive).sort((a, b) => b.surv * b.dodge * noise() - a.surv * a.dodge * noise());
+  const order = [...left, ...out.reverse()];
+  const place = order.indexOf(mine) + 1;
+  const row = { points: carnagePoints(place, mine.take) };
+  const wrecked = mine.alive ? 0 : 1;
+  return { roadPlace: place, rank: place, n: cars.length, time: Math.min(DERBY_SECONDS, t), points: row.points, takedowns: mine.take, wrecks: wrecked, lapped: false, margin: 0, winners: order.map((c) => c.id) };
+}
+
 /** Runs one race to the end. */
 export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: Rng, stats: PlayerStats = playerStats(run, m)): SimResult {
+  if (plan.arena) return simulateDerby(plan, run, m, rg, stats);
   const laps = plan.rules.laps;
   const course = plan.course;
   const carnage = plan.kind === 'carnage';

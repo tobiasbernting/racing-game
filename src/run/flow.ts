@@ -8,6 +8,7 @@ import { eventById, pickEventId, resolveChoice } from './events.ts';
 import { BOSS_DEFS, goalMet, planRace, type RacePlan } from './plan.ts';
 import { addRaceStats } from './stats.ts';
 import { RALLY_COURSE_NAMES } from '../shared/names.ts';
+import { ARENAS } from '../shared/derby.ts';
 import { Rng } from './rng.ts';
 import { actScale, addKronor, addTrinket, addUp, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, type NodeLog, type RaceSummary, type RunState } from './state.ts';
 import { interestOn, isUpgrade, runPerks } from './upgrades.ts';
@@ -116,6 +117,7 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     roadPlace: res.roadPlace,
     takedowns: res.takedowns,
     wrecked: res.wrecked,
+    derby: plan.arena ? res.derby : undefined,
   };
   r.screen = { kind: 'postrace', nodeId: node.id, summary };
   r.log.push({
@@ -124,8 +126,8 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     row: node.row,
     type: node.type,
     kind: plan.kind,
-    title: node.boss ? BOSS_DEFS[node.boss].name : RALLY_COURSE_NAMES[plan.course],
-    course: RALLY_COURSE_NAMES[plan.course],
+    title: node.boss ? BOSS_DEFS[node.boss].name : plan.arena ? ARENAS[plan.arena].name : RALLY_COURSE_NAMES[plan.course],
+    course: plan.arena ? ARENAS[plan.arena].name : RALLY_COURSE_NAMES[plan.course],
     place: res.place,
     n: res.n,
     finished: res.finished,
@@ -135,6 +137,8 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     goalMet: met ?? undefined,
     takedowns: res.takedowns || undefined,
     boss: node.boss,
+    arena: plan.arena,
+    outAt: res.derby?.table.find((t) => t.me)?.outAt ?? undefined,
   });
   return r;
 }

@@ -4,6 +4,7 @@ import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { KIND_EMOJI, KIND_NAMES, type RaceKind } from '../shared/kinds.ts';
 import { fmtTime, ordinal } from '../rally/util.ts';
 import { ACTS, NODE_EMOJI, NODE_NAMES } from './map.ts';
+import { DERBY_EMOJI, DERBY_NAME } from '../shared/derby.ts';
 import { kitOf, LEAN_EMOJI, LEAN_NAMES } from '../shared/abilities.ts';
 import { challengeReport, type ChallengeLine } from './unlocks.ts';
 import type { NodeLog, RunState, RunStats } from './state.ts';
@@ -168,6 +169,13 @@ export interface TimelineAct {
 function resultOf(l: NodeLog): { text: string; tone: TimelineItem['tone'] } {
   if (l.place === undefined) return { text: '', tone: 'none' };
   if (!l.finished) return { text: 'Bröt loppet', tone: 'bad' };
+  if (l.arena) {
+    // a Rivningsderby: the placing is the order of elimination
+    const out = l.outAt !== undefined ? `utslagen efter ${fmtMs(l.outAt * 1000)}` : 'rullade till slutet';
+    const td = l.takedowns ? ` · ${l.takedowns} vrak` : '';
+    const nr = l.n && l.n > 1 ? `${ordinal(l.place)} av ${l.n}` : ordinal(l.place);
+    return { text: `${l.type === 'boss' && l.place === 1 ? 'Slog bossen' : nr} · ${out}${td}`, tone: l.lost > 0 ? 'bad' : l.place === 1 ? 'good' : 'ok' };
+  }
   const place = l.n && l.n > 1 ? `${ordinal(l.place)} av ${l.n}` : ordinal(l.place);
   const pts = l.kind === 'carnage' && l.points !== undefined ? `${l.points} p · ` : '';
   const goal = l.goalMet === undefined ? '' : l.goalMet ? ' · klarade målet' : ' · missade målet';
@@ -198,9 +206,9 @@ export function buildTimeline(run: RunState): TimelineAct[] {
     const rewards = run.got.filter((g) => g.node === l.nodeId).map((g) => GOT_NAME(g.what, g.id));
     a.items.push({
       nodeId: l.nodeId,
-      icon: NODE_EMOJI[l.type],
-      kind: l.kind && l.place !== undefined ? { kind: l.kind, emoji: KIND_EMOJI[l.kind], name: KIND_NAMES[l.kind] } : undefined,
-      typeName: NODE_NAMES[l.type],
+      icon: l.arena ? DERBY_EMOJI : NODE_EMOJI[l.type],
+      kind: l.arena && l.place !== undefined ? { kind: 'carnage', emoji: DERBY_EMOJI, name: DERBY_NAME } : l.kind && l.place !== undefined ? { kind: l.kind, emoji: KIND_EMOJI[l.kind], name: KIND_NAMES[l.kind] } : undefined,
+      typeName: l.arena ? DERBY_NAME : NODE_NAMES[l.type],
       title: l.title,
       result: r.text,
       tone: r.tone === 'none' && l.lost > 0 ? 'bad' : r.tone,

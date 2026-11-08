@@ -8,6 +8,7 @@ import { BOSS_COURSE, type BossId, type ChallengeKind, type MapNode } from './ma
 import type { RaceKind } from '../shared/kinds.ts';
 import { buildField, type FieldPlan } from '../shared/field.ts';
 import type { Archetype } from '../shared/rivals.ts';
+import { ARENAS, DERBY_NAME, type ArenaId } from '../shared/derby.ts';
 
 export interface BossDef {
   id: BossId;
@@ -16,6 +17,8 @@ export interface BossDef {
   course: RallyCourse;
   /** The boss's nickname, a few words. */
   nick: string;
+  /** What the trick is when the boss calls you to a Rivningsderby instead. */
+  derbyTrick?: string;
   /** What the boss says at the start. */
   intro: string;
   /** The trick, in one line. */
@@ -68,6 +71,7 @@ export const BOSS_DEFS: Record<BossId, BossDef> = {
     archetype: 'mixed',
     intro: '“Jag är Kapten Kanin, krigsherre över månen. Jag äter morötter och förlorare. Knäpp med öronen: ni är mina!”',
     trick: 'Månen har låg tyngdkraft. Kanin kör soffa och studsar i jättehopp. De andra gör likadant och drar på nitron.',
+    derbyTrick: 'Kanin har byggt en rivningsarena med månens tyngdkraft. Ingen mållinje: sista bilen som rullar vinner. Soffan studsar och hoppar mellan hoppen.',
     twist: { boss: { name: 'Kapten Kanin', face: 'rabbit', body: 'sofa', color: '#6a4fd8', power: 1.05, skill: 1.0 }, rivalHop: 4.5, rivalNitro: 10 },
   },
 };
@@ -97,6 +101,8 @@ export interface RacePlan {
   kind: RaceKind;
   /** The rivals, their kit and the hazards. */
   field: FieldPlan;
+  /** A Rivningsderby in this arena: no laps, the last car running wins. */
+  arena?: ArenaId;
 }
 
 const DIFFS: RallyDifficulty[] = ['easy', 'normal', 'hard'];
@@ -171,13 +177,29 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
       }
     }
   }
+  // a Rivningsderby: an arena instead of a course, no laps, wrecks out for good (the elites and the odd last boss)
+  const arena = node.derby;
+  if (arena) {
+    rules.arena = arena;
+    rules.kind = 'carnage';
+    rules.damage = true;
+    rules.course = ARENAS[arena].course;
+    // the laps are only for the prize, which reads them as "how long a race": a derby counts as three
+    rules.laps = 3;
+    rules.ai = Math.min(5, Math.max(4, rules.ai + (boss ? 1 : 0)));
+    rules.weather = 'clear';
+    // floodlit: night, or dusk now and then (from the node's seed)
+    rules.time = node.seed % 3 === 0 ? 'sunset' : 'night';
+    if (!boss) title = `${DERBY_NAME}: ${ARENAS[arena].name}`;
+    prize = boss ? 2 : 1.7;
+  }
   if (calm) {
     rules.ai = Math.max(2, rules.ai - 1);
     rules.difficulty = stepDiff(rules.difficulty, -1);
   }
   const field = buildField({
     seed: node.seed,
-    kind,
+    kind: rules.kind,
     act,
     row: node.row,
     role: node.type === 'elite' ? 'elite' : boss ? 'boss' : 'rival',
@@ -185,7 +207,7 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
     ai: rules.ai,
     boss: boss ? { id: boss.id, archetype: boss.archetype, power: boss.twist.boss?.power, skill: boss.twist.boss?.skill } : undefined,
   });
-  return { node, title, course: rules.course, rules, twist, goal, boss, prize, kind, field };
+  return { node, title, course: rules.course, rules, twist, goal, boss, prize, kind: rules.kind, field, arena };
 }
 
 /** Did the result meet the challenge's goal? */

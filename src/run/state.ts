@@ -7,6 +7,8 @@ import { ACTS, actMap, findNode, type ActMap, type BossId, type MapNode, type No
 import { kitOf } from '../shared/abilities.ts';
 import { MAX_STACK, perksOf, stackCap, trinketById, type Owned } from './trinkets.ts';
 import type { RaceKind } from '../shared/kinds.ts';
+import type { ArenaId } from '../shared/derby.ts';
+import type { DerbyOutcome } from '../rally/options.ts';
 import { takeNode } from './upgrades.ts';
 
 export const START_HEARTS = 3;
@@ -59,6 +61,7 @@ export const emptyRunStats = (): RunStats => ({
   overtakes: 0,
   hazards: 0,
   abilityUses: 0,
+  shortcuts: 0,
   podiums: 0,
   totalTime: 0,
   kronorSpent: 0,
@@ -89,6 +92,9 @@ export interface NodeLog {
   takedowns?: number;
   /** Which boss it was (bosses only). */
   boss?: BossId;
+  /** A Rivningsderby: which arena, and the second the player was wrecked (absent when still running at the end). */
+  arena?: ArenaId;
+  outAt?: number;
 }
 
 /** A trinket or an upgrade node that came into the build, and where from (`part` is only in older saves). */
@@ -127,6 +133,8 @@ export interface RaceSummary {
   roadPlace?: number;
   takedowns?: number;
   wrecked?: number;
+  /** A Rivningsderby: how it ended (the final table, whether the clock ran out) and in which arena. */
+  derby?: DerbyOutcome;
 }
 
 export interface ShopItem {

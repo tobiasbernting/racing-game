@@ -21,6 +21,8 @@ export interface Controls {
 
 export interface Ground {
   height(x: number, z: number): number;
+  /** Ramps and the like laid over the road: extra height at road position (s, d) (see ramps.ts). */
+  lift?(s: number, d: number): number;
 }
 
 export const Ground_ = { Asphalt: 0, Gravel: 1, Kerb: 2, Grass: 3, Snow: 4, Sand: 5, Ice: 6, DeepSnow: 7, SoftSand: 8 } as const;
@@ -221,10 +223,11 @@ export class Car {
     const hw = t.hw[p.i]!;
     const ad = Math.abs(p.d);
     // continuous everywhere (a step would launch the car): the road, blending into the ground over the verge
-    if (ad <= hw + 0.3) return t.roadY(p);
+    const up = ground.lift ? ground.lift(p.s, p.d) : 0;
+    if (ad <= hw + 0.3) return t.roadY(p) + up;
     const g = ground.height(x, z);
-    if (ad >= hw + 2.5) return g;
-    return lerp(t.roadY(p), g, smooth(hw + 0.3, hw + 2.5, ad));
+    if (ad >= hw + 2.5) return g + up;
+    return lerp(t.roadY(p), g, smooth(hw + 0.3, hw + 2.5, ad)) + up;
   }
 
   /** One physics step (call at 120 Hz). */
