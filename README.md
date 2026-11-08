@@ -14,7 +14,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 
 - **Titel**: Ny runda, Fortsätt runda (rundan sparas i localStorage efter varje plats), Snabbrace (ett enda lopp som förr),
   Skrytlådan (medaljer med framsteg, sedda talismaner, och bästa rundan per svårighet). Svårigheten väljs på bilsidan, inte här; titeln visar bara vad som valdes sist.
-- **Karta**: tre akter (Bondlandet, Vildmarken, Galna stan), fem rader med 2–4 platser och sedan en boss. Platserna är
+- **Karta**: tre akter (Bondlandet, Vildmarken, Galna stan), fem rader med 2–4 platser och sedan en boss. Varje väg dit innehåller minst tre lopp (fas 17, se längst ner). Platserna är
   🏁 lopp, ⏱️ utmaning (vinn eller skäms, topp 2 i spöregn, mörkerrallyt, slå klockan), 💀 dödslopp, 🛒 Mackens kiosk, 🔧 Skruvhörnan,
   ❓ helt random och 👑 boss (en av tre i varje akt, fröet väljer: tävlingsledaren, golfaren och kartläsaren i akt 1, fotbollsspelaren, målvakten och bowlaren i akt 2, en världsmästare eller Kapten Kanin på månen i akt 3, se fas 16).
   Tjugoen rivaler, vänliga ordvitsar på rally- och idrottsstjärnor, med eget skryt och eget hån när de kör om dig (`src/shared/rivals.ts`).
@@ -537,3 +537,14 @@ Reglerna är gjorda om så att den som slåss vinner och den som kryssar runt f�
 Hyllan (`workshopStock`) dras med samma frö som annars (rundans frö + platsen), från noderna som är öppna i bygget, från minst två träd, med minst en som är billig nog att vara gratis. Den ligger i `Screen.workshop.stock`; en sparad runda från före hyllan får samma hylla beräknad vid laddning.
 Skruvhörnan visar korten (🛠️ Uppgradering, med trädets färg och ikon) i stället för hela trädet; att titta på hela trädet görs på Bygget. Målet är att en bra runda slutar med ungefär en tredjedel till hälften av ett träd plus några sidonoder
 (botten tar i snitt 12 noder varav 6-8 i största trädet) och aldrig ett fullt träd (`balance.test.ts`, "the economy").
+
+## Fas 17: kartan, alltid minst tre lopp före bossen
+
+Förut kunde en akt bli "köp saker, ett lopp, boss". Nu håller varje väg från aktens start till bossen (`pathsOf`, `pathProblems` i `src/run/map.ts`):
+- minst **3 lopp** av typen lopp, utmaning, dödslopp (en derby är ett dödslopp eller bossen), och högst **2 andra platser** (kiosk, Skruvhörnan, händelse);
+- **aldrig en kiosk eller Skruvhörnan direkt efter en kiosk eller Skruvhörnan** på en väg;
+- första raden är bara lopp och utmaningar, som förut.
+Kartan görs som förut (samma rader, samma vägar, samma frö) och typerna rättas efteråt (`repairPaths`): platsen som sitter på flest trasiga vägar blir ett lopp först, och av lika många den typ som aktens har flest av. Sedan ser `wants`-steget till att varje akt
+fortfarande har en kiosk, en Skruvhörna, ett dödslopp och en händelse någonstans (en plats byter typ och en annan blir lopp för att ge plats). Med eget seedat slumptal (`Rng.for(seed, 'mapfix', act)`), så resten av kartan är orörd.
+Per akt blir det i snitt 7,5 lopp, 2,4 utmaningar, 1,4 dödslopp, 1,6 kiosker, 1,5 Skruvhörnor och 1,9 händelser; en väg har i snitt 1,5 platser som inte är lopp. Testet (`map.test.ts`) går igenom 1500 frön × 3 akter.
+Pågående rundor: kartan räknas om från fröet, så platsernas typer kan ha ändrats i en runda som sparades före ändringen (rader, vägar och id:n är desamma).

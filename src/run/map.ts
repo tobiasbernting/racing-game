@@ -77,8 +77,62 @@ const WEIGHTS: Record<number, Partial<Record<NodeType, number>>> = {
   3: { race: 22, event: 15, challenge: 10, elite: 22, shop: 10, workshop: 21 },
   4: { shop: 35, workshop: 35, event: 15, race: 15 },
 };
+/** Nodes on the way that are not a race: the kiosk, the workshop and the events. Elites and challenges are races too. */
+export const NON_RACE: ReadonlySet<NodeType> = new Set(['shop', 'workshop', 'event']);
+/** Every path from the start to the boss passes at least this many races (race, challenge, elite, derby) and at most `MAX_NON_RACE` other nodes. */
+export const MIN_RACES = 3;
+export const MAX_NON_RACE = ROWS - MIN_RACES;
 /** Types that may not follow themselves along a path. */
 const NO_REPEAT: ReadonlySet<NodeType> = new Set(['elite', 'shop', 'workshop', 'event']);
+
+/** Every path from a first-row node to the last row before the boss, as lists of nodes. */
+export function pathsOf(rows: readonly (readonly MapNode[])[]): MapNode[][] {
+  const byId = new Map<string, MapNode>();
+  for (const row of rows) for (const n of row) byId.set(n.id, n);
+  const out: MapNode[][] = [];
+  const walk = (n: MapNode, trail: MapNode[]): void => {
+    const t = [...trail, n];
+    if (n.row >= ROWS - 1) out.push(t);
+    else for (const id of n.next) walk(byId.get(id)!, t);
+  };
+  for (const n of rows[0]!) walk(n, []);
+  return out;
+}
+
+/** Paths that break the rules: fewer than 3 races, more than 2 non-race nodes, or a kiosk/workshop straight after a kiosk/workshop. */
+export function pathProblems(rows: readonly (readonly MapNode[])[]): MapNode[][] {
+  return pathsOf(rows).filter((p) => {
+    const races = p.filter((n) => !NON_RACE.has(n.type)).length;
+    const shopLike = (n: MapNode): boolean => n.type === 'shop' || n.type === 'workshop';
+    return races < MIN_RACES || p.length - races > MAX_NON_RACE || p.some((n, i) => i > 0 && shopLike(n) && shopLike(p[i - 1]!));
+  });
+}
+
+/**
+ * Turns kiosks, workshops and events into races until every path holds the rules (see `pathProblems`). The node that sits on the
+ * most broken paths goes first, and of equals the one whose type the act has most of, so the act keeps its variety.
+ */
+function repairPaths(rows: MapNode[][], rg: Rng, protect: MapNode | null = null): void {
+  const count = (t: NodeType): number => rows.reduce((a, row) => a + row.filter((n) => n.type === t).length, 0);
+  for (let guard = 0; guard < 40; guard++) {
+    const bad = pathProblems(rows);
+    if (!bad.length) return;
+    const score = new Map<MapNode, number>();
+    for (const p of bad) {
+      const shopLike = (n: MapNode): boolean => n.type === 'shop' || n.type === 'workshop';
+      const adj = p.some((n, i) => i > 0 && shopLike(n) && shopLike(p[i - 1]!));
+      const offenders = p.filter((n, i) => NON_RACE.has(n.type) && (!adj || (shopLike(n) && ((i > 0 && shopLike(p[i - 1]!)) || (i < p.length - 1 && shopLike(p[i + 1]!))))));
+      for (const n of offenders.length ? offenders : p.filter((n) => NON_RACE.has(n.type))) score.set(n, (score.get(n) ?? 0) + 1);
+    }
+    // the node being placed stays, and so does the last kiosk, workshop or event of the act
+    for (const n of [...score.keys()]) if (protect && (n === protect || count(n.type) <= 1)) score.delete(n);
+    const ranked = [...score.entries()].sort((a, b) => b[1] - a[1] || count(b[0].type) - count(a[0].type));
+    if (!ranked.length) return;
+    const top = ranked.filter((r) => r[1] === ranked[0]![1] && count(r[0].type) === count(ranked[0]![0].type));
+    const node = top[rg.int(0, top.length - 1)]![0];
+    node.type = rg.chance(0.2) && node.row > 0 ? 'challenge' : 'race';
+  }
+}
 
 /**
  * The bosses of each act, one of them per run (the seed picks). Act 1 is the rally steward, the golfer and the co-driver;
@@ -163,16 +217,27 @@ export function generateAct(seed: number, act: number): ActMap {
   }
   rows[ROWS]![0]!.type = 'boss';
 
-  // every act has something of everything: a kiosk, a workshop, an elite and an event on the way
+  // every path must be a proper run of racing, never "buy stuff, one race, boss": fix the types until it holds, then make
+  // sure the act still has a kiosk, a workshop, an elite and an event somewhere on the way
+  const fix = Rng.for(seed, 'mapfix', act);
+  repairPaths(rows, fix);
   const wants: [NodeType, number[]][] = [['elite', [2, 3]], ['workshop', [3, 4, 2]], ['shop', [4, 3, 2]], ['event', [1, 2, 3]]];
   for (const [type, atRows] of wants) {
     if (rows.some((row) => row.some((n) => n.type === type))) continue;
-    for (const r of rg.shuffle(atRows)) {
-      const spare = rg.shuffle(rows[r]!.filter((n) => n.type === 'race' || n.type === 'challenge'));
-      const node = spare[0];
-      if (node) {
+    const order = [...fix.shuffle(atRows), ...[0, 1, 2, 3, 4].filter((r) => !atRows.includes(r))];
+    let placed = false;
+    for (const r of order) {
+      if (placed || r === 0) continue;
+      for (const node of fix.shuffle(rows[r]!.filter((n) => n.type === 'race' || n.type === 'challenge'))) {
+        const snapshot = rows.flat().map((n) => n.type);
         node.type = type;
-        break;
+        // make room for it by turning another kiosk, workshop or event (one the act has two of) into a race
+        repairPaths(rows, fix, node);
+        if (pathProblems(rows).length === 0 && rows.some((row) => row.some((n) => n.type === type))) {
+          placed = true;
+          break;
+        }
+        rows.flat().forEach((n, i) => (n.type = snapshot[i]!));
       }
     }
   }

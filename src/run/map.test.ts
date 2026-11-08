@@ -1,8 +1,57 @@
 import { describe, expect, it } from 'vitest';
 import { RACE_KINDS } from '../shared/kinds.ts';
-import { BOSS_KIND, ACTS, ACT_COURSES, ROWS, allNodes, findNode, generateAct, reachableFromStart } from './map.ts';
+import { BOSS_KIND, ACTS, ACT_COURSES, MAX_NON_RACE, MIN_RACES, NON_RACE, ROWS, allNodes, findNode, generateAct, pathsOf, reachableFromStart } from './map.ts';
 
 const seeds = Array.from({ length: 150 }, (_, i) => i * 7919 + 1);
+
+describe('a run of racing before every boss', () => {
+  const many = Array.from({ length: 1500 }, (_, i) => i * 104729 + 3);
+  it('every path from the start to the boss passes at least 3 races (race, challenge, elite or derby) and at most 2 other nodes', () => {
+    for (const seed of many)
+      for (let act = 0; act < ACTS; act++) {
+        const m = generateAct(seed, act);
+        const paths = pathsOf(m.rows);
+        expect(paths.length).toBeGreaterThan(0);
+        for (const p of paths) {
+          expect(p).toHaveLength(ROWS);
+          const races = p.filter((n) => !NON_RACE.has(n.type)).length;
+          expect(races, `${seed}/${act}: ${p.map((n) => n.type).join(' > ')}`).toBeGreaterThanOrEqual(MIN_RACES);
+          expect(p.length - races, `${seed}/${act}: ${p.map((n) => n.type).join(' > ')}`).toBeLessThanOrEqual(MAX_NON_RACE);
+        }
+      }
+  });
+
+  it('never has a kiosk or workshop straight after a kiosk or workshop, and the first row is racing', () => {
+    for (const seed of many)
+      for (let act = 0; act < ACTS; act++) {
+        const m = generateAct(seed, act);
+        for (const p of pathsOf(m.rows)) {
+          p.forEach((n, i) => {
+            if (i > 0 && (n.type === 'shop' || n.type === 'workshop')) expect(['shop', 'workshop']).not.toContain(p[i - 1]!.type);
+          });
+          expect(['race', 'challenge']).toContain(p[0]!.type);
+        }
+      }
+  });
+
+  it('still gives every act a kiosk, a workshop, an elite and an event, and the boss row is untouched', () => {
+    let missing = 0;
+    for (const seed of many)
+      for (let act = 0; act < ACTS; act++) {
+        const m = generateAct(seed, act);
+        const types = new Set(allNodes(m).map((n) => n.type));
+        for (const t of ['shop', 'workshop', 'elite', 'event'] as const) if (!types.has(t)) missing++;
+        expect(m.rows[ROWS]![0]!.type).toBe('boss');
+      }
+    expect(missing).toBe(0);
+  });
+
+  it('keeps the shape of the map: the same rows and roads as before, only the types are fixed', () => {
+    const m = generateAct(4242, 1);
+    expect(m.rows).toHaveLength(ROWS + 1);
+    for (const n of allNodes(m)) if (n.row < ROWS) expect(n.next.length).toBeGreaterThan(0);
+  });
+});
 
 describe('map generation', () => {
   it('is the same for the same seed and act, and differs between seeds', () => {
