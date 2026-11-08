@@ -1181,6 +1181,7 @@ const rally = (ctx: GameContext): GameInstance => {
         stats.boosts++;
         audio.boost();
         hud.toast('🔥 Nitro!');
+        hud.pop('boost:nitro', '🔥', 'Nitro!', 'boost');
       } else hud.toast('Nitron är slut');
     }
     if (racing && !me.finished && phase === 'race') {
@@ -1231,7 +1232,7 @@ const rally = (ctx: GameContext): GameInstance => {
         if (drift.tier > 0 && !c.wallHit) {
           driftBoostT = [0, 0.55, 0.9, 1.3][drift.tier]!;
           audio.boost();
-          hud.popup(['', 'Turbo!', 'Superturbo!', 'Megaturbo!'][drift.tier]!, 'blue');
+          hud.pop('boost:drift', '🌀', ['', 'Turbo!', 'Superturbo!', 'Megaturbo!'][drift.tier]!, 'boost');
           stats.boosts++;
           mods.bus.boost('drift');
           topUpNitro(drift.tier);
@@ -1282,6 +1283,7 @@ const rally = (ctx: GameContext): GameInstance => {
           stats.boosts++;
           mods.bus.pickup('boost');
           mods.bus.boost('pad');
+          hud.pop('boost:pad', '⚡', 'Boost!', 'boost');
         }
       } else if (pk?.kind === 'mud' && isMe && mt.mudproof) {
         // rubber boots: the puddle does nothing, but the trinket gets to say so
@@ -1341,6 +1343,7 @@ const rally = (ctx: GameContext): GameInstance => {
       nitroBank -= 1;
       nitroLeft = Math.min(nitroSlots(), Math.floor(nitroLeft) + 1);
       hud.toast('🔥 Perfekt sladd! Nitron fylldes på');
+      hud.pop('passive', '🔥', kit.passive.name, 'abil');
       audio.chime();
     }
   }
@@ -1956,7 +1959,7 @@ const rally = (ctx: GameContext): GameInstance => {
         abilCd = kit.active.cooldown * mt.abilCd;
         stats.abilityUses++;
         mods.bus.ability();
-        hud.popup(`${kit.active.emoji} ${kit.active.name}`, 'abil');
+        hud.pop('ability', kit.active.emoji, kit.active.name, 'abil');
       }
     }
     // the bike rocket is hard to steer (the cart's even more, and it shakes about); the tractor's charge keeps its line
@@ -2264,6 +2267,7 @@ const rally = (ctx: GameContext): GameInstance => {
         setJunk(junk + 1);
         audio.thud(4);
         for (let k = 0; k < (high ? 6 : 3); k++) particles.emit({ x: c.x, y: c.y + 0.8, z: c.z, vx: (Math.random() - 0.5) * 4, vy: 2 + Math.random() * 2, vz: (Math.random() - 0.5) * 4, life: 0.6, size0: 0.3, size1: 0.2, color: colDirt, alpha: 1, drag: 1, gravity: 9 });
+        if (first || junk === SCAVENGE.max) hud.pop('passive', '🗑️', kit.passive.name, 'abil');
         if (first || junk === SCAVENGE.max) hud.toast(junk === SCAVENGE.max ? '🗑️ Lasset är fullt. Dags att tömma?' : '🗑️ Plockade upp skräp: lite pansar');
         continue;
       }
@@ -2353,9 +2357,9 @@ const rally = (ctx: GameContext): GameInstance => {
         triggers[id] = (triggers[id] ?? 0) + 1;
         trigAt.set(id, now);
       }
-      const quiet = now - (sayIds.get(id) ?? -9) < 4;
-      hud.trinketSay(id, quiet || !text ? null : text);
-      if (!quiet && text) sayIds.set(id, now);
+      // the icon in the row pulses; the pop-up above the car shows the effect (the hud rate-limits it per talisman)
+      hud.trinketSay(id, null);
+      if (phase === 'race') hud.popFor(id, text);
     },
     fart(size = 1) {
       audio.fart(size);
@@ -2709,12 +2713,14 @@ const rally = (ctx: GameContext): GameInstance => {
       poof(o.car.x, o.car.y, o.car.z);
       audio.boing();
       hud.toast(`🧦 ${o.name} blev platt som en socka`);
+      hud.pop('passive', '🧦', kit.passive.name, 'abil');
     }
     if (kit.passive.id === 'loadDrop' && hit > 3 && loadCd <= 0) {
       loadCd = 3.5;
       obstacles.add('hay', c.x - sinH * 3.4 + cosH * (Math.random() - 0.5) * 2, c.y, c.z - cosH * 3.4 - sinH * (Math.random() - 0.5) * 2, c);
       stats.hazards++;
       hud.toast('🛻 Lasset ramlade. Hö på vägen!');
+      hud.pop('passive', '🛻', kit.passive.name, 'abil');
     }
     if (chargeT > 0) {
       const dx = o.car.x - c.x;
@@ -2830,7 +2836,10 @@ const rally = (ctx: GameContext): GameInstance => {
     const attacker = by ? entrants.find((e) => e.id === by) ?? null : null;
     dbg.wrecks++;
     if (attacker) attacker.takedowns++;
-    if (attacker === me) mods.bus.takedown();
+    if (attacker === me) {
+      mods.bus.takedown();
+      hud.pop('takedown', '💥', 'Takedown!', 'hit');
+    }
     if (x === me) mods.bus.wreck();
     if (attacker && attacker !== me) dbg.rivalTake++;
     if (derby) {
@@ -3381,6 +3390,7 @@ const rally = (ctx: GameContext): GameInstance => {
             landCd = 1.5;
             api.boost(SOFTLAND.boost, SOFTLAND.strength);
             hud.toast('🏁 Mjuklandning! Boost');
+            hud.pop('passive', '🏁', kit.passive.name, 'abil');
           }
         }
         for (let k = 0; k < (high ? 16 : 7); k++) {

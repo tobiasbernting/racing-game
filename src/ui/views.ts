@@ -739,6 +739,20 @@ export function settingsView(o: SettingsOpts): HTMLElement {
     vols.append(b);
   }
   paintVols();
+  // where the short pop-ups for talismans, abilities and boosts show
+  const popRow = el('div', 'rg-vols');
+  const popBtns: [HTMLElement, Settings['popups']][] = [];
+  const paintPops = (): void => popBtns.forEach(([b, v]) => b.setAttribute('aria-pressed', String(s.popups === v)));
+  for (const [v, label] of [['mid', 'Mitten'], ['corner', 'Hörnet'], ['off', 'Av']] as const) {
+    const b = btn('rg-chipbtn', label, () => {
+      s.popups = v;
+      paintPops();
+      o.onChange();
+    });
+    popBtns.push([b, v]);
+    popRow.append(b);
+  }
+  paintPops();
   const toggle = (icon: string, label: string, hint: string, get: () => boolean, set: (v: boolean) => void): HTMLButtonElement => {
     const b = btn('rg-btn rg-toggle rg-set', '');
     const draw = (): void => {
@@ -759,6 +773,7 @@ export function settingsView(o: SettingsOpts): HTMLElement {
     controlsSection(o),
     toggle('🎵', 'Musik', 'Soundtracket till kaoset', () => s.music, (v) => { s.music = v; o.onChange(); }),
     toggle('📳', 'Skakningar', 'Kameran vibrerar vid krascher och landningar', () => s.shake, (v) => { s.shake = v; o.onChange(); }),
+    el('div', 'rg-setvol', el('span', 'rg-setlabel', '💥 Pop-ups'), popRow),
     toggle('📈', 'Visa FPS', 'Siffran som skvallrar när det laggar', () => s.fps, (v) => { s.fps = v; o.onChange(); }),
     o.fullscreen === null ? null : btn('rg-btn rg-set', '⛶ Helskärm på/av (ingen kant, ingen nåd)', o.onFullscreen),
   );
