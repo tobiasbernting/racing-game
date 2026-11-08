@@ -7,7 +7,7 @@ import { BUTTON_MAP, clampRect, deviceClass, hasPedals, hudZones, isManual, keyH
 import { canVibrate } from './haptics.ts';
 import { rallyNeeds } from './rally/info.ts';
 import type { RallyOptions, RallyResult } from './rally/options.ts';
-import { CAR_BODIES, CAR_PAINTS, RALLY_COURSES, RALLY_COURSE_DEFS, defaultRules, newCar, type CarBody, type RallyCourse } from './shared/rally.ts';
+import { CAR_BODIES, CAR_PAINTS, RALLY_COURSES, RALLY_COURSE_DEFS, defaultRules, newCar, type CarBody, type RallyCourse, type RallyTime, type RallyWeather } from './shared/rally.ts';
 import { CAR_BODY_NAMES, RALLY_COURSE_NAMES } from './shared/names.ts';
 import { loadPrefs, savePrefs, type Prefs } from './prefs.ts';
 import { loadBook, saveBook, styleOf, type StyleBook } from './run/styles.ts';
@@ -908,8 +908,10 @@ export class App {
     const node = currentNode(run)!;
     // dev builds only: a test can force the course of the next race
     const forced = import.meta.env.DEV ? (window as unknown as { __forceCourse?: RallyCourse }).__forceCourse : undefined;
+    const w = import.meta.env.DEV ? (window as unknown as { __forceTime?: RallyTime; __forceWeather?: RallyWeather }) : {};
+    const sky = { ...(w.__forceTime ? { time: w.__forceTime } : {}), ...(w.__forceWeather ? { weather: w.__forceWeather } : {}) };
     return {
-      rules: withSky(forced ? { ...plan.rules, course: forced } : plan.rules, run.trinkets, node.boss),
+      rules: withSky(forced ? { ...plan.rules, course: forced, ...sky } : { ...plan.rules, ...sky }, run.trinkets, node.boss),
       car: run.car,
       seed: node.seed,
       mods: buildRunMods(run.trinkets, run.up, run.car.body),

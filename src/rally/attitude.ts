@@ -4,6 +4,7 @@
 // banners, one for flames and one for cloth, so a whole course costs a handful of draw calls; the sets (candy,
 // the moon, the kitchen…) get their own palette so they keep their crazy themes but look worn and used.
 import * as THREE from 'three';
+import { settings } from '../settings.ts';
 import type { CourseDef } from './courses.ts';
 import { Geo, canvasTex, mat } from './geo.ts';
 import { lakeDist, streamDist } from './layout.ts';
@@ -690,7 +691,9 @@ export function buildAttitude(
           return;
         }
         pl.position.copy(fires[idx]!).add(new THREE.Vector3(0, 0.6, 0));
-        pl.intensity = (6 + Math.sin(time * 13 + idx) * 1.6 + Math.sin(time * 31 + idx * 2) * 1.0) * (1 - near[idx]! / (45 * 45));
+        // a slow flicker (about 2 Hz, +-17 %): never faster than three flashes a second (WCAG 2.3.1); steady with Effekter: Färre
+        const flick = settings.effects === 'less' ? 0 : Math.sin(time * 11 + idx) * 1.0 + Math.sin(time * 4.5 + idx * 2) * 0.5;
+        pl.intensity = (6 + flick) * (1 - near[idx]! / (45 * 45));
       });
     },
     dispose() {

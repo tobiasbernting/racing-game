@@ -62,7 +62,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
   spelet kan läggas på hemskärmen och köra i helskärm.
 - **Prestanda**: `quality: 'low'` (pek/små skärmar) har inga skuggor, färre partiklar, tunnare rekvisita och lägre pixelratio, och
   loppet sänker upplösningen själv om bildfrekvensen sjunker (`adapt()` i `src/rally/index.ts`).
-- **Inställningar** (`src/settings.ts`, från titeln och pausmenyn): ljudvolym, musik, skakningar, visa FPS, helskärm.
+- **Inställningar** (`src/settings.ts`, från titeln och pausmenyn): ljudvolym, musik, skakningar, visa FPS, helskärm, och sedan fas 22 gruppen Bild (ljusstyrka, mörker, effekter, hög kontrast-väg).
 - **Fest**: konfetti vid vinst, "NY PRYL!" med fanfar, kronorna räknas upp på resultatkortet, räknarpip, kameraskak (kan stängas av).
 - **Slutskärm**: se resultatskärmen i fas 6b nedan. Rundans frö (`Frö: …`) visas smått på kartan och på resultatskärmen.
 - **Sparning**: en avslutad runda ligger kvar sparad (med `end`) tills summeringen lämnas, så en omladdning på det sista
@@ -632,3 +632,14 @@ Sortens lutning är kvar: efter Blodbad kommer fler Ram- och Fuffens-kort, efter
 - **Inställningar**: 🛟 *Ikappkörningshjälp* På/Av (förval På). Av stänger allt, sugen med. Svårigheten sätter hur mycket, så Ett liv är i praktiken redan utan hjälp. Hjälpen finns inte i Rivningsderbyt.
 - **Balansmodellen** (`run/racesim.ts`) läser samma formler (`simSpeedBonus`, `rivalEase`, `comebackLevel`): fältet lättar för en spelare långt efter, spelaren får comeback, sug och ilska efter ett missöde. Balanstesterna håller; en bra spelare vinner några procentenheter oftare, en stark knappt alls.
 - **Test**: `?rallyhelp=0|1` slår hjälpen av eller på och `?rallylast=400` startar spelaren 400 m efter, båda bara i dev-bygget (`window.__rally.help` visar nivåerna). `src/rally/catchup.test.ts`: fältets lättnad mot avstånd och svårighet, comeback av när man leder, ilskans tider, sugens villkor, respawnens fart och knappen, inställningen.
+
+## Natt du kan köra i (fas 22, tillgänglighet)
+
+Ägaren: "Jag har svårt att se banan när det är natt." Underlaget är WCAG 2.2 (1.4.11 kontrast för grafik, 1.4.3 text, 2.3.1 max tre blixtar per sekund) och Game Accessibility Guidelines; noterna ligger i [docs/accessibility.md](docs/accessibility.md) med mätvärden före och efter.
+
+- **Natten**: skuggorna lyfts i stället för att krossas (`lift` i `look.ts`), mer himmels- och månljus, strålkastare som når 40 till 60 m och rivalerna får en ljuspöl på vägen framför sig. Vägkanterna lyser på alla underlag (kantlinje, reflexstolpar var 14:e m, vit höger och bärnsten vänster, och varningsskyltar som lyser själva). Kantlinjen mot vägen har minst 3:1 i en nattskärmdump på alla banor utom Berget (2,96 på datorn).
+- **Inställningar, Bild**: **Ljusstyrka** (skjutreglage, gamma i efterbehandlingen, direkt i loppet), **Mörker: Normal / Ljusare natt / Ingen natt** (nattlopp blir skymning på den här enheten), **Effekter: Fulla / Färre** (mindre kameraskak, korn, vinjett, fartstreck och allt som blinkar står stilla) och **Hög kontrast-väg** (kantlinje med mörk ram, stolpar och stora skyltar även på dagen). Förvalen är det gamla utseendet plus den bättre natten. Gamla sparningar får förvalen.
+- **Blixtar**: inget blinkar mer än 2,8 gånger i sekunden (växlingslampor, spökbilen, hudens blinkningar, fartstreck, tunnorna, neonskyltarna). Testet `src/rally/look.test.ts` vaktar CSS och växlingslamporna.
+- **Text**: små bildtexter i affischmenyerna är nu helt täta och rader i loppet har tätare bakgrund.
+- **Test**: `src/rally/contrast.ts` (rena WCAG-formler, `contrast.test.ts`), `look.test.ts` (nattens grade, blinktak), `settings.test.ts` (migrering). Dev-krokar: `window.__forceTime` och `window.__forceWeather` (som `__forceCourse`) och `__rallyDebug.probe(framåt, sida)` som ger skärmpunkten för en vägpunkt.
+

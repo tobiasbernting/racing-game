@@ -948,7 +948,7 @@ div.rg-tcard {
 .rg-namechoices { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 .rg-namechoice { min-width: 130px; padding: 4px 14px; }
 .rg-namechoice span { font-size: 20px; }
-.rg-namechoice small { display: block; font-size: 12px; opacity: 0.8; }
+.rg-namechoice small { display: block; font-size: 12px; opacity: 1; }
 .rg-namenone { margin: 0; font-weight: 700; opacity: 0.9; }
 .rg-dice[hidden] { display: none; }
 @media (max-height: 520px) {
@@ -962,4 +962,4 @@ div.rg-tcard {
   .rg-cemoji { font-size: 14px; }
 }
 .rg-setname { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.rg-setname small { display: block; font-size: 12px; opacity: 0.8; }
+.rg-setname small { display: block; font-size: 12px; opacity: 1; }

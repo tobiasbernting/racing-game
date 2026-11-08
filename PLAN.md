@@ -207,3 +207,8 @@ The owner: "My son loves styling the car, the same way as in Lilla Gården." Bui
 ## Phase 21: comeback help (Ikappkörningshjälp)
 
 The owner: "When you end up last for some reason it's almost impossible to catch up; the race feels over at the start." Built (see README, "Ikappkörningshjälp"): slipstream behind any car (speed, nitro fill, wind lines, a "SUG!" pop), the field easing off up to 7 % when the player is far behind, a comeback bonus (top speed, power, grip, nitro and ability recharge) for the bottom places and a big gap, a two-second rage after a respawn, wreck or heavy hit, and a respawn that keeps 60 % of the speed with a "↩ Tillbaka" button on touch. All scaled by difficulty (Söndagsåkare 1, Normal 0.6, Hård 0.3, Ett liv 0 except half the slipstream) and switchable in the settings. Pure formulas in `src/rally/catchup.ts`, shared with the race model.
+
+## Phase 22: night you can drive (accessibility)
+
+The owner: "I have a hard time seeing the course at night time." Built (see README and docs/accessibility.md): a lifted night grade, brighter moon and ambient light, longer headlights and light pools for rivals, glowing edge lines, reflector posts and lit chevrons on every surface, and Inställningar, Bild (Ljusstyrka, Mörker, Effekter, Hög kontrast-väg). Flashing capped under 3 Hz and silenced with Effekter: Färre.
+

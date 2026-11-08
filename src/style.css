@@ -361,6 +361,11 @@ body {
   pointer-events: none;
 }
 
+/* Bild (brightness, night, effects, road contrast) in the settings panel */
+.rg-slidewrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.rg-slider { width: clamp(150px, 30vw, 260px); height: 44px; accent-color: #ffd23f; touch-action: pan-x; }
+.rg-slider:focus-visible { outline: 3px solid #fff3b0; outline-offset: 2px; }
+.rg-slidev { min-width: 64px; text-align: center; font-weight: 800; font-size: 15px; }
 /* the controls part of the settings panel */
 .rg-ctl {
   grid-column: 1 / -1;
@@ -385,7 +390,7 @@ body {
   margin: 0;
   font-size: 13px;
   line-height: 1.35;
-  opacity: 0.8;
+  opacity: 1;
 }
 .rg-ctl .rg-chipbtn:disabled {
   opacity: 0.45;
@@ -1101,7 +1106,7 @@ div.rg-tcard { cursor: default; }
 .rg-vols { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .rg-vols .rg-chipbtn { min-width: 64px; }
 .rg-set { min-height: 64px; }
-.rg-set small { font-size: 12px; font-weight: 700; opacity: 0.85; }
+.rg-set small { font-size: 12px; font-weight: 700; opacity: 1; }
 .rg-toggle.rg-set { justify-content: center; }
 .rg-homehint { font-size: 12px; opacity: 0.75; font-weight: 700; }
 .rg-seed { display: block; margin-top: 2px; font-size: 12px; font-weight: 700; opacity: 0.55; letter-spacing: 0.06em; }

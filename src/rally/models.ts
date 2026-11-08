@@ -1,6 +1,7 @@
 // Low-poly models for the countryside round the circuit: red cottages, the barn, the windmill, trees,
 // animals, spectators, fences and the cars. Every model is one vertex-coloured geometry (or a few).
 import * as THREE from 'three';
+import { settings } from '../settings.ts';
 import { addUpgradeLook } from './modlook.ts';
 import { CAR_BODY_DEFS, defaultStyle, type CarBody, type CarDriver, type HelmetLook, type CarSpoiler, type CarStyle, type CarWheels, type DecalSlot } from '../shared/rally.ts';
 import { Geo, mat } from './geo.ts';
@@ -1949,8 +1950,9 @@ export function carModel(opts: CarModelOpts): CarModel {
     flames.visible = on;
     if (!on) return;
     for (const f of flameMeshes) {
-      const w = (0.8 + 0.6 * k) * (0.85 + Math.random() * 0.3);
-      f.scale.set(w, w, k * (1.2 + Math.random() * 1.0));
+      const jit = settings.effects === 'less' ? 0.5 : Math.random();
+      const w = (0.8 + 0.6 * k) * (0.85 + jit * 0.3);
+      f.scale.set(w, w, k * (1.2 + jit * 1.0));
       f.rotation.z = Math.random() * 6;
     }
   };

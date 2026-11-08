@@ -23,9 +23,21 @@ export interface Grade {
   bloom: number;
   /** Multiplies the course's exposure (a bright pastel course is brought down). */
   exp: number;
+  /** 0..~0.12: raises the blacks towards a dark blue (night and dusk: shadows are lifted, never crushed to black). */
+  lift: number;
 }
 
-const G = (shadow: [number, number, number], high: [number, number, number], sat: number, punch: number, vignette = 0.42, grain = 0.035, bloom = 0.32, exp = 1): Grade => ({ shadow, high, sat, punch, vignette, grain, bloom, exp });
+/** What the player's settings change in the grade (Bild in Inställningar). */
+export interface GradeOpts {
+  /** 'bright' = Ljusare natt. */
+  dark?: 'normal' | 'bright';
+  /** Effekter: Färre. Less vignette, no grain. */
+  less?: boolean;
+  /** Dusk (Solnedgång): a small lift too. */
+  dusk?: boolean;
+}
+
+const G = (shadow: [number, number, number], high: [number, number, number], sat: number, punch: number, vignette = 0.42, grain = 0.035, bloom = 0.32, exp = 1): Grade => ({ shadow, high, sat, punch, vignette, grain, bloom, exp, lift: 0 });
 
 /** One grade per course: warmer or colder, never pastel. */
 export const GRADES: Record<string, Grade> = {
@@ -45,18 +57,30 @@ export const GRADES: Record<string, Grade> = {
 const DEFAULT_GRADE = GRADES.farm!;
 
 /** The grade for a course at a time of day (night is colder and darker, rain greyer). */
-export function gradeFor(course: string, night: boolean, rain: boolean): Grade {
+export function gradeFor(course: string, night: boolean, rain: boolean, opts: GradeOpts = {}): Grade {
   const g = GRADES[course] ?? DEFAULT_GRADE;
   const out: Grade = { ...g, shadow: [...g.shadow], high: [...g.high] };
   if (night) {
-    out.shadow = [out.shadow[0] * 0.9, out.shadow[1] * 0.96, out.shadow[2] * 1.08];
+    // colder, but the shadows are lifted (a blue-ish floor, not black) and the S-curve bites less, so the road stays readable
+    out.shadow = [out.shadow[0] * 0.94, out.shadow[1] * 0.98, out.shadow[2] * 1.06];
     out.sat *= 0.9;
-    out.vignette += 0.08;
+    out.vignette += 0.04;
     out.bloom *= 1.5;
+    out.punch *= opts.dark === 'bright' ? 0.35 : 0.55;
+    out.lift = opts.dark === 'bright' ? 0.075 : 0.045;
+    out.exp *= opts.dark === 'bright' ? 1.18 : 1.08;
+  } else if (opts.dusk) {
+    out.lift = 0.02;
+    out.punch *= 0.85;
   }
   if (rain) {
     out.sat *= 0.82;
     out.punch *= 0.9;
+    if (!night) out.lift = Math.max(out.lift, 0.015);
+  }
+  if (opts.less) {
+    out.vignette *= 0.45;
+    out.grain = 0;
   }
   return out;
 }
@@ -109,6 +133,8 @@ uniform float uVig;
 uniform float uGrain;
 uniform float uTime;
 uniform vec2 uRes;
+uniform float uLift;
+uniform float uGamma;
 varying vec2 vUv;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void main() {
@@ -126,6 +152,9 @@ void main() {
   // an S-curve: deeper shadows, cleaner lights
   vec3 s = c * c * (3.0 - 2.0 * c);
   c = mix(c, s, uPunch);
+  // lift the blacks towards a night blue (shadows stay readable), then the player's brightness (gamma)
+  c = c + uLift * (1.0 - c) * vec3(0.55, 0.7, 1.0);
+  c = pow(max(c, vec3(0.0)), vec3(1.0 / uGamma));
   // vignette
   vec2 q = vUv - 0.5;
   q.x *= uRes.x / uRes.y * 0.7;
@@ -184,6 +213,8 @@ export class Post {
       uGrain: { value: grade.grain },
       uTime: { value: 0 },
       uRes: { value: new THREE.Vector2(1, 1) },
+      uLift: { value: grade.lift },
+      uGamma: { value: 1 },
     });
     this.final.toneMapped = true;
     this.quad = new THREE.Mesh(tri, this.final);
@@ -201,6 +232,11 @@ export class Post {
     this.b1?.setSize(bw, bh);
     this.b2?.setSize(bw, bh);
     (this.final.uniforms.uRes!.value as THREE.Vector2).set(this.w, this.h);
+  }
+
+  /** Ljusstyrka: the player's gamma (1 = as designed). Cheap enough to change every frame. */
+  setBrightness(gamma: number): void {
+    this.final.uniforms.uGamma!.value = gamma;
   }
 
   /** A slow machine drops the bloom first. */

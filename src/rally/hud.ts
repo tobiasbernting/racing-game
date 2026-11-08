@@ -63,10 +63,13 @@ const CSS = `
   border-radius: calc(16px * var(--s)); background: rgba(220, 40, 30, 0.85); font-size: calc(30px * var(--s)); font-weight: 900; display: none;
   animation: rl-blink 0.8s steps(2) infinite; }
 .rl-wrong.show { display: block; }
-@keyframes rl-blink { 50% { opacity: 0.55; } }
+/* WCAG 2.3.1: nothing blinks more than three times a second (the quickest cycle here is 0.4 s = 2.5 Hz); Effekter: Färre keeps everything steady */
+@keyframes rl-blink { 50% { opacity: var(--blink, 0.55); } }
+.rl-less { --blink: 1; }
+.rl-less .rl-speed, .rl-less .rl-disco { display: none; }
 .rl-top { position: relative; }
 .rl-feed { position: absolute; left: calc(100% + 8px * var(--s)); top: calc(2px * var(--s)); display: flex; flex-direction: column; gap: calc(4px * var(--s)); align-items: flex-start; z-index: 3; pointer-events: none; width: max-content; max-width: calc(240px * var(--s)); }
-.rl-line { padding: calc(3px * var(--s)) calc(10px * var(--s)); border-radius: calc(10px * var(--s)); background: rgba(16, 20, 34, 0.55); font-size: calc(13px * var(--s)); font-weight: 800; line-height: 1.25; animation: rl-line 3.2s ease-out forwards; }
+.rl-line { padding: calc(3px * var(--s)) calc(10px * var(--s)); border-radius: calc(10px * var(--s)); background: rgba(16, 20, 34, 0.72); font-size: calc(13px * var(--s)); font-weight: 800; line-height: 1.25; animation: rl-line 3.2s ease-out forwards; }
 .rl-line.taunt { border-left: calc(3px * var(--s)) solid #ff3d7f; font-style: italic; }
 @keyframes rl-line { 0% { opacity: 0; transform: translateX(-8px); } 8% { opacity: 1; transform: none; } 80% { opacity: 0.9; } 100% { opacity: 0; } }
 .rl-veil { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 55%, rgba(0,0,0,0) 55%, rgba(20,8,0,0.35) 100%); }
@@ -86,7 +89,7 @@ const CSS = `
 .rl-meter i { display: block; height: 100%; width: 0; border-radius: 999px; background: #5fdc6a; }
 .rl-nitro span { filter: grayscale(1) opacity(0.35); }
 .rl-nitro span.on { filter: none; }
-.rl-nitro span.burn { filter: drop-shadow(0 0 6px #ffb040); animation: rl-blink 0.3s steps(2) infinite; }
+.rl-nitro span.burn { filter: drop-shadow(0 0 6px #ffb040); animation: rl-blink 0.4s steps(2) infinite; }
 .rl-abil { gap: calc(8px * var(--s)); }
 .rl-abil .rl-ai { font-size: calc(20px * var(--s)); }
 .rl-abil kbd { font: inherit; font-size: calc(12px * var(--s)); padding: 0 calc(6px * var(--s)); border-radius: calc(5px * var(--s)); background: rgba(255,255,255,0.22); }
@@ -135,7 +138,7 @@ const CSS = `
   will-change: opacity;
   background: repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,255,255,0.0) 0deg 7deg, rgba(255,255,255,0.22) 7.4deg 8deg);
   -webkit-mask: radial-gradient(circle at 50% 50%, transparent 38%, #000 75%); mask: radial-gradient(circle at 50% 50%, transparent 38%, #000 75%); }
-.rl-speed.run { animation: rl-streak 0.28s linear infinite; }
+.rl-speed.run { animation: rl-streak 0.5s linear infinite; }
 @keyframes rl-streak { from { transform: scale(1) rotate(0deg); } to { transform: scale(1.12) rotate(2.5deg); } }
 @media (prefers-reduced-motion: reduce) { .rl-speed.run { animation: none; } }
 .rl-result { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); min-width: min(92%, calc(420px * var(--s)));
@@ -322,7 +325,7 @@ export class Hud {
     this.style = document.createElement('style');
     this.style.textContent = CSS;
     parent.append(this.style);
-    this.root = el('div', `rl-hud${touch ? ' touch' : ''}`, parent);
+    this.root = el('div', `rl-hud${touch ? ' touch' : ''}${settings.effects === 'less' ? ' rl-less' : ''}`, parent);
     el('div', 'rl-veil', this.root);
     const tl = el('div', 'rl-tl', this.root);
     const top = el('div', 'rl-panel rl-top', tl);
@@ -914,7 +917,8 @@ export class Hud {
       const n = 7;
       const step = R * 0.19;
       const ly = Math.max(R * 0.06, 5 * this.dpr);
-      const blink = info.light === 3 && Math.floor(now / 90) % 2 === 0;
+      // the shift lights blink at 2.7 Hz at most (SC 2.3.1); with Effekter: Färre they stay lit
+      const blink = info.light === 3 && (settings.effects === 'less' || Math.floor(now / 185) % 2 === 0);
       for (let i = 0; i < n; i++) {
         const lit = f >= 0.55 + i * 0.066;
         const hue = i < 3 ? '#4ddf6a' : i < 5 ? '#ffd23f' : '#ff4433';
