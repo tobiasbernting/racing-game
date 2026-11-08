@@ -16,7 +16,7 @@ import { LEANS, LEAN_EMOJI, LEAN_NAMES, LEAN_TEXT, kitOf, type Lean } from '../s
 import { healPrice, repairPrice, rerollPrice, trinketPrice } from '../run/economy.ts';
 import { EVENTS, choiceAllowed, eventById } from '../run/events.ts';
 import { currentNode, currentPlan } from '../run/flow.ts';
-import { mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
+import { SCRAP_PER_HEART, mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
 import { TRINKETS, trinketById } from '../run/trinkets.ts';
 import { btn, el, plural } from './dom.ts';
 import { upgradeCard, workshopPanel } from './upgrades.ts';
@@ -492,6 +492,9 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
       ? el('div', 'rg-heartline lost', s.hearts === 2 ? '💔 −2 hjärtan' : '💔 −1 hjärta', el('small', null, run.status === 'dead' ? ' – det var sista. RIP.' : ` – ${run.hearts} kvar`))
       : el('div', 'rg-heartline', '❤️ Hjärtat klarade sig'),
   );
+  // Skrotpant: wrecks buy hearts back
+  if (s.scrapHearts) lines.push(el('div', 'rg-heartline', '🔩 Skrotpant: ❤️ tillbaka för vraken', el('small', null, ` (${SCRAP_PER_HEART} vrak = ett hjärta)`)));
+  else if ((s.takedowns ?? 0) > 0 && s.scrapCount !== undefined) lines.push(el('div', 'rg-scrap', `🔩 Skrotpant: ${s.scrapCount} av ${SCRAP_PER_HEART} vrak till nästa ❤️`));
   if (s.goal) lines.push(el('div', `rg-goal ${s.goal.met ? 'ok' : 'miss'}`, s.goal.met ? '✅ Utmaning krossad! ' : '❌ Misslyckades. Skärp dig. ', el('small', null, s.goal.text)));
   if (s.reward) lines.push(el('div', 'rg-goal ok', s.rewardKind === 'second' ? '🥈 Tröstpris: välj en av två.' : s.rewardKind === 'win' ? '🏆 Vinst! Välj ditt byte.' : '🎁 Du får välja en pryl.'));
   return screen('rg-post', statusBar(run), el('div', 'rg-postbody', el('h2', 'rg-bigh', head), ...lines), foot(go(run.status === 'dead' ? 'Fortsätt' : s.reward ? (s.rewardKind === 'second' ? 'Ta tröstpriset 🎁' : 'Välj ditt byte 🎁') : 'Till kartan', o.onNext)));

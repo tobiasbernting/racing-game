@@ -81,7 +81,7 @@ const WEIGHTS: Record<number, Partial<Record<NodeType, number>>> = {
 const NO_REPEAT: ReadonlySet<NodeType> = new Set(['elite', 'shop', 'workshop', 'event']);
 
 /** The kind of race each boss's temper asks for: Bengt on his tractor is Blodbad, Frida is clean racing. */
-export const BOSS_KIND: Record<BossId, RaceKind> = { bengt: 'carnage', ingrid: 'mixed', isdrottningen: 'rally', kanin: 'carnage' };
+export const BOSS_KIND: Record<BossId, RaceKind> = { bengt: 'carnage', ingrid: 'carnage', isdrottningen: 'rally', kanin: 'carnage' };
 
 export const BOSS_COURSE: Record<BossId, RallyCourse> = { bengt: 'farm', ingrid: 'mountain', isdrottningen: 'ice', kanin: 'moon' };
 

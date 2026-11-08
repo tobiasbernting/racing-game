@@ -135,6 +135,9 @@ export interface RaceSummary {
   wrecked?: number;
   /** A Rivningsderby: how it ended (the final table, whether the clock ran out) and in which arena. */
   derby?: DerbyOutcome;
+  /** Skrotpant: hearts the wrecks of this race gave back, and the run's wrecks towards the next one (0..3). */
+  scrapHearts?: number;
+  scrapCount?: number;
 }
 
 export interface ShopItem {
@@ -281,6 +284,11 @@ export function healHeart(r: RunState, n = 1): boolean {
   r.hearts = Math.min(r.maxHearts, r.hearts + n);
   return true;
 }
+
+/** Skrotpant: every this many wrecked cars in a run give a lost heart back (a rammer's reward; it never goes past the full hearts). */
+export const SCRAP_PER_HEART = 4;
+/** Hearts that crossing from `before` to `after` takedowns earns. */
+export const scrapHearts = (before: number, after: number): number => Math.max(0, Math.floor(after / SCRAP_PER_HEART) - Math.floor(before / SCRAP_PER_HEART));
 
 /** Kronor are scaled up in later acts and in calm mode. */
 export const KRONOR_SCALE = [1, 1.3, 1.7] as const;

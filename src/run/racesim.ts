@@ -89,6 +89,9 @@ export const UP_SAVE: Record<string, number> = {
   'race.cap': 0.12,
 };
 
+/** Seconds a lap that a full shove (ram power and mass) saves in each kind of race. */
+const SHOVE = { rally: 0, mixed: 1.1, carnage: 1.3 } as const;
+
 const INCIDENT = { poor: 0.35, average: 0.2, good: 0.12, expert: 0.07 } as const;
 const SIGMA = { poor: 0.065, average: 0.05, good: 0.04, expert: 0.03 } as const;
 /** The share of the hazards on the road a driver of each kind drives into (rivals do not steer round them). */
@@ -138,7 +141,10 @@ interface Car {
 }
 
 /** How well a driver of each kind dodges the hits in a derby (a good player sees them coming). */
-const DODGE = { poor: 0.82, average: 1, good: 1.22, expert: 1.45 } as const;
+/** How the computer cars' numbers are scaled to the player's in the derby model (fitted so that a decent build wins a derby more often than a bare car). */
+const RIVAL_SURV = 0.8;
+const RIVAL_OFF = 0.85;
+const DODGE = { poor: 0.8, average: 1, good: 1.25, expert: 1.5 } as const;
 
 /**
  * A Rivningsderby as a sequence of eliminations. Every car has a survival number (health, mass, armour: the stats the
@@ -160,9 +166,11 @@ function simulateDerby(plan: RacePlan, run: RunState, m: PlayerModel, rg: Rng, s
   }
   const mine: D = {
     id: 'me',
-    surv: (Math.pow(stats.hp, 0.65) * (0.7 + 0.3 * stats.mass)) / Math.max(0.25, stats.tough),
-    off: stats.ram * stats.dmg * Math.sqrt(stats.mass) * (0.3 + 0.9 * m.aggression),
-    dodge: DODGE[m.skill] * (0.9 + 0.1 * Math.min(1.4, stats.grip)),
+    surv: (Math.pow(stats.hp, 0.65) * (0.7 + 0.3 * stats.mass)) / Math.pow(Math.max(0.25, stats.tough), 0.6),
+    // the one who goes for the hits deals them (ram, spikes, mass); the one who stays out of the way dodges more of them
+    off: Math.pow(stats.ram * stats.dmg, 1.3) * Math.sqrt(stats.mass) * (0.25 + 0.95 * m.aggression),
+    // a quick, grippy car slips out of the way: grip and power are what the dodging is made of
+    dodge: DODGE[m.skill] * Math.pow(Math.min(1.6, stats.grip), 0.9) * Math.pow(Math.min(1.8, stats.power), 0.7) * (1.45 - 0.75 * m.aggression),
     alive: true,
     take: 0,
     outAt: 0,
@@ -172,9 +180,9 @@ function simulateDerby(plan: RacePlan, run: RunState, m: PlayerModel, rg: Rng, s
     const skillK = 0.85 + 0.6 * Math.max(0, Math.min(1, (sp.skill - 0.8) / 0.26));
     cars.push({
       id: `ai${sp.slot}`,
-      surv: (Math.pow(sp.hp * 1.0, 0.65) * (0.7 + 0.3 * sp.mass)) / Math.max(0.25, sp.dmgTaken),
-      off: sp.ram * Math.sqrt(sp.mass) * (0.25 + 0.75 * sp.aggro),
-      dodge: skillK,
+      surv: RIVAL_SURV * (Math.pow(sp.hp * 1.0, 0.65) * (0.7 + 0.3 * sp.mass)) / Math.pow(Math.max(0.25, sp.dmgTaken), 0.6),
+      off: RIVAL_OFF * sp.ram * Math.sqrt(sp.mass) * (0.2 + 0.8 * sp.aggro),
+      dodge: skillK * (1.25 - 0.4 * sp.aggro),
       alive: true,
       take: 0,
       outAt: 0,
@@ -201,7 +209,7 @@ function simulateDerby(plan: RacePlan, run: RunState, m: PlayerModel, rg: Rng, s
     const victim = pickBy(alive, (c) => (threat(c) * noise()) / (c.surv * c.dodge));
     const attacker = pickBy(
       alive.filter((c) => c !== victim),
-      (c) => Math.pow(c.off, 1.3),
+      (c) => Math.pow(c.off, 1.5),
     );
     victim.alive = false;
     victim.outAt = t;
@@ -251,7 +259,9 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
   // per-car pace for each lap (noise), with the player's savings spread over the race
   const pace: number[][] = cars.map((c) => Array.from({ length: laps }, () => LAP_M / (c.lap * (1 + c.sigma * gauss(rg)))));
   const me = cars[0]!;
-  const savedPerLap = (stats.nitroSaved + stats.driftSaved * laps) / laps;
+  // a heavy bumper pays in the races with shoving: the traffic is pushed aside, not driven round (not in Rally, where the rivals keep off)
+  const shove = SHOVE[plan.kind] * Math.min(1.4, 0.45 * Math.max(0, stats.ram - 1) + 0.25 * Math.max(0, stats.mass - 1)) * (0.5 + 0.5 * m.aggression);
+  const savedPerLap = (stats.nitroSaved + stats.driftSaved * laps) / laps + shove;
   for (let l = 0; l < laps; l++) pace[0]![l] = LAP_M / Math.max(1, me.lap * (1 + me.sigma * gauss(rg)) - savedPerLap);
   me.pen = myPenalty;
   for (const c of cars.slice(1)) {

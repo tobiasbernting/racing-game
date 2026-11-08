@@ -10,7 +10,7 @@ import { addRaceStats } from './stats.ts';
 import { RALLY_COURSE_NAMES } from '../shared/names.ts';
 import { ARENAS } from '../shared/derby.ts';
 import { Rng } from './rng.ts';
-import { actScale, addKronor, addTrinket, addUp, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, type NodeLog, type RaceSummary, type RunState } from './state.ts';
+import { SCRAP_PER_HEART, actScale, addKronor, addTrinket, addUp, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, scrapHearts, type NodeLog, type RaceSummary, type RunState } from './state.ts';
 import { interestOn, isUpgrade, runPerks } from './upgrades.ts';
 
 /** Trophies and the end screen come from here when status is not 'running'. */
@@ -82,6 +82,7 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
   st.races++;
   if (res.finished && res.place === 1) st.wins++;
   if (res.finished && (st.bestPlace === 0 || res.place < st.bestPlace)) st.bestPlace = res.place;
+  const tdBefore = st.takedowns;
   addRaceStats(st, res);
   // the reward: every win (in Blodbad: most points) is a pick of three, second place a smaller pick of two, an
   // elite or a boss always pays, and a challenge pays when its goal is met
@@ -96,6 +97,13 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     else if (node.type === 'challenge' && met === true) rewardKind = 'win';
     else if (second) rewardKind = 'second';
     reward = !!rewardKind;
+  }
+  // Skrotpant: the wrecks of a rammer buy hearts back (not on the run's last breath)
+  let scrapBack = 0;
+  const hurtNow = r.hearts < r.maxHearts;
+  if (r.status === 'running' && hurtNow) {
+    const want = scrapHearts(tdBefore, st.takedowns);
+    if (want > 0 && healHeart(r, want)) scrapBack = want;
   }
   const summary: RaceSummary = {
     place: res.place,
@@ -118,6 +126,8 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     takedowns: res.takedowns,
     wrecked: res.wrecked,
     derby: plan.arena ? res.derby : undefined,
+    scrapHearts: scrapBack || undefined,
+    scrapCount: st.takedowns % SCRAP_PER_HEART,
   };
   r.screen = { kind: 'postrace', nodeId: node.id, summary };
   r.log.push({
