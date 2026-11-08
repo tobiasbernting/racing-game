@@ -9,6 +9,7 @@ import {
   CHROME,
   DARK,
   overallsColor,
+  helmetColorOf,
   GLASS_CAR,
   beam,
   bodyClassify,
@@ -47,7 +48,7 @@ export function riderGeo(who: CarDriver, style: CarStyle, pose: RiderPose, helme
   g.box(0.1, 0.1, 0.1, SKIN, neck.x, neck.y, neck.z);
   // the head
   const hc = rot(0, tl + 0.24, 0.05);
-  g.addColored(driverHead(who, style.paint, style.paint2), mat(hc.x, hc.y, hc.z, pose.tilt * 0.5));
+  g.addColored(driverHead(helmetColorOf(style), style.paint2, style.helmet), mat(hc.x, hc.y, hc.z, pose.tilt * 0.5));
   void helmet;
   // arms to the grips
   const [hx, hy, hz] = pose.hands;

@@ -13,7 +13,7 @@ import { Rng } from './rng.ts';
 import { TRINKETS } from './trinkets.ts';
 
 const start = (diff: Difficulty, seed = 42): RunState => {
-  const r = newRun({ seed, diff, body: 'hatch', driver: 'cow', paint: '#e8412c' });
+  const r = newRun({ seed, diff, body: 'hatch', paint: '#e8412c' });
   r.trinkets = [];
   r.got = [];
   return r;
@@ -69,8 +69,8 @@ describe('the four difficulties', () => {
       expect(r.diff).toBe(d);
       expect(r.calm).toBe(d === 'calm');
     }
-    expect(newRun({ seed: 1, calm: true, body: 'hatch', driver: 'cow', paint: '#e8412c' }).diff).toBe('calm');
-    expect(newRun({ seed: 1, calm: false, body: 'hatch', driver: 'cow', paint: '#e8412c' }).diff).toBe('normal');
+    expect(newRun({ seed: 1, calm: true, body: 'hatch', paint: '#e8412c' }).diff).toBe('calm');
+    expect(newRun({ seed: 1, calm: false, body: 'hatch', paint: '#e8412c' }).diff).toBe('normal');
   });
 
   it('heart rules: Söndagsåkare is lenient, the others share the normal rules', () => {

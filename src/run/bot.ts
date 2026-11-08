@@ -68,7 +68,7 @@ export interface RaceLog {
 /** `progress` is the meta's medal progress at the start: the only thing of the meta a run is given (it must not change the run). */
 export function playRun(seed: number, p: Profile, mode: Difficulty | boolean, progress: Record<string, number> = {}): { run: RunState; races: RaceLog[] } {
   const rng = new Rng(seed * 7919 + 13);
-  let run = newRun({ seed, diff: asDifficulty(mode), body: 'hatch', driver: 'human', paint: '#e8412c', progress });
+  let run = newRun({ seed, diff: asDifficulty(mode), body: 'hatch', paint: '#e8412c', progress });
   const races: RaceLog[] = [];
   for (let guard = 0; guard < 600 && run.status === 'running'; guard++) {
     if (!run.screen) {

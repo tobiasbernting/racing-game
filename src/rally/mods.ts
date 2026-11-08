@@ -7,7 +7,8 @@
 //
 // New vehicles or trinkets in later phases only add data: a field here plus a line where the race reads it.
 
-import type { CarBody, CarDriver } from '../shared/rally.ts';
+import type { CarBody, CarExtra, HelmetLook } from '../shared/rally.ts';
+import type { GimmickId } from '../shared/gimmicks.ts';
 
 /** Static modifiers. Every field has a neutral value (see `neutralTune`). */
 export interface ModTune {
@@ -382,8 +383,10 @@ export const noMods = (): RaceMods => ({ items: [], tune: neutralTune(), bus: ne
  * optional; a race without one is a plain race.
  */
 export interface RaceTwist {
-  /** The first computer car becomes this rival (a boss): name, driver and body. */
-  boss?: { name: string; face: CarDriver; body: CarBody; color: string; power: number; skill: number };
+  /** The first computer car becomes this rival (a boss): name, body, livery (`color` main, `trim` second) and the pattern on its helmet. */
+  boss?: { name: string; body: CarBody; color: string; trim: string; helmet: HelmetLook; extras?: CarExtra[]; power: number; skill: number };
+  /** The boss's own tricks on the road (shared/gimmicks.ts): penalty zones, golf balls, false signs, footballs, ice, bowling. */
+  gimmicks?: GimmickId[];
   /** Rivals get this much more (or less) skill / power than the difficulty says. */
   rivalSkill?: number;
   rivalPower?: number;

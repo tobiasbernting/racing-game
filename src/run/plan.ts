@@ -6,15 +6,22 @@ import type { RaceTwist } from '../rally/mods.ts';
 import { skyFor, variationFor } from '../shared/variation.ts';
 import { BOSS_COURSE, type BossId, type ChallengeKind, type MapNode } from './map.ts';
 import type { RaceKind } from '../shared/kinds.ts';
-import { buildField, type FieldPlan } from '../shared/field.ts';
+import { buildField, unit, type FieldPlan } from '../shared/field.ts';
+import { BORROWED, GIMMICKS, type GimmickId } from '../shared/gimmicks.ts';
 import type { Archetype } from '../shared/rivals.ts';
 import { ARENAS, DERBY_NAME, type ArenaId } from '../shared/derby.ts';
 
 export interface BossDef {
   id: BossId;
   name: string;
+  /** A title before the name on the card ("Världsmästaren"), if it has one. */
+  title?: string;
   emoji: string;
   course: RallyCourse;
+  /** Which act's pool the boss is in (0 = akt 1). */
+  act: number;
+  /** What it drives, in words (the table in the README and the card). */
+  vehicle: string;
   /** The boss's nickname, a few words. */
   nick: string;
   /** What the trick is when the boss calls you to a Rivningsderby instead. */
@@ -26,55 +33,153 @@ export interface BossDef {
   twist: RaceTwist;
   /** How the boss drives. */
   archetype: Archetype;
+  /** The rival (shared/rivals.ts) the boss is the same person as: that one stays off the grid in the boss race. */
+  rivalId?: string;
+  /** The world champions drive a perfect line with nitro on every straight, and borrow another boss's trick. */
+  champion?: boolean;
 }
 
 export const BOSS_DEFS: Record<BossId, BossDef> = {
-  bengt: {
-    id: 'bengt',
-    name: 'Sura Bengt',
-    nick: 'Hatar rallyungar på sin grusväg',
-    emoji: '🚜',
-    course: BOSS_COURSE.bengt,
-    archetype: 'rammer',
-    intro: '“DET HÄR ÄR MIN GRUSVÄG! Ni rallyungar förstör gruset och skrämmer korna. Jag har traktor, hela dagen och inga vänner!”',
-    trick: 'Bengt kör traktor och puttar undan dig. Höbalar ligger på vägen. Kör runt dem!',
-    twist: { boss: { name: 'Sura Bengt', face: 'human', body: 'tractor', color: '#2fa84f', power: 1.04, skill: 0.98 }, hay: 6 },
-  },
-  ingrid: {
-    id: 'ingrid',
-    name: 'Ingrid Ingenväjning',
-    nick: 'Älgen som aldrig ger företräde',
-    emoji: '🦌',
-    course: BOSS_COURSE.ingrid,
-    archetype: 'mixed',
-    intro: '“Jag väjer aldrig. Inte för bilar, inte för tåg, inte för dig. Flytta på dig, annars blir du älgkorv.”',
-    trick: 'Ingrid kör fyrhjuling och hoppar tvärs över vägen utan förvarning. De andra gör likadant och drar på nitron.',
-    twist: { boss: { name: 'Ingrid Ingenväjning', face: 'horse', body: 'atv', color: '#8c5a3c', power: 1.03, skill: 0.97 }, rivalHop: 7, rivalNitro: 12 },
-  },
-  isdrottningen: {
-    id: 'isdrottningen',
-    name: 'Frost-Frida',
-    nick: 'Isdrottningen med fryst hjärta',
-    emoji: '👸',
-    course: BOSS_COURSE.isdrottningen,
+  torsten: {
+    id: 'torsten',
+    name: 'Tävlingsledaren Torsten',
+    nick: 'Visselpipan är hans svärd',
+    emoji: '🏁',
+    course: BOSS_COURSE.torsten,
+    act: 0,
+    vehicle: 'Tävlingsbil med blinkande ljusramp',
     archetype: 'racer',
-    intro: '“Mitt hjärta är kallare än din glass. Banan är is och du är i vägen. Brrr, älskling.”',
-    trick: 'Vägen är blank is: halt för alla. Frida dundrar iväg med nitro.',
-    twist: { boss: { name: 'Frost-Frida', face: 'cat', body: 'coupe', color: '#bfe9ff', power: 1.04, skill: 1.02 }, grip: 0.72, rivalNitro: 9 },
+    intro: '“Alla in på ledet! Jag är tävlingsledare och jag har en visselpipa. Rött fält betyder att du gjorde fel. Det gör du alltid.”',
+    trick: 'Torsten ritar straffzoner på vägen. Kör genom en och du bromsas och får 2 sekunders tillägg.',
+    twist: { boss: { name: 'Tävlingsledaren Torsten', body: 'pickup', color: '#f4c20d', trim: '#15171c', helmet: 'checker', extras: ['lightbar'], power: 1.06, skill: 1.0 }, gimmicks: ['penalty'] },
+  },
+  goran: {
+    id: 'goran',
+    name: 'Golf-Göran',
+    nick: 'Hole in one, helst i en annan bil',
+    emoji: '⛳',
+    course: BOSS_COURSE.goran,
+    act: 0,
+    vehicle: 'Golfbil',
+    archetype: 'mixed',
+    intro: '“Fore! Jag är proffs. På golf, alltså. Bilen är bara en golfbil med lite extra motor. Håll huvudet nere!”',
+    trick: 'Göran slår ut golfbollar som studsar över banan. Blir du träffad snurrar du runt.',
+    twist: { boss: { name: 'Golf-Göran', body: 'golf', color: '#f2f2f2', trim: '#2fa84f', helmet: 'dots', power: 1.1, skill: 1.0 }, gimmicks: ['golf'] },
+  },
+  tina: {
+    id: 'tina',
+    name: 'Tina Kartörner',
+    nick: 'Hon har alltid rätt. Nästan alltid',
+    emoji: '🗺️',
+    course: BOSS_COURSE.tina,
+    act: 0,
+    vehicle: 'Rallybil med antenn',
+    archetype: 'racer',
+    intro: '“Vänster fyra, hopp, lita på mig! Jag har kartan. Jag har alltid kartan. Ibland har jag den upp och ner.”',
+    trick: 'Tina sätter upp skyltar med pilar åt fel håll, och ibland snurrar hennes karta runt din minikarta. Hon menar väl.',
+    twist: { boss: { name: 'Tina Kartörner', body: 'coupe', color: '#ff8a1f', trim: '#f2f2f2', helmet: 'star', extras: ['antenna'], power: 1.07, skill: 1.0 }, gimmicks: ['signs'] },
+  },
+  freddie: {
+    id: 'freddie',
+    name: 'Fotbolls-Freddie',
+    nick: 'Skjuter först, frågar sen',
+    emoji: '⚽',
+    course: BOSS_COURSE.freddie,
+    act: 1,
+    vehicle: 'Sandbuggy i gräsgrönt',
+    archetype: 'rammer',
+    intro: '“MÅÅÅL! Jag skjuter från alla håll. Bollen är större än du trodde. Gör dig redo för straffläggning!”',
+    trick: 'Freddie skjuter jättestora fotbollar tvärs över vägen. Du ser bollen ligga vid kanten precis innan.',
+    twist: { boss: { name: 'Fotbolls-Freddie', body: 'buggy', color: '#2fa84f', trim: '#f2f2f2', helmet: 'wing', power: 1.1, skill: 1.035 }, gimmicks: ['football'] },
+  },
+  mats: {
+    id: 'mats',
+    name: 'Målvakten Mats',
+    nick: 'Stoppar allt, utom sin ismaskin',
+    emoji: '🏒',
+    course: BOSS_COURSE.mats,
+    act: 1,
+    vehicle: 'Ismaskin (en traktor med blått skal)',
+    archetype: 'mixed',
+    intro: '“Jag har stoppat tusen skott. Nu stoppar jag dig. Min ismaskin gör banan blank. Jag kör sakta och skrattar.”',
+    trick: 'Mats lämnar en hal isremsa efter sin ismaskin. Kör bredvid den, eller sladda och hoppas.',
+    twist: { boss: { name: 'Målvakten Mats', body: 'tractor', color: '#bfe9ff', trim: '#1f3a93', helmet: 'stripe', power: 1.14, skill: 1.035 }, gimmicks: ['ice'] },
+  },
+  berit: {
+    id: 'berit',
+    name: 'Bowling-Berit',
+    nick: 'Fäller allt som står i vägen',
+    emoji: '🎳',
+    course: BOSS_COURSE.berit,
+    act: 1,
+    vehicle: 'Limousin i bowlinglila',
+    archetype: 'racer',
+    intro: '“Strike! Jag rullar klot nerför backarna och ställer käglor på vägen. Du är nästa kägla, vännen.”',
+    trick: 'Berit rullar tunga bowlingklot nerför backen mot dig och ställer upp käglor på vägen.',
+    twist: { boss: { name: 'Bowling-Berit', body: 'limo', color: '#8a4fd8', trim: '#ffd23f', helmet: 'twin', power: 1.1, skill: 1.035 }, gimmicks: ['bowling'] },
+  },
+  loeb: {
+    id: 'loeb',
+    name: 'Sébastien Loebsedel',
+    title: 'Världsmästaren',
+    nick: 'Nio titlar, noll felbromsningar',
+    emoji: '🏆',
+    course: BOSS_COURSE.loeb,
+    act: 2,
+    vehicle: 'Rallybil, helt perfekt trimmad',
+    archetype: 'racer',
+    champion: true,
+    intro: '“Bonjour. Nio titlar. Jag bromsar inte i kurvor, det är bara ett förslag. Vi ses i mål, om du hittar dit.”',
+    trick: 'Perfekt kurvtagning och nitro på varje raksträcka. Dessutom lånar han ett trick av en annan boss.',
+    twist: { boss: { name: 'Sébastien Loebsedel', body: 'coupe', color: '#1f3a93', trim: '#e8412c', helmet: 'bolt', power: 1.14, skill: 1.05 }, gimmicks: [] },
+  },
+  stig: {
+    id: 'stig',
+    name: 'Stig Blomgrus',
+    title: 'Världsmästaren',
+    nick: 'Mästaren som aldrig slutade',
+    emoji: '🏆',
+    course: BOSS_COURSE.stig,
+    act: 2,
+    vehicle: 'Klassisk rallybil, snyggt slitna däck',
+    archetype: 'racer',
+    rivalId: 'stig',
+    champion: true,
+    intro: '“Jag körde grus innan du var påtänkt. En perfekt linje är som en bra historia: den har ingen omväg. Sitt still och titta.”',
+    trick: 'Perfekt kurvtagning och nitro på varje raksträcka. Dessutom lånar han ett trick av en annan boss.',
+    twist: { boss: { name: 'Stig Blomgrus', body: 'hatch', color: '#1f3a93', trim: '#f2f2f2', helmet: 'stripe', power: 1.14, skill: 1.05 }, gimmicks: [] },
   },
   kanin: {
     id: 'kanin',
     name: 'Kapten Kanin',
     nick: 'Månens krigsherre, äter morötter och förlorare',
-    emoji: '🐰',
+    emoji: '🚀',
     course: BOSS_COURSE.kanin,
+    act: 2,
+    vehicle: 'Soffa med långa öron på hjälmen',
     archetype: 'mixed',
     intro: '“Jag är Kapten Kanin, krigsherre över månen. Jag äter morötter och förlorare. Knäpp med öronen: ni är mina!”',
     trick: 'Månen har låg tyngdkraft. Kanin kör soffa och studsar i jättehopp. De andra gör likadant och drar på nitron.',
     derbyTrick: 'Kanin har byggt en rivningsarena med månens tyngdkraft. Ingen mållinje: sista bilen som rullar vinner. Soffan studsar och hoppar mellan hoppen.',
-    twist: { boss: { name: 'Kapten Kanin', face: 'rabbit', body: 'sofa', color: '#6a4fd8', power: 1.05, skill: 1.0 }, rivalHop: 4.5, rivalNitro: 10 },
+    twist: { boss: { name: 'Kapten Kanin', body: 'sofa', color: '#6a4fd8', trim: '#f4c20d', helmet: 'ears', power: 1.05, skill: 1.0 }, rivalHop: 4.5, rivalNitro: 10 },
   },
 };
+
+/** The trick a world champion borrows in this race: one of the other bosses' gimmicks, picked from the node's seed. */
+export const borrowedGimmick = (seed: number): GimmickId => BORROWED[Math.floor(unit(seed, 91) * BORROWED.length) % BORROWED.length]!;
+
+/** A boss's twist for this node: the same for every boss but the champions, who add a borrowed gimmick. */
+export function twistFor(def: BossDef, seed: number): RaceTwist {
+  if (!def.champion) return def.twist;
+  return { ...def.twist, gimmicks: [borrowedGimmick(seed)] };
+}
+
+/** What the boss's trick reads like in this race (a champion's line names the borrowed one). */
+export function trickFor(def: BossDef, seed: number): string {
+  if (!def.champion) return def.trick;
+  const g = GIMMICKS[borrowedGimmick(seed)];
+  return `${def.trick.replace(' Dessutom lånar han ett trick av en annan boss.', '')} Lånat trick: ${g.emoji} ${g.name}. ${g.text}`;
+}
 
 export const CHALLENGE_NAMES: Record<ChallengeKind, string> = {
   win: 'Vinn eller skäms',
@@ -142,14 +247,13 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
   } else if (node.type === 'boss' && node.boss) {
     boss = BOSS_DEFS[node.boss];
     title = boss.name;
-    twist = boss.twist;
+    twist = twistFor(boss, node.seed);
     rules.course = boss.course;
     rules.laps = 3;
     // a boss race is a smaller field, so the boss is the fight and the heart rule for losing it is fair
     rules.ai = Math.max(3, rules.ai - 1);
     rules.difficulty = stepDiff(rules.difficulty, 1);
     rules.damage = true;
-    if (node.boss === 'isdrottningen') rules.time = 'night';
     if (node.boss === 'kanin') rules = { ...rules, time: 'day', weather: 'clear' };
     prize = 2;
   } else if (node.type === 'challenge' && node.challenge) {
@@ -205,7 +309,7 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
     role: node.type === 'elite' ? 'elite' : boss ? 'boss' : 'rival',
     calm,
     ai: rules.ai,
-    boss: boss ? { id: boss.id, archetype: boss.archetype, power: boss.twist.boss?.power, skill: boss.twist.boss?.skill } : undefined,
+    boss: boss ? { id: boss.id, archetype: boss.archetype, power: boss.twist.boss?.power, skill: boss.twist.boss?.skill, rivalId: boss.rivalId, perfect: boss.champion } : undefined,
   });
   return { node, title, course: rules.course, rules, twist, goal, boss, prize, kind: rules.kind, field, arena };
 }

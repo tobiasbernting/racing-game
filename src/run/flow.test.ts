@@ -10,7 +10,7 @@ import { CALM_HEARTS, START_HEARTS, costsHeart, heartsLost, mapOf, newRun, owned
 
 /** A run with nothing in the bag (the starting trinket of the vehicle is taken out, so the tests count only what they add). */
 const fresh = (o: Partial<{ seed: number; calm: boolean }> = {}): RunState => {
-  const r = newRun({ seed: o.seed ?? 42, calm: o.calm ?? false, body: 'hatch', driver: 'cow', paint: '#e8412c' });
+  const r = newRun({ seed: o.seed ?? 42, calm: o.calm ?? false, body: 'hatch', paint: '#e8412c' });
   r.trinkets = [];
   r.got = [];
   return r;
@@ -150,9 +150,9 @@ describe('challenge goals', () => {
         expect(calm.rules.ai).toBeLessThanOrEqual(p.rules.ai);
       }
     const bosses = [0, 1, 2].map((act) => planRace(mapOf({ ...fresh(), act }).rows[5]![0]!, false).boss?.name);
-    expect(bosses[0]).toBe('Sura Bengt');
-    expect(['Ingrid Ingenväjning', 'Frost-Frida']).toContain(bosses[1]);
-    expect(bosses[2]).toBe('Kapten Kanin');
+    expect(['Tävlingsledaren Torsten', 'Golf-Göran', 'Tina Kartörner']).toContain(bosses[0]);
+    expect(['Fotbolls-Freddie', 'Målvakten Mats', 'Bowling-Berit']).toContain(bosses[1]);
+    expect(['Sébastien Loebsedel', 'Stig Blomgrus', 'Kapten Kanin']).toContain(bosses[2]);
   });
 });
 

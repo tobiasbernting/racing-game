@@ -82,7 +82,7 @@ describe('the same code and difficulty make the same run, whatever the meta', ()
     const poor = defaultMeta();
     const rich = richMeta();
     for (const diff of ['calm', 'normal', 'hard', 'one'] as const) {
-      const mk = (m: typeof poor) => newRun({ seed: seed.seed, diff, body: 'hatch', driver: 'cow', paint: '#e8412c', progress: m.progress });
+      const mk = (m: typeof poor) => newRun({ seed: seed.seed, diff, body: 'hatch', paint: '#e8412c', progress: m.progress });
       const a = mk(poor);
       const b = mk(rich);
       // the one thing of the meta a run keeps is the medal snapshot, only to tell afterwards what the run moved
@@ -108,7 +108,7 @@ describe('the same code and difficulty make the same run, whatever the meta', ()
 
   it('every vehicle starts a run from a typed code, nothing is locked', () => {
     for (const body of CAR_BODIES) {
-      const r = newRun({ seed: seed.seed, diff: 'normal', body, driver: 'cow', paint: '#e8412c' });
+      const r = newRun({ seed: seed.seed, diff: 'normal', body, paint: '#e8412c' });
       expect(r.car.body).toBe(body);
       expect(r.trinkets.length).toBe(1);
     }

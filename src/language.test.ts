@@ -1,14 +1,12 @@
 // The game is for an adult and a ten-year-old: cheeky and gross (prutt, bajs, surströmming), never swearing or crude words.
 // This scans every string literal in src/ (not identifiers or comments) plus the web manifest and index.html.
 import { describe, expect, it } from 'vitest';
+import { BANNED } from './shared/words.ts';
 
 // every source file as text (vite resolves this at test time; no Node typings needed)
 const sources = import.meta.glob('./**/*.{ts,css}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const manifest = import.meta.glob('../public/manifest.webmanifest', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const page = import.meta.glob('../index.html', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
-
-/** Word-boundary-aware: "fan" the word, not "fanfar" or "fans". */
-const BANNED: RegExp[] = [/\bkuk/i, /\bskit/i, /\bfan\b/i, /\bjävl/i, /\bjavl/i, /\bhelvet/i, /\bsatan\b/i, /\bfitt/i, /\bröv\b/i, /\bknull/i, /\bhora\b/i, /\bpiss/i, /\bidiot/i];
 
 /** The string literals of a source file: '...', "...", `...` (template text), with escapes left as they are. */
 function literals(src: string): string[] {

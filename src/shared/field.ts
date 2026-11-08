@@ -269,7 +269,8 @@ export interface FieldInput {
   calm: boolean;
   /** Computer cars. */
   ai: number;
-  boss?: { id: string; archetype: Archetype; power?: number; skill?: number };
+  /** `rivalId`: the rival the boss is also (it stays off the grid). `perfect`: the line is the racing line, and the nitro goes off on every straight. */
+  boss?: { id: string; archetype: Archetype; power?: number; skill?: number; rivalId?: string; perfect?: boolean };
 }
 
 /** Hazards on the road per lap: more of everything later in the run, more oil in Blodbad, fewer in Rally. */
@@ -289,7 +290,7 @@ export const narrowFor = (act: number, calm: boolean): number => (calm ? 1 : [1,
 /** The kit a rival has: its part levels, modifiers and temper, from where the run has got to. */
 export function buildField(i: FieldInput): FieldPlan {
   const t = runProgress(i.act, i.row);
-  const cast = rivalCast(i.seed, Math.max(i.ai, 1), i.kind);
+  const cast = rivalCast(i.seed, Math.max(i.ai, 1), i.kind, i.boss?.rivalId ? [i.boss.rivalId] : []);
   const rivals: RivalSpec[] = [];
   for (let slot = 0; slot < i.ai; slot++) {
     const boss = slot === 0 && i.boss ? i.boss : undefined;
@@ -344,11 +345,11 @@ export function buildField(i: FieldInput): FieldPlan {
       ram: def.ram * fx.ram,
       mass: def.mass * fx.mass,
       slip: fx.slip,
-      nitroEvery: fx.nitroEvery,
+      nitroEvery: boss?.perfect ? 6 : fx.nitroEvery,
       oilEvery: fx.oilEvery,
-      late: clamp(def.late + fx.late + 0.3 * t, 0, 1),
+      late: clamp(def.late + fx.late + 0.3 * t + (boss?.perfect ? 0.25 : 0), 0, 1),
       aggro: clamp(def.aggro * KIND_AGGRO[i.kind] * (role === 'boss' ? 1.15 : 1), 0, 1),
-      lineUse: def.lineUse + (1 - def.lineUse) * t * 0.8,
+      lineUse: boss?.perfect ? 1 : def.lineUse + (1 - def.lineUse) * t * 0.8,
       nitro: def.nitro,
       mods,
       rules,

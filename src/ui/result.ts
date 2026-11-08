@@ -1,7 +1,8 @@
 // The result screen of a finished run (a win or the last heart lost): verdict, fun stats with a headline,
 // the timeline of every node, the build and where it came from, trophies and unlocks. The numbers come from
 // run/summary.ts; this file only draws them.
-import { CAR_BODY_NAMES, CAR_DRIVER_EMOJI, CAR_DRIVER_NAMES } from '../shared/names.ts';
+import { CAR_BODY_NAMES } from '../shared/names.ts';
+import { helmetSvg } from './helmet.ts';
 import { trinketById } from '../run/trinkets.ts';
 import type { RunEnd, RunState } from '../run/state.ts';
 import { PATH_EMOJI, PATH_NAMES, buildTimeline, buildView, fmtMs, medalsOf, statView, trophyReasons, verdictOf, type StatCard, type TimelineItem } from '../run/summary.ts';
@@ -129,16 +130,15 @@ function unlockSection(run: RunState, info: RunEnd): HTMLElement {
   return box;
 }
 
-export function resultView(run: RunState, info: RunEnd, o: { onAgain(): void; onTitle(): void }): HTMLElement {
+export function resultView(run: RunState, info: RunEnd, o: { onAgain(): void; onTitle(): void; name?: string }): HTMLElement {
   const v = verdictOf(run);
   const s = statView(run);
   const car = run.car;
-  const driver = car.style.driver ?? 'human';
   const swatch = el('i', 'rs-paint');
   swatch.style.background = car.style.paint;
   const chips = [
     el('span', 'rs-chip', '🚗', ` ${CAR_BODY_NAMES[car.body]}`),
-    el('span', 'rs-chip', CAR_DRIVER_EMOJI[driver], ` ${CAR_DRIVER_NAMES[driver]}`),
+    el('span', 'rs-chip rs-who', helmetSvg({ color: car.style.helmetColor || car.style.paint, trim: car.style.paint2, design: car.style.helmet, cls: 'rs-helm' }), ` ${o.name || 'Du'}`),
     el('span', 'rs-chip', swatch, ' Lack'),
     el('span', 'rs-chip', '⏲️', ` ${run.stats.totalTime > 0 ? fmtMs(run.stats.totalTime) : '–'}`, el('small', null, ' åktid')),
     seedChip(run.seed, 'rs-chip seed'),

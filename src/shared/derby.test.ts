@@ -96,6 +96,7 @@ describe('derbys on the map', () => {
     let derbyElites = 0;
     let bossDerbys = 0;
     let bosses = 0;
+    let jokers = 0;
     for (let seed = 1; seed <= 120; seed++)
       for (let act = 0; act < ACTS; act++) {
         const nodes = allNodes(generateAct(seed, act));
@@ -116,12 +117,14 @@ describe('derbys on the map', () => {
           }
         }
         if (act === 2) bosses++;
+        if (nodes.some((x) => x.type === 'boss' && x.boss === 'kanin')) jokers++;
         expect(generateAct(seed, act)).toEqual(generateAct(seed, act));
       }
     expect(derbyElites).toBe(elites);
-    // the last boss is a derby in roughly two runs out of five
-    expect(bossDerbys / bosses).toBeGreaterThan(0.25);
-    expect(bossDerbys / bosses).toBeLessThan(0.55);
+    // only the joker on the moon calls a derby (the champions race on a road), in roughly two meetings out of five
+    expect(jokers).toBeGreaterThan(bosses / 6);
+    expect(bossDerbys / jokers).toBeGreaterThan(0.25);
+    expect(bossDerbys / jokers).toBeLessThan(0.55);
   });
 
   it('plans a derby: an arena, no laps in the rules that matter, Blodbad, a night or dusk sky and the boss keeping its tricks', () => {
@@ -161,7 +164,7 @@ describe('the run rules for a derby', () => {
   const runAtDerby = (calm = false) => {
     let seed = 1;
     for (;; seed++) {
-      const r0 = newRun({ seed, calm, body: 'hatch', driver: 'human', paint: '#e8412c' });
+      const r0 = newRun({ seed, calm, body: 'hatch', paint: '#e8412c' });
       const nodes = allNodes(generateAct(seed, 0));
       const derby = nodes.find((n) => n.derby && n.type === 'elite');
       if (!derby) continue;

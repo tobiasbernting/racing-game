@@ -910,3 +910,54 @@ div.rg-tcard {
     display: none;
   }
 }
+
+/* ---- phase 16: everyone is a person in a helmet ---- */
+.rg-helmet { display: block; overflow: visible; }
+.rg-chelm { height: 100%; width: auto; max-width: 100%; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.4)); }
+.rg-cport { overflow: hidden; height: 72px; }
+.rg-cport .rg-chelm { height: 100%; margin: 0; }
+.rg-cemoji { position: absolute; right: 4px; top: 1px; font-size: 18px; line-height: 1; filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.5)); }
+.rg-ccard.rg-you { --card: #8fd36a; border-color: #1f6b2a; box-shadow: 0 0 0 2px #fff3b0, 4px 5px 0 2px rgba(0, 0, 0, 0.6); }
+.rg-ccard .rg-yourtag { background: #1f6b2a; }
+.rg-bosstitle { font-family: var(--stencil); letter-spacing: 0.12em; text-transform: uppercase; font-size: 13px; color: #a3280f; }
+.rg-bossveh { font-size: 14px; opacity: 0.9; }
+.rg-whoami { display: inline-flex; align-items: center; gap: 8px; margin: 4px 0; font-weight: 800; font-size: 16px; }
+.rg-whoami .rg-whoami-h { width: 34px; height: 34px; flex: none; }
+.rg-whoami b { color: var(--spray-y); }
+.rs-chip.rs-who { display: inline-flex; align-items: center; gap: 4px; }
+.rs-helm { width: 22px; height: 22px; }
+
+/* the helmet buttons on the pick screen */
+.rg-helmbtn { padding: 2px 4px !important; min-width: 52px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+.rg-helmbtn .rg-helmet { width: 36px; height: 36px; }
+.rg-paintfor { flex: 0 0 auto; min-width: 74px; white-space: nowrap; }
+.rg-swatch[hidden] { display: none; }
+.rg-swatch.rg-same { display: inline-flex; align-items: center; justify-content: center; font-size: 20px; background: #3a3342; }
+.rg-pick .rg-swatch.rg-same { flex: 0 0 auto; }
+
+/* the name screen */
+.rg-namescreen { align-items: center; justify-content: center; gap: 10px; text-align: center; }
+.rg-namehint { margin: 0; max-width: 520px; }
+.rg-namelab { display: block; width: min(420px, 90%); }
+.rg-namein { width: 100%; min-height: 56px; padding: 6px 14px; border-radius: 12px; border: 3px solid #fff; background: #fff8e4; color: #2a1b00; font: inherit; font-weight: 900; font-size: 24px; text-align: center; box-sizing: border-box; }
+.rg-namein::placeholder { color: #9b8f70; }
+.rg-namemsg { margin: 0; min-height: 20px; font-size: 14px; font-weight: 800; }
+.rg-namemsg.bad { color: #ffb0a0; }
+.rg-namebox { display: flex; flex-direction: column; align-items: center; gap: 6px; width: min(520px, 94%); }
+.rg-namebox[hidden] { display: none; }
+.rg-namechoices { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.rg-namechoice { min-width: 130px; padding: 4px 14px; }
+.rg-namechoice span { font-size: 20px; }
+.rg-namechoice small { display: block; font-size: 12px; opacity: 0.8; }
+.rg-namenone { margin: 0; font-weight: 700; opacity: 0.9; }
+.rg-dice[hidden] { display: none; }
+@media (max-height: 520px) {
+  .rg-namescreen { gap: 4px; }
+  .rg-namescreen .rg-h { font-size: 20px; margin: 0; }
+  .rg-namein { min-height: 46px; font-size: 20px; }
+  .rg-namehint { display: none; }
+}
+@media (max-height: 520px) {
+  .rg-cport { height: 50px; }
+  .rg-cemoji { font-size: 14px; }
+}

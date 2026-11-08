@@ -19,19 +19,21 @@ import { buyHeart, buyRepair, buyTrinket, reroll, workshopBuy, workshopPaint, wo
 import { activeCombos, buildRunMods, lookOf } from './run/upgrades.ts';
 import { buildScreen } from './ui/upgrades.ts';
 import type { Meta } from './run/meta.ts';
+import { displayName } from './shared/rallyname.ts';
 import { checkMedals } from './run/medals.ts';
 import { withSky } from './run/trinkets.ts';
 import { giveUpRun, restartPick, settleRun } from './run/giveup.ts';
 import { kitOf } from './shared/abilities.ts';
 import { newSeed } from './run/rng.ts';
-import { allNodes, type NodeType } from './run/map.ts';
+import { BOSS_COURSE, BOSS_KIND, allNodes, type BossId, type NodeType } from './run/map.ts';
+import { BOSS_DEFS } from './run/plan.ts';
 import { clearRun, loadMeta, loadRun, saveMeta, saveRun } from './run/save.ts';
 import { mapOf, newRun, trinketCount, type RunState } from './run/state.ts';
 import { btn, arrowNav, el } from './ui/dom.ts';
 import { confettiRain, kombo, medalRibbon, sfx, talisman } from './ui/juice.ts';
 import { saveSettings, settings } from './settings.ts';
 import { trinketById } from './run/trinkets.ts';
-import { bagView, collectionView, eventView, mapView, menuView, overView, pickView, restartConfirmView, postraceView, preraceView, rewardView, settingsView, shopView, titleView, workshopView, type PickSel } from './ui/views.ts';
+import { bagView, collectionView, eventView, mapView, menuView, overView, pickView, restartConfirmView, postraceView, preraceView, rewardView, settingsView, shopView, titleView, workshopView, nameView, type PickSel } from './ui/views.ts';
 
 type State = 'menu' | 'loading' | 'playing' | 'paused' | 'result';
 /** Quick race (one race, the old front end) or a run (the roguelite). */
@@ -76,7 +78,7 @@ export class App {
     const small = Math.min(screen.width, screen.height) < 700;
     this.quality = coarse || small ? 'low' : 'high';
     this.prefs = loadPrefs();
-    this.sel = { diff: this.meta.diff, body: this.meta.body, driver: this.meta.driver, paint: this.meta.paint };
+    this.sel = { diff: this.meta.diff, body: this.meta.body, paint: this.meta.paint, helmet: this.meta.helmet, helmetColor: this.meta.helmetColor };
     this.root.append(this.stage, this.touchEl, this.bar, this.card, this.rotate);
     parent.append(this.root);
 
@@ -287,6 +289,8 @@ export class App {
     this.showScreen(
       settingsView({
         settings,
+        who: displayName(this.meta),
+        onName: () => this.nameScreen(false, () => this.openSettings(back)),
         fullscreen: this.fullscreenState(),
         controls: this.ctl,
         touch: this.touch,
@@ -323,7 +327,7 @@ export class App {
     const bodyRow = el('div', 'arc-row');
     const paintRow = el('div', 'arc-row');
     const previewBox = el('div', 'arc-preview');
-    const mkCar = () => newCar(1, p.body, CAR_BODY_NAMES[p.body], p.paint);
+    const mkCar = () => this.withHelmet(newCar(1, p.body, CAR_BODY_NAMES[p.body], p.paint));
 
     const chips = <T extends string>(row: HTMLElement, items: readonly T[], label: (t: T) => string, get: () => T, set: (t: T) => void): void => {
       const draw = (): void => {
@@ -406,7 +410,7 @@ export class App {
   private rallyOptions(): RallyOptions {
     if (this.mode === 'run' && this.runState) return this.runOptions(this.runState);
     const p = this.prefs;
-    const car = newCar(1, p.body, CAR_BODY_NAMES[p.body], p.paint);
+    const car = this.withHelmet(newCar(1, p.body, CAR_BODY_NAMES[p.body], p.paint));
     return {
       rules: { ...defaultRules(), course: p.course },
       car,
@@ -451,7 +455,7 @@ export class App {
       input: this.input,
       audio: this.audio,
       out: this.master,
-      player: { name: 'Du', color: this.opts.car.style.paint },
+      player: { name: displayName(this.meta), color: this.opts.car.style.paint },
       touch: this.touch,
       controls: this.cstate,
       quality: this.quality,
@@ -567,7 +571,15 @@ export class App {
     this.set('menu');
     this.touchEl.replaceChildren();
     this.stage.replaceChildren();
+    const mem = this.meta;
     this.meta = loadMeta();
+    // storage that cannot be written (a private window) still keeps the name for this visit
+    if (!this.meta.name && mem.name) {
+      this.meta.name = mem.name;
+      this.meta.alias = mem.alias;
+    }
+    // the very first launch: who are you? (then the title)
+    if (!this.meta.name) return this.nameScreen(true, () => this.title());
     const saved = loadRun();
     this.showScreen(
       titleView({
@@ -585,13 +597,40 @@ export class App {
     );
   }
 
+  /** "Vad heter du?": the name field and the rally name suggestion (the first launch has no way back). */
+  private nameScreen(first: boolean, next: () => void): void {
+    this.showScreen(
+      nameView({
+        name: this.meta.name,
+        alias: this.meta.alias,
+        first,
+        onDone: (name, alias) => {
+          this.meta.name = name;
+          this.meta.alias = alias;
+          saveMeta(this.meta);
+          next();
+        },
+        onBack: first ? undefined : next,
+      }),
+    );
+    this.card.querySelector<HTMLInputElement>('.rg-namein')?.focus({ preventScroll: true });
+  }
+
+  /** A garage car with the helmet the player picked (the meta's), for the quick race and its preview. */
+  private withHelmet<T extends { style: { helmet: string; helmetColor: string } }>(car: T): T {
+    car.style.helmet = this.meta.helmet;
+    car.style.helmetColor = this.meta.helmetColor;
+    return car;
+  }
+
   private collection(): void {
     this.showScreen(collectionView(this.meta, { onBack: () => this.title() }));
   }
 
   private selCar(): ReturnType<typeof newCar> {
     const car = newCar(1, this.sel.body, CAR_BODY_NAMES[this.sel.body], this.sel.paint);
-    car.style.driver = this.sel.driver;
+    car.style.helmet = this.sel.helmet;
+    car.style.helmetColor = this.sel.helmetColor;
     return car;
   }
 
@@ -611,11 +650,12 @@ export class App {
     this.disposePreview();
     this.meta.diff = s.diff;
     this.meta.body = s.body;
-    this.meta.driver = s.driver;
     this.meta.paint = s.paint;
+    this.meta.helmet = s.helmet;
+    this.meta.helmetColor = s.helmetColor;
     saveMeta(this.meta);
     clearRun();
-    this.commit(newRun({ seed: s.seed ?? newSeed(), diff: s.diff, body: s.body, driver: s.driver, paint: s.paint, progress: this.meta.progress }));
+    this.commit(newRun({ seed: s.seed ?? newSeed(), diff: s.diff, body: s.body, paint: s.paint, helmet: s.helmet, helmetColor: s.helmetColor, progress: this.meta.progress }));
   }
 
   private resumeRun(r: RunState): void {
@@ -704,7 +744,7 @@ export class App {
     }
     switch (scr.kind) {
       case 'prerace':
-        this.showScreen(preraceView(r, { onGo: () => void this.start(), onBack: next(backToMap) }));
+        this.showScreen(preraceView(r, { onGo: () => void this.start(), onBack: next(backToMap), name: displayName(this.meta) }));
         break;
       case 'postrace':
         this.showScreen(postraceView(r, scr, { onNext: () => (r.status !== 'running' ? this.showOver(r) : this.commit(continueAfterRace(r))), onCount: () => sfx.tick(this.audio, this.master) }));
@@ -795,7 +835,7 @@ export class App {
       if (r.end?.gaveUp) this.sel = restartPick(r);
       next();
     };
-    this.showScreen(overView(r, r.end!, { onAgain: leave(() => this.pickScreen()), onTitle: leave(() => this.title()) }));
+    this.showScreen(overView(r, r.end!, { onAgain: leave(() => this.pickScreen()), onTitle: leave(() => this.title()), name: displayName(this.meta) }));
     if (r.end!.won) {
       sfx.win(this.audio, this.master);
       confettiRain(this.card, 160, 3.2);
@@ -875,6 +915,24 @@ export class App {
     if (!node) return false;
     node.derby = arena;
     node.kind = 'carnage';
+    r.screen = null;
+    r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
+    this.commit(enterNode(r, node.id));
+    return true;
+  }
+
+  /** Puts the run at the boss of that boss's act and makes it that boss (its course and kind too), then enters it. */
+  debugBoss(id: BossId): boolean {
+    if (!this.runState) return false;
+    const r = structuredClone(this.runState);
+    r.act = BOSS_DEFS[id].act;
+    const nodes = allNodes(mapOf(r));
+    const node = nodes.find((n) => n.type === 'boss');
+    if (!node) return false;
+    node.boss = id;
+    node.course = BOSS_COURSE[id];
+    node.kind = BOSS_KIND[id];
+    node.derby = undefined;
     r.screen = null;
     r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
     this.commit(enterNode(r, node.id));

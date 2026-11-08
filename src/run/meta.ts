@@ -1,10 +1,11 @@
 // Progress that outlives a run: trophies 🏆 (a score, nothing is locked behind them), medals (run/medals.ts, shown in
 // Skrytlådan) and which talismans have been seen. Every vehicle and every talisman is open from the first launch, and
 // nothing in here may ever change what a seeded run generates (a test holds it to that).
-import { CAR_BODIES, CAR_PAINTS, isCarBody, type CarBody, type CarDriver, CAR_DRIVERS } from '../shared/rally.ts';
+import { CAR_BODIES, CAR_PAINTS, isCarBody, isHelmetDesign, type CarBody, type HelmetDesign } from '../shared/rally.ts';
+import { cleanPlayerName } from '../shared/rallyname.ts';
 import { isTrinket } from './trinkets.ts';
 import { ACTS } from './map.ts';
-import { MEDALS } from './medals.ts';
+import { MEDALS, MEDAL_RENAMES } from './medals.ts';
 import { DIFFICULTIES, asDifficulty, isDifficulty, type Difficulty } from './difficulty.ts';
 
 /** The five vehicles that used to be the only open ones (they have no medal). */
@@ -45,10 +46,15 @@ export interface Meta {
   progress: Record<string, number>;
   body: CarBody;
   paint: string;
-  driver: CarDriver;
+  /** What the player is called ('' until they have been asked), and the rally name they picked ('' = they keep their own name). */
+  name: string;
+  alias: string;
+  /** The helmet: its pattern and colour ('' = the car's own paint). Older saves had a driver here; it reads as the default helmet. */
+  helmet: HelmetDesign;
+  helmetColor: string;
 }
 
-export const defaultMeta = (): Meta => ({ v: 1, trophies: 0, runs: 0, wins: 0, bestAct: 0, seen: [], diff: 'normal', best: emptyBest(), medals: 1, progress: {}, body: 'hatch', paint: CAR_PAINTS[0], driver: 'human' });
+export const defaultMeta = (): Meta => ({ v: 1, trophies: 0, runs: 0, wins: 0, bestAct: 0, seen: [], diff: 'normal', best: emptyBest(), medals: 1, progress: {}, body: 'hatch', paint: CAR_PAINTS[0], name: '', alias: '', helmet: 'stripe', helmetColor: '' });
 
 /** Trophies a finished run is worth: 2 for each boss beaten, 3 more for winning, 1 for a run with a few races. */
 export function trophiesFor(r: { bossesBeaten: number; won: boolean; races: number }): number {
@@ -63,11 +69,17 @@ export function cleanMeta(raw: unknown): Meta {
   const int = (v: unknown, hi: number): number => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(hi, Math.floor(v))) : 0);
   const trophies = int(o.trophies, 9999);
   const body = isCarBody(o.body) ? o.body : d.body;
-  const rawProgress = o.progress && typeof o.progress === 'object' && !Array.isArray(o.progress) ? (o.progress as Record<string, unknown>) : {};
+  const rawProgress = o.progress && typeof o.progress === 'object' && !Array.isArray(o.progress) ? { ...(o.progress as Record<string, unknown>) } : {};
   const progress: Record<string, number> = {};
   // the old list of open vehicles (or, in the oldest saves, what the trophies had opened) is medals earned: nothing is lost
   // (only a save from before the medals has a list or none; a save in the medal format never lifts anything)
   const had = o.medals === 1 ? [] : Array.isArray(o.bodies) ? o.bodies.filter(isCarBody) : legacyBodies(trophies);
+  // medals that were renamed: the old id's progress counts under the new one (the larger of the two)
+  for (const [from, to] of Object.entries(MEDAL_RENAMES)) {
+    const a = rawProgress[from];
+    const b = rawProgress[to];
+    if (typeof a === 'number' && Number.isFinite(a) && a > (typeof b === 'number' && Number.isFinite(b) ? b : 0)) rawProgress[to] = a;
+  }
   for (const c of MEDALS) {
     const v = rawProgress[c.id];
     if (typeof v === 'number' && Number.isFinite(v) && v > 0) progress[c.id] = Math.min(c.goal, Math.floor(v));
@@ -86,7 +98,10 @@ export function cleanMeta(raw: unknown): Meta {
     progress,
     body,
     paint: typeof o.paint === 'string' && (CAR_PAINTS as readonly string[]).includes(o.paint) ? o.paint : d.paint,
-    driver: typeof o.driver === 'string' && (CAR_DRIVERS as readonly string[]).includes(o.driver) ? (o.driver as CarDriver) : d.driver,
+    name: cleanPlayerName(o.name),
+    alias: cleanPlayerName(o.alias),
+    helmet: isHelmetDesign(o.helmet) ? o.helmet : d.helmet,
+    helmetColor: typeof o.helmetColor === 'string' && (CAR_PAINTS as readonly string[]).includes(o.helmetColor) ? o.helmetColor : '',
   };
 }
 

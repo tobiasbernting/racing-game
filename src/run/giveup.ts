@@ -5,6 +5,7 @@
 import { diffOf, trophyScale, type Difficulty } from './difficulty.ts';
 import { trophiesFor, type Meta } from './meta.ts';
 import type { RunState } from './state.ts';
+import type { HelmetDesign } from '../shared/rally.ts';
 import { checkMedals } from './medals.ts';
 
 export interface Settled {
@@ -42,7 +43,8 @@ export function giveUpRun(meta: Meta, run: RunState): Settled {
   return settleRun(meta, run, true);
 }
 
-/** What the next run starts with after a restart: the same vehicle, driver and paint (the difficulty stays as the meta default). */
-export function restartPick(run: RunState): { diff: Difficulty; body: RunState['car']['body']; driver: NonNullable<RunState['car']['style']['driver']>; paint: string } {
-  return { diff: run.diff, body: run.car.body, driver: run.car.style.driver ?? 'human', paint: run.car.style.paint };
+/** What the next run starts with after a restart: the same vehicle, paint and helmet (the difficulty stays as the meta default). */
+export function restartPick(run: RunState): { diff: Difficulty; body: RunState['car']['body']; paint: string; helmet: HelmetDesign; helmetColor: string } {
+  const h = run.car.style.helmet;
+  return { diff: run.diff, body: run.car.body, paint: run.car.style.paint, helmet: h === 'ears' ? 'stripe' : h, helmetColor: run.car.style.helmetColor };
 }

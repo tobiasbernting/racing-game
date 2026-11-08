@@ -35,10 +35,11 @@ import { shiftLight } from './gears.ts';
 import { blobTex } from './geo.ts';
 import { Hud, type Racer } from './hud.ts';
 import { lakeDist } from './layout.ts';
-import { carModel, type CarModel, type Driver as Face } from './models.ts';
+import { carModel, type CarModel } from './models.ts';
 import { MAX_CHARGES, MAX_NITRO_SECONDS, capGrip, capPower, emptyStats, noMods, type FinishAdjust, type FinishInfo, type RaceApi, type TickState } from './mods.ts';
 import { Obstacles } from './obstacles.ts';
 import { Shots } from './shots.ts';
+import { Gimmicks } from './gimmicks.ts';
 import { rallyOptions } from './options.ts';
 import { buildPickups, pickupAt, placePickups, type Pickup, type PickupMeshes } from './pickups.ts';
 import { buildThemeScenery, Weather } from './props.ts';
@@ -141,12 +142,12 @@ interface Runner {
 }
 
 /** The skill of each grid slot; the names and faces come from the cast (shared/rivals.ts). */
-const ROSTER: { name: string; face: Face; skill: number; power: number; bias: number; wobble: number }[] = [
-  { name: '', face: 'cow', skill: 0.93, power: 1.0, bias: 0.3, wobble: 0.4 },
-  { name: '', face: 'horse', skill: 0.91, power: 0.98, bias: -0.6, wobble: 0.8 },
-  { name: '', face: 'pig', skill: 0.88, power: 0.96, bias: 0.9, wobble: 1.0 },
-  { name: '', face: 'rooster', skill: 0.86, power: 0.94, bias: -1.0, wobble: 1.2 },
-  { name: '', face: 'sheep', skill: 0.83, power: 0.91, bias: 0.2, wobble: 0.9 },
+const ROSTER: { name: string; skill: number; power: number; bias: number; wobble: number }[] = [
+  { name: '', skill: 0.93, power: 1.0, bias: 0.3, wobble: 0.4 },
+  { name: '', skill: 0.91, power: 0.98, bias: -0.6, wobble: 0.8 },
+  { name: '', skill: 0.88, power: 0.96, bias: 0.9, wobble: 1.0 },
+  { name: '', skill: 0.86, power: 0.94, bias: -1.0, wobble: 1.2 },
+  { name: '', skill: 0.83, power: 0.91, bias: 0.2, wobble: 0.9 },
 ];
 const PALETTE = ['#2f6fe0', '#f4c20d', '#2fa84f', '#8a4fd8', '#ff8a1f', '#e8412c', '#18b7c9', '#f06ba8', '#f2f2f2'];
 /** Difficulty: the computer cars' courage and how hard the rubber band pulls. */
@@ -154,6 +155,23 @@ const DIFF = { easy: { skill: 0.88, power: 0.96, band: 1.35 }, normal: { skill: 
 
 /** What one coin on the road is worth (before trinkets). */
 const COIN_KR = 1.2;
+
+/** How different two colours look (hue first, then lightness and saturation); under about 0.12 they read as the same car. */
+function colorGap(a: string, b: string): number {
+  const x = new THREE.Color(a).getHSL({ h: 0, s: 0, l: 0 });
+  const y = new THREE.Color(b).getHSL({ h: 0, s: 0, l: 0 });
+  let dh = Math.abs(x.h - y.h);
+  dh = Math.min(dh, 1 - dh);
+  return dh * 2 + Math.abs(x.l - y.l) * 0.6 + Math.abs(x.s - y.s) * 0.3;
+}
+
+/** A rival's car paint: its own livery colour, or its trim colour when the first is too like the player's car. */
+function liveryPaint(rv: { colors: [string, string] }, player: string, fallback: string): { paint: string; trim: string } {
+  const [a, b] = rv.colors;
+  if (colorGap(a, player) > 0.12) return { paint: a, trim: b };
+  if (colorGap(b, player) > 0.12) return { paint: b, trim: a };
+  return { paint: fallback, trim: a };
+}
 
 /** Opponent colours as far from the player's as possible. */
 function pickColors(player: string, n: number): string[] {
@@ -359,6 +377,10 @@ const rally = (ctx: GameContext): GameInstance => {
   let coins: Coins | null = null;
   const obstacles = new Obstacles();
   const shots = new Shots();
+  /** The boss's own tricks on the road (the steward's zones, golf balls, signs, footballs, ice, bowling), when the boss has any. */
+  let gimmicks: Gimmicks | null = null;
+  /** Ms of time penalty the player picked up in the steward's zones (added to the finish time). */
+  let penaltyMs = 0;
   let pickups: Pickup[] = [];
   let pickupMeshes: PickupMeshes | null = null;
   let shadowTex: THREE.Texture;
@@ -380,8 +402,8 @@ const rally = (ctx: GameContext): GameInstance => {
     return null;
   };
 
-  const modelFor = (car: GarageCar, driver?: Face, sidecar = false, look?: Record<string, number>): CarModel => {
-    const m = carModel({ body: car.body, style: car.style, driver, shadowTex, envMap: sky.env, quality: ctx.quality, sidecar, look });
+  const modelFor = (car: GarageCar, sidecar = false, look?: Record<string, number>): CarModel => {
+    const m = carModel({ body: car.body, style: car.style, shadowTex, envMap: sky.env, quality: ctx.quality, sidecar, look });
     m.setDamage(car.damage ?? 0);
     m.setNight(night);
     scene.add(m.root, m.shadow);
@@ -466,6 +488,33 @@ const rally = (ctx: GameContext): GameInstance => {
     }
     scene.add(obstacles.group, shots.group);
     disposers.push(() => obstacles.dispose(), () => shots.dispose());
+    if (twist?.gimmicks?.length && !derby) {
+      const g = new Gimmicks(
+        {
+          track,
+          obstacles,
+          cars: () => entrants.filter((e) => e.wreckT <= 0 && !e.gone).map((e) => ({ car: e.car, me: e === meE, id: e.id })),
+          boss: () => entrants.find((e) => e.spec?.boss && e.wreckT <= 0)?.car ?? null,
+          racing: () => phase === 'race',
+          hit: (id, kind, side, push, spin) => {
+            const e = entrants.find((x) => x.id === id);
+            if (e) gimmickHit(e, kind, side, push, spin);
+          },
+          toast: (text) => hud.toast(text),
+          sound: (kind) => {
+            if (kind === 'whistle') audio.whistle();
+            else if (kind === 'tock') audio.tock();
+            else audio.thud(8);
+          },
+          flipMap: (sec) => hud.flipMap(sec),
+        },
+        twist.gimmicks,
+        opts?.seed ?? 20261030,
+      );
+      gimmicks = g;
+      scene.add(g.group);
+      disposers.push(() => g.dispose());
+    }
     if (!derby) {
       if (twist?.hay) obstacles.placeHay(track, twist.hay, opts?.seed ?? 20261030);
       else if (field && field.hazards.hay) obstacles.placeHay(track, field.hazards.hay, opts?.seed ?? 20261030);
@@ -688,15 +737,18 @@ const rally = (ctx: GameContext): GameInstance => {
       // with a field plan the kit (skill, upgrades, modifiers, temper) comes from it; without one the old roster
       const spec = isMe || !field ? null : field.rivals[k] ?? null;
       const rv = isMe ? null : spec && !spec.boss ? rivalById(spec.id) ?? cast[k]! : cast[k]!;
-      const r0 = isMe ? null : { ...ROSTER[k]!, name: rv!.name, face: rv!.face as Face };
-      // a boss takes the first rival's place with its own name, face, body and colour
-      const r = r0 && boss ? { ...r0, name: boss.name, face: boss.face, skill: boss.skill, power: boss.power, bias: 0 } : r0;
-      const color = isMe ? (opts ? myCar.style.paint : ctx.player.color) : boss ? boss.color : colors[k] ?? PALETTE[k]!;
+      const r0 = isMe ? null : { ...ROSTER[k]!, name: rv!.name };
+      // a boss takes the first rival's place with its own name, helmet, body and colour
+      const r = r0 && boss ? { ...r0, name: boss.name, skill: boss.skill, power: boss.power, bias: 0 } : r0;
+      const livery = !isMe && !boss && rv && opts ? liveryPaint(rv, myCar.style.paint, colors[k] ?? PALETTE[k]!) : null;
+      const color = isMe ? (opts ? myCar.style.paint : ctx.player.color) : boss ? boss.color : livery ? livery.paint : colors[k] ?? PALETTE[k]!;
       const body: CarBody = isMe ? myCar.body : boss ? boss.body : opts ? (spec ? archetypeBody(opts.seed ?? 20261030, k, spec) : rivalBody(opts.seed ?? 20261030, k)) : 'hatch';
-      const gcar = isMe ? myCar : opts ? aiCar(k, color, r!.face, body) : arcadeCar(color);
+      const helm = boss ? { design: boss.helmet, color: boss.color, trim: boss.trim } : rv ? { design: rv.helmet, color: rv.colors[0], trim: livery ? livery.trim : rv.colors[1] } : undefined;
+      const gcar = isMe ? myCar : opts ? aiCar(k, color, body, helm) : arcadeCar(color);
+      if (boss?.extras) gcar.style.extras = [...boss.extras];
       if (boss) gcar.style.number = 1;
       if (!isMe && !opts) gcar.style.number = k + 2;
-      const model = modelFor(isMe || opts ? gcar : { ...gcar, body: 'hatch' }, isMe ? undefined : r!.face, isMe && mt.sidecar && body === 'moto', isMe ? opts?.look : undefined);
+      const model = modelFor(isMe || opts ? gcar : { ...gcar, body: 'hatch' }, isMe && mt.sidecar && body === 'moto', isMe ? opts?.look : undefined);
       disposers.push(() => model.dispose());
       const car = new Car(track);
       car.setBody(body, feelOf(body, isMe, spec));
@@ -2237,7 +2289,7 @@ const rally = (ctx: GameContext): GameInstance => {
     c.brakeMul = myTune.brakeMul;
     c.grip = myTune.grip;
     e.basePower = BASE_POWER * myTune.power;
-    const m = modelFor({ ...myCar, body: next }, undefined, mt.sidecar && next === 'moto', opts?.look);
+    const m = modelFor({ ...myCar, body: next }, mt.sidecar && next === 'moto', opts?.look);
     m.root.scale.setScalar(mt.size);
     disposers.push(() => m.dispose());
     e.model = m;
@@ -2248,10 +2300,39 @@ const rally = (ctx: GameContext): GameInstance => {
     hud.toast(`🎠 ${CAR_BODY_NAMES[next]}!`);
   }
 
+  /** A golf ball, football or bowling ball hits a car: shoved sideways across the road, spun, a little damage. */
+  function gimmickHit(e: Entrant, kind: 'golf' | 'football' | 'bowling', side: number, push: number, spin: number): void {
+    const c = e.car;
+    if (e === meE && dodgeT > 0) return;
+    // "left" is the road's, so a car that has swung round is still pushed across the road, not along it
+    const h = track.heading(c.proj.s);
+    c.vx += Math.cos(h) * side * push;
+    c.vz -= Math.sin(h) * side * push;
+    c.yawRate += side * spin;
+    c.vy += 2.6;
+    if (kind !== 'golf') {
+      c.vx *= 0.82;
+      c.vz *= 0.82;
+    }
+    e.squashT = Math.max(e.squashT, kind === 'golf' ? 0 : 0.5);
+    if (damageK > 0) hurt(e, kind === 'golf' ? 3 : 6);
+    else damageHp(e, kind === 'golf' ? 4 : 8, null);
+    sparkleAt(c.x, c.y + 0.5, c.z, 12, 1.1);
+    if (Math.hypot(c.x - meE!.car.x, c.z - meE!.car.z) < 50) {
+      if (kind === 'bowling') audio.thud(9);
+      else audio.boing();
+    }
+    if (e === meE) {
+      shake = Math.max(shake, 0.4);
+      hud.toast(kind === 'golf' ? '⛳ Pling! Träffad av en golfboll' : kind === 'football' ? '⚽ MÅÅÅL! Du blev träffad av en jättebollen' : '🎳 STRIKE! Du blev kägla');
+    }
+  }
+
   /** Banana peels and hay bales spin whoever drives over them. */
   function obstaclesStep(dt: number, racing: boolean): void {
     obstacles.update(dt);
     shots.update(dt);
+    gimmicks?.update(dt);
     if (!racing) return;
     const me = player();
     for (const e of entrants) {
@@ -2309,6 +2390,55 @@ const rally = (ctx: GameContext): GameInstance => {
           stats.squashed++;
           stats.bananaHits++;
         }
+        continue;
+      }
+      if (o.kind === 'zone') {
+        // the steward's penalty zone: stopped short, and two seconds on the finish time
+        c.vx *= 0.38;
+        c.vz *= 0.38;
+        e.squashT = Math.max(e.squashT, 0.25);
+        if (e === me) {
+          penaltyMs += 2000;
+          audio.whistle();
+          shake = Math.max(shake, 0.3);
+          hud.toast('🚩 STRAFF! +2 sekunder i målet');
+        } else if (Math.hypot(c.x - me.car.x, c.z - me.car.z) < 50) audio.whistle();
+        sparkleAt(c.x, c.y + 0.4, c.z, 8, 0.8);
+        continue;
+      }
+      if (o.kind === 'ice') {
+        // the goalkeeper's ice: the grip goes for a moment and the car swings a little
+        c.yawRate += (Math.random() < 0.5 ? -1 : 1) * 4.5 * c.feel.slip;
+        c.vx *= 0.95;
+        c.vz *= 0.95;
+        if (c.feel.slip > 0.3) e.slickT = Math.max(e.slickT, 1.1);
+        if (Math.hypot(c.x - me.car.x, c.z - me.car.z) < 40) audio.slip();
+        if (e === me) hud.toast('🧊 Hal is!');
+        sparkleAt(c.x, c.y, c.z, 5, 0.8);
+        continue;
+      }
+      if (o.kind === 'sign') {
+        // a false sign standing in the road: a thump, a spin, a lost bit of speed
+        c.yawRate += (Math.random() < 0.5 ? -1 : 1) * 5 * c.feel.slip;
+        c.vx *= 0.8;
+        c.vz *= 0.8;
+        if (e === me) {
+          audio.thud(7);
+          shake = Math.max(shake, 0.3);
+          hud.toast('🪧 Fel skylt! Tina menade väl.');
+        }
+        confetti.burst(c.x, c.y + 1.4, c.z, high ? 14 : 6, 4);
+        continue;
+      }
+      if (o.kind === 'pin') {
+        // a bowling pin goes flying
+        c.yawRate += (Math.random() < 0.5 ? -1 : 1) * 3 * c.feel.slip;
+        c.vx *= 0.9;
+        c.vz *= 0.9;
+        c.vy += 1.6;
+        if (Math.hypot(c.x - me.car.x, c.z - me.car.z) < 50) audio.thud(6);
+        if (e === me) shake = Math.max(shake, 0.2);
+        for (let k = 0; k < (high ? 8 : 4); k++) particles.emit({ x: c.x, y: c.y + 0.8, z: c.z, vx: (Math.random() - 0.5) * 7, vy: 3 + Math.random() * 3, vz: (Math.random() - 0.5) * 7, life: 0.8, size0: 0.35, size1: 0.2, color: colWhite, alpha: 1, drag: 1, gravity: 9 });
         continue;
       }
       if (o.kind === 'coin') {
@@ -3611,7 +3741,7 @@ const rally = (ctx: GameContext): GameInstance => {
     audio.fanfare(finishPlace === 1);
     audio.cheer(1);
     audio.music(0.75);
-    const ms = Math.round(finishTime * 1000) - finishAdj.time;
+    const ms = Math.round(finishTime * 1000) - finishAdj.time + penaltyMs;
     if (rules) {
       const medal = raceMedal(course.id, LAPS, ms);
       const record = !opts?.best || ms < opts.best;
@@ -3634,7 +3764,7 @@ const rally = (ctx: GameContext): GameInstance => {
     let sc = derby ? 2500 + (total - placed) * 1500 + me.takedowns * 700 + (placed === 1 ? 2500 : 0) : finished ? score(finishPlace, finishTime) : 1200 + Math.round(1800 * clamp(me.u / (LAPS * track.length), 0, 1));
     let detail = derby ? `${ordinal(placed)} i derbyt · ${me.takedowns} vrak` : finished ? (row ? `${ordinal(row.rank)} på poäng · ${row.points} p` : `${ordinal(finishPlace)} plats · ${fmtTime(finishTime)}`) : `Nästan i mål! · ${Math.min(LAPS, me.lapsDone)} av ${LAPS} varv`;
     if (rules) {
-      const ms = finished ? Math.round(finishTime * 1000) - finishAdj.time : 0;
+      const ms = finished ? Math.round(finishTime * 1000) - finishAdj.time + penaltyMs : 0;
       const medal = ms && !derby ? raceMedal(course.id, LAPS, ms) : null;
       const medalTxt = medal === 'gold' ? ' · 🥇' : medal === 'silver' ? ' · 🥈' : medal === 'bronze' ? ' · 🥉' : '';
       // not finishing pays the small taking-part prize
@@ -3947,6 +4077,7 @@ const rally = (ctx: GameContext): GameInstance => {
         nitro: nitroLeft,
         ability: { cd: abilCd, kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, burst: burstT, junk, draft: draftT, drafting, vip: vipT, mow: mowT, clouds: clouds.length, blind: entrants.filter((e) => e.blindT > 0).length, shots: shots.count, obstacles: obstacles.count, hp: me.hp, maxHp: me.maxHp, wheelie: me.wheelie, ram: me.car.ram, boost: me.car.boost, ghost: me.car.ghost, vy: me.car.vy, air: me.car.air, heading: me.car.heading, uses: stats.abilityUses, squashed: entrants.filter((e) => e !== me && e.squashT > 0).length },
         tumbles,
+        gimmicks: gimmicks ? { ids: gimmicks.ids, ...gimmicks.state, penaltyMs, obstacles: obstacles.count, zone: obstacles.countOf('zone'), ice: obstacles.countOf('ice'), pin: obstacles.countOf('pin'), sign: obstacles.countOf('sign'), flipped: hud.map.classList.contains('flipped'), ballsAt: gimmicks.where, objS: (['zone', 'ice', 'sign', 'pin'] as const).flatMap((k) => obstacles.positions(k).map((q) => ({ kind: k, s: track.project(q.x, q.z, -1, { i: 0, u: 0, s: 0, d: 0 }).s }))) } : null,
         mods: { stats: { ...stats }, bonusKr, coinKr, extraBoostT, bananas: obstacles.count, squashed: entrants.filter((e) => e.squashT > 0).length },
         calls: renderer.info.render.calls,
         triangles: renderer.info.render.triangles,

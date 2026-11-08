@@ -10,9 +10,11 @@ import { CAR_BODIES, CAR_BODY_DEFS, CRAZY_COURSES, RALLY_COURSES, WILD_COURSES, 
 import { CAR_BODY_NAMES, CAR_BODY_TEXT, RALLY_COURSE_NAMES } from '../shared/names.ts';
 import { DRY_COURSES, canRain, skyFor, variationFor } from '../shared/variation.ts';
 import { EVENTS, pickEventId } from './events.ts';
-import { ACTS, ACT_COURSES, BOSS_COURSE, allNodes, generateAct } from './map.ts';
+import { ACTS, ACT_COURSES, BOSSES, BOSS_COURSE, BOSS_KIND, BOSS_POOL, allNodes, bossFor, generateAct } from './map.ts';
 import { STARTERS, cleanMeta, defaultMeta } from './meta.ts';
-import { BOSS_DEFS, planRace } from './plan.ts';
+import { BOSS_DEFS, planRace, trickFor, twistFor } from './plan.ts';
+import { GIMMICKS, GIMMICK_IDS } from '../shared/gimmicks.ts';
+import { buildField } from '../shared/field.ts';
 import { newRun } from './state.ts';
 import { TRINKETS, buildMods, trinketById } from './trinkets.ts';
 
@@ -256,7 +258,7 @@ describe('variation per seed', () => {
   });
 
   it('every node of a run gets its own sky from its seed', () => {
-    const run = newRun({ seed: 99, body: 'hatch', paint: '#e8412c', driver: 'human', calm: false });
+    const run = newRun({ seed: 99, body: 'hatch', paint: '#e8412c', calm: false });
     const skies = new Set<string>();
     for (let act = 1; act < ACTS; act++)
       for (const n of allNodes(generateAct(run.seed, act))) {
@@ -308,31 +310,117 @@ describe('the acts and their courses', () => {
 });
 
 describe('the bosses', () => {
-  it('each act has one, with a trick you can see: hay and a tractor, jumps, ice, low gravity', () => {
-    const bengt = BOSS_DEFS.bengt;
-    expect(bengt.twist.boss?.body).toBe('tractor');
-    expect(bengt.twist.hay).toBeGreaterThan(0);
-    expect(BOSS_DEFS.ingrid.twist.rivalHop).toBeGreaterThan(0);
-    expect(BOSS_DEFS.isdrottningen.twist.grip).toBeLessThan(1);
+  it('each act has a pool of bosses, each with a trick you can see', () => {
+    expect(BOSS_POOL).toHaveLength(3);
+    expect(BOSS_POOL[0]).toEqual(['torsten', 'goran', 'tina']);
+    expect(BOSS_POOL[1]).toEqual(['freddie', 'mats', 'berit']);
+    expect(BOSS_POOL[2]).toEqual(['loeb', 'stig', 'kanin']);
+    expect(BOSS_DEFS.torsten.twist.gimmicks).toEqual(['penalty']);
+    expect(BOSS_DEFS.goran.twist.boss?.body).toBe('golf');
+    expect(BOSS_DEFS.goran.twist.gimmicks).toEqual(['golf']);
+    expect(BOSS_DEFS.tina.twist.gimmicks).toEqual(['signs']);
+    expect(BOSS_DEFS.freddie.twist.gimmicks).toEqual(['football']);
+    expect(BOSS_DEFS.mats.twist.boss?.body).toBe('tractor');
+    expect(BOSS_DEFS.mats.twist.gimmicks).toEqual(['ice']);
+    expect(BOSS_DEFS.berit.twist.gimmicks).toEqual(['bowling']);
     const kanin = BOSS_DEFS.kanin;
     expect(kanin.name).toBe('Kapten Kanin');
     expect(kanin.course).toBe('moon');
-    expect(kanin.twist.boss?.face).toBe('rabbit');
+    expect(kanin.twist.boss?.helmet).toBe('ears');
     expect(kanin.twist.rivalHop).toBeGreaterThan(0);
     expect(COURSES[kanin.course].theme.gravity).toBeLessThan(1);
     for (const id of Object.keys(BOSS_DEFS) as (keyof typeof BOSS_DEFS)[]) expect(BOSS_DEFS[id].course).toBe(BOSS_COURSE[id]);
+    // the three that left are gone for good
+    for (const gone of ['bengt', 'ingrid', 'isdrottningen']) expect(gone in BOSS_DEFS).toBe(false);
+    for (const d of Object.values(BOSS_DEFS)) expect(d.name + d.nick + d.intro + d.trick).not.toMatch(/Sura Bengt|Ingenväjning|Frost-Frida/);
   });
 
-  it('act 1 meets Bengt, act 2 Ingrid or the Ice Queen, act 3 Captain Rabbit', () => {
-    const seen = new Set<string>();
+  it('act 1 meets the steward, the golfer or the co-driver; act 2 the footballer, the goalkeeper or the bowler; act 3 a champion or the joker', () => {
+    const seen: Set<string>[] = [new Set(), new Set(), new Set()];
     for (const seed of seeds) {
-      const names = [0, 1, 2].map((act) => allNodes(generateAct(seed, act)).find((n) => n.type === 'boss')!.boss);
-      expect(names[0]).toBe('bengt');
-      expect(['ingrid', 'isdrottningen']).toContain(names[1]);
-      expect(names[2]).toBe('kanin');
-      seen.add(names[1]!);
+      const names = [0, 1, 2].map((act) => allNodes(generateAct(seed, act)).find((n) => n.type === 'boss')!.boss!);
+      for (let act = 0; act < 3; act++) {
+        expect(BOSS_POOL[act]).toContain(names[act]);
+        expect(BOSS_DEFS[names[act]!].act).toBe(act);
+        seen[act]!.add(names[act]!);
+      }
     }
-    expect(seen.size).toBe(2);
+    // over enough seeds every boss of every act turns up
+    for (let act = 0; act < 3; act++) expect(seen[act]!.size, `act ${act + 1}`).toBe(3);
+  });
+
+  it('the same seed always picks the same boss', () => {
+    for (const seed of seeds) for (let act = 0; act < 3; act++) expect(bossFor(seed, act)).toBe(bossFor(seed, act));
+    expect(new Set(Array.from({ length: 200 }, (_, i) => bossFor(i * 7919 + 3, 0))).size).toBe(3);
+  });
+
+  it('each boss has a card line, an intro, a vehicle and a livery of its own', () => {
+    for (const d of Object.values(BOSS_DEFS)) {
+      expect(d.intro.length).toBeGreaterThan(30);
+      expect(d.nick.length).toBeGreaterThan(5);
+      expect(d.vehicle.length).toBeGreaterThan(4);
+      expect(d.emoji.length).toBeGreaterThan(0);
+      const b = d.twist.boss!;
+      expect(b.color).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(b.trim).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(b.helmet.length).toBeGreaterThan(2);
+    }
+    expect(new Set(Object.values(BOSS_DEFS).map((d) => d.emoji)).size).toBeGreaterThanOrEqual(7);
+    // the steward's car carries a light bar
+    expect(BOSS_DEFS.torsten.twist.boss?.extras).toContain('lightbar');
+    expect(BOSS_DEFS.torsten.emoji).toBe('🏁');
+    expect(BOSS_DEFS.goran.emoji).toBe('⛳');
+    expect(BOSS_DEFS.tina.emoji).toBe('🗺️');
+    expect(BOSS_DEFS.freddie.emoji).toBe('⚽');
+    expect(BOSS_DEFS.mats.emoji).toBe('🏒');
+    expect(BOSS_DEFS.berit.emoji).toBe('🎳');
+    expect(BOSS_DEFS.loeb.emoji).toBe('🏆');
+  });
+
+  it('the world champions drive a perfect line with nitro on every straight and borrow one gimmick of another boss', () => {
+    for (const id of ['loeb', 'stig'] as const) {
+      const def = BOSS_DEFS[id];
+      expect(def.champion).toBe(true);
+      expect(def.title).toBe('Världsmästaren');
+      const picked = new Set<string>();
+      for (const seed of seeds) {
+        const t = twistFor(def, seed);
+        expect(t.gimmicks).toHaveLength(1);
+        expect(GIMMICK_IDS).toContain(t.gimmicks![0]);
+        expect(twistFor(def, seed).gimmicks).toEqual(t.gimmicks);
+        picked.add(t.gimmicks![0]!);
+        expect(trickFor(def, seed)).toContain(GIMMICKS[t.gimmicks![0]!].name);
+      }
+      expect(picked.size).toBeGreaterThanOrEqual(3);
+    }
+    const f = buildField({ seed: 5, kind: 'rally', act: 2, row: 5, role: 'boss', calm: false, ai: 4, boss: { id: 'loeb', archetype: 'racer', power: 1.08, skill: 1.03, perfect: true } });
+    const boss = f.rivals[0]!;
+    expect(boss.lineUse).toBe(1);
+    expect(boss.nitroEvery).toBeGreaterThan(0);
+    expect(boss.nitroEvery).toBeLessThanOrEqual(6);
+    // a plain boss is not perfect
+    const plain = buildField({ seed: 5, kind: 'rally', act: 2, row: 5, role: 'boss', calm: false, ai: 4, boss: { id: 'kanin', archetype: 'mixed' } }).rivals[0]!;
+    expect(plain.lineUse).toBeLessThan(1);
+  });
+
+  it('Stig Blomgrus the champion does not also race as a rival in his own boss race', () => {
+    const node = allNodes(generateAct(1, 2)).find((n) => n.type === 'boss')!;
+    const plan = planRace({ ...node, boss: 'stig' }, false);
+    expect(plan.field.rivals.some((r) => r.id === 'stig')).toBe(false);
+    expect(plan.boss?.name).toBe('Stig Blomgrus');
+  });
+
+  it('every boss race is a plan the race can run: the twist carries the boss and its gimmicks, and a sensible kind', () => {
+    for (const id of BOSSES) {
+      const node = { ...allNodes(generateAct(3, BOSS_DEFS[id].act)).find((n) => n.type === 'boss')!, boss: id, kind: BOSS_KIND[id], course: BOSS_COURSE[id] };
+      const plan = planRace(node, false);
+      expect(plan.boss?.id).toBe(id);
+      expect(plan.twist?.boss?.name).toBe(BOSS_DEFS[id].name);
+      expect(plan.kind).toBe(BOSS_KIND[id]);
+      expect(plan.course).toBe(BOSS_COURSE[id]);
+      if (id !== 'kanin') expect(plan.twist?.gimmicks?.length).toBeGreaterThan(0);
+      expect(plan.field.rivals[0]!.boss).toBe(true);
+    }
   });
 });
 
@@ -439,7 +527,7 @@ describe('the new events', () => {
     const maneman = EVENTS.find((e) => e.id === 'maneman')!;
     expect(kamel.acts).toEqual([1]);
     expect(maneman.acts).toEqual([2]);
-    const run = newRun({ seed: 7, body: 'hatch', paint: '#e8412c', driver: 'human', calm: false });
+    const run = newRun({ seed: 7, body: 'hatch', paint: '#e8412c', calm: false });
     const seen = new Map<number, Set<string>>();
     for (let act = 0; act < ACTS; act++) {
       const r = { ...run, act };
