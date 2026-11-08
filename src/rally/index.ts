@@ -53,6 +53,13 @@ import { aiCar, arcadeCar, damageGrip, damagePower, rivalBody, rivalFeel, seeded
 import { clamp, damp, fmtTime, lerp, ordinal, smooth, wrapAngle } from './util.ts';
 
 const CAMS = ['Bakom bilen', 'På huven', 'Långt bakom'];
+/**
+ * The drift mini-turbo: seconds of sliding to reach tier 1/2/3, and the boost each tier pays (strength, seconds).
+ * Owner playtest: a short slide gave far too big a boost, so the charge takes about twice as long and pays less.
+ */
+const DRIFT_TIER_T = [1.5, 2.8, 4.2] as const;
+const DRIFT_BOOST_K = [1, 1.1, 1.17, 1.25] as const;
+const DRIFT_BOOST_T = [0, 0.6, 0.9, 1.2] as const;
 /** Seconds a bike lies on its side after a big crash (the rider somersaults for the first one). */
 const TUMBLE_LEN = 1.5;
 
@@ -1405,7 +1412,7 @@ const rally = (ctx: GameContext): GameInstance => {
           drift.pts += beta * c.speed * dt * 6;
         }
       } else drift.grace += dt;
-      const tier = drift.t >= 2.4 ? 3 : drift.t >= 1.6 ? 2 : drift.t >= 0.8 ? 1 : 0;
+      const tier = drift.t >= DRIFT_TIER_T[2] ? 3 : drift.t >= DRIFT_TIER_T[1] ? 2 : drift.t >= DRIFT_TIER_T[0] ? 1 : 0;
       if (tier > drift.tier) {
         drift.tier = tier;
         audio.chime();
@@ -1423,8 +1430,8 @@ const rally = (ctx: GameContext): GameInstance => {
       const over = drift.grace > 0.35 || c.speed < 5 || c.wallHit > 2.5 || me.finished;
       if (over) {
         if (drift.tier > 0 && !c.wallHit) {
-          driftBoostT = [0, 0.7, 1.1, 1.5][drift.tier]!;
-          driftBoostK = [1, 1.22, 1.32, 1.42][drift.tier]!;
+          driftBoostT = DRIFT_BOOST_T[drift.tier]!;
+          driftBoostK = DRIFT_BOOST_K[drift.tier]!;
           audio.boost(0.6 + 0.2 * drift.tier);
           hud.pop('boost:drift', '🌀', ['', 'Turbo!', 'Superturbo!', 'Megaturbo!'][drift.tier]!, 'boost');
           stats.boosts++;
@@ -1442,7 +1449,7 @@ const rally = (ctx: GameContext): GameInstance => {
         drift.tier = 0;
       }
     }
-    hud.setDrift(drift.on ? clamp(drift.t / 2.4, 0.04, 1) : 0, drift.tier);
+    hud.setDrift(drift.on ? clamp(drift.t / DRIFT_TIER_T[2], 0.04, 1) : 0, drift.tier);
     hud.setNitro(Math.floor(nitroLeft), nitroSlots(), nitroT > 0);
     hud.setStyle(opts ? stylePts : 0);
     // flames and speed lines while the nitro burns
