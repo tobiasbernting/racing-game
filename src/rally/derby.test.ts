@@ -2,7 +2,7 @@
 // check that the arena holds together (nobody leaves the floor, nobody sits stuck), that the drivers really go for
 // each other, and that ramps lift cars the way the mesh draws them.
 import { describe, expect, it } from 'vitest';
-import { CAR_BODY_DEFS, type CarBody } from '../shared/rally.ts';
+import { CAR_BODIES, CAR_BODY_DEFS, type CarBody } from '../shared/rally.ts';
 import { ARENA_IDS, DERBY_DAMAGE, DERBY_HP, DERBY_WARMUP, DERBY_SECONDS, DerbyBoard } from '../shared/derby.ts';
 import { BASE_POWER, Car, collideCars, type Controls } from './car.ts';
 import { arenaCourse, arenaStart } from './arena.ts';
@@ -232,5 +232,19 @@ describe('ramps', () => {
     expect(maxAir).toBeGreaterThan(0.5);
     expect(maxAir).toBeLessThan(1.6);
     expect(top).toBeGreaterThan(1.5);
+  });
+});
+
+describe('every vehicle in the arena', () => {
+  it('all twenty bodies can be driven in a derby: they stay on the floor, stay finite and get hit', () => {
+    for (const body of CAR_BODIES) {
+      const sim = runDerby('bowl', 3, [body, 'hatch', 'pickup', 'coupe'], 40);
+      for (const c of sim.cars) {
+        expect(Number.isFinite(c.x) && Number.isFinite(c.z) && Number.isFinite(c.y), body).toBe(true);
+        expect(Math.abs(c.proj.d), body).toBeLessThan(45);
+        expect(Math.abs(c.y), body).toBeLessThan(8);
+      }
+      expect(sim.outside, body).toBeLessThan(30);
+    }
   });
 });

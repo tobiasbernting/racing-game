@@ -99,7 +99,7 @@ export function arenaCourse(id: ArenaId, seed: number, gravity = 1): ArenaCourse
   const track = new Track(def);
   // the floor is a free-for-all: no racing line to speak of, and the touch drive never slows for a bend that is not there
   track.line.fill(0);
-  track.vmax.fill(40);
+  track.vmax.fill(26);
   const cx = def.ctrl.reduce((a, c) => a + c.x, 0) / def.ctrl.length;
   const cz = def.ctrl.reduce((a, c) => a + c.z, 0) / def.ctrl.length;
   const starts = Array.from({ length: 8 }, (_, k) => (k / 8) * track.length);

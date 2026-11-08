@@ -3321,7 +3321,8 @@ const rally = (ctx: GameContext): GameInstance => {
           hurt(e, (c.wallHit - 4) * (hay ? 0.5 : 1.4));
           if (!hay) sparks(c.x, c.y, c.z, high ? 10 : 5);
         } else if (carnage && c.wallHit > 5) {
-          damageHp(e, (c.wallHit - 5) * (hay ? 0.6 : 1.5) * Math.max(0.3, e.tune.dmgMul), null);
+          // (the tyre wall of an arena is soft: it hurts a lot less than a stone wall)
+          damageHp(e, (c.wallHit - 5) * (hay ? 0.6 : 1.5) * Math.max(0.3, e.tune.dmgMul) * (derby ? DERBY_DAMAGE * 0.7 : 1), null);
           if (!hay) sparks(c.x, c.y, c.z, high ? 10 : 5);
         }
       }
@@ -3343,7 +3344,7 @@ const rally = (ctx: GameContext): GameInstance => {
         }
         if (c.landed > 5) {
           hurt(e, (c.landed - 5) * 1.5 * (1 - e.tune.assist) * c.feel.landing);
-          if (carnage) damageHp(e, (c.landed - 6) * 1.2 * c.feel.landing * e.tune.dmgMul, null);
+          if (carnage) damageHp(e, (c.landed - 6) * 1.2 * c.feel.landing * e.tune.dmgMul * (derby ? DERBY_DAMAGE : 1), null);
         }
       }
       c.landed = 0;
