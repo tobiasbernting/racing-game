@@ -11,18 +11,16 @@ import { bestLap, topSpeed } from './bodylap.ts';
 const COURSES: RallyCourse[] = ['farm', 'desert', 'ice', 'city', 'meadow', 'mountain'];
 
 describe('every vehicle against the lap factors of the balance simulation', { timeout: 120_000 }, () => {
-  it('the factor of each vehicle is the real physics, on average over four courses, within a few percent', () => {
-    const base = COURSES.map((c) => bestLap(c, 'hatch').lap);
-    const out: string[] = [];
-    for (const b of CAR_BODIES) {
-      const ratios = COURSES.map((c, i) => bestLap(c, b).lap / base[i]!);
-      const mean = ratios.reduce((a, x) => a + x, 0) / ratios.length;
-      out.push(`${b}: ${ratios.map((r) => r.toFixed(3)).join(' ')} mean ${mean.toFixed(3)} model ${BODY_LAP[b]}`);
-      expect(Math.abs(mean / BODY_LAP[b] - 1), b).toBeLessThan(0.02);
-      // and nobody is more than 5 % off the plain car's lap on average: all twenty are viable
-      expect(Math.abs(mean - 1), b).toBeLessThan(0.05);
-    }
-    console.log(out.join('\n'));
+  // One vehicle per test, so a slow CI runner's test worker isn't blocked long enough for vitest's RPC to time out.
+  let base: number[] | null = null;
+  it.each([...CAR_BODIES])('the factor of the %s is the real physics, on average over four courses, within a few percent', (b) => {
+    base ??= COURSES.map((c) => bestLap(c, 'hatch').lap);
+    const ratios = COURSES.map((c, i) => bestLap(c, b).lap / base![i]!);
+    const mean = ratios.reduce((a, x) => a + x, 0) / ratios.length;
+    console.log(`${b}: ${ratios.map((r) => r.toFixed(3)).join(' ')} mean ${mean.toFixed(3)} model ${BODY_LAP[b]}`);
+    expect(Math.abs(mean / BODY_LAP[b] - 1), b).toBeLessThan(0.02);
+    // and nobody is more than 5 % off the plain car's lap on average: all twenty are viable
+    expect(Math.abs(mean - 1), b).toBeLessThan(0.05);
   });
 
   it('a computer driver gets every vehicle round four courses without losing its mind (a rival can drive any of them)', () => {
