@@ -229,7 +229,8 @@
   .rg-reward .up-card .rg-ttext { -webkit-line-clamp: 4; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
 }
 @media (max-height: 520px) and (orientation: landscape) {
-  .rg-reward .rg-cards { align-content: center; }
+  .rg-reward .rg-cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 148px), 1fr)); align-content: start; }
+  .rg-reward .rg-cards .rg-tcard { min-width: 0; }
 }
 
 /* ---- the result screen: the trees ---- */
@@ -255,3 +256,12 @@
 .rs-ci { font-size: 24px; }
 .rs-cn { opacity: 0.8; font-weight: 800; }
 .rs-abups { list-style: none; margin: 4px 0 6px; padding: 0 0 0 6px; text-align: left; font-size: 13px; }
+
+/* the KOMBO! ribbon is the UPPLÅST! one in gold */
+.arc-unl.kombo { border-color: #ffd23f; background: linear-gradient(135deg, #3a2b00, #5a4200); }
+
+/* narrow screens: the map's buttons are pictures only (the words come back with room) */
+@media (max-width: 700px) {
+  .rg-bt { display: none; }
+  .rg-top .rg-icon.wide { min-width: 48px; padding: 4px 8px; }
+}

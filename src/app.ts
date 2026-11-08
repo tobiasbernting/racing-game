@@ -15,7 +15,7 @@ import { buildMods } from './run/trinkets.ts';
 import type { RaceKind } from './shared/kinds.ts';
 import { chooseEvent, continueAfterRace, currentNode, currentPlan, enterNode, finishNode, pickReward, submitRace, backToMap } from './run/flow.ts';
 import { buyHeart, buyRepair, buyTrinket, reroll, workshopBuy, workshopPaint, workshopRepair } from './run/economy.ts';
-import { buildRunMods, lookOf } from './run/upgrades.ts';
+import { activeCombos, buildRunMods, lookOf } from './run/upgrades.ts';
 import { buildScreen } from './ui/upgrades.ts';
 import { trophiesFor, unlockedBodies, unlockedTrinkets, type Meta } from './run/meta.ts';
 import { checkChallenges } from './run/unlocks.ts';
@@ -25,7 +25,7 @@ import { allNodes, type NodeType } from './run/map.ts';
 import { clearRun, loadMeta, loadRun, saveMeta, saveRun } from './run/save.ts';
 import { mapOf, newRun, trinketCount, type RunState } from './run/state.ts';
 import { btn, arrowNav, el } from './ui/dom.ts';
-import { confettiRain, pryl, sfx, upplast } from './ui/juice.ts';
+import { confettiRain, kombo, pryl, sfx, upplast } from './ui/juice.ts';
 import { saveSettings, settings } from './settings.ts';
 import { trinketById } from './run/trinkets.ts';
 import { bagView, collectionView, eventView, mapView, menuView, overView, pickView, postraceView, preraceView, rewardView, settingsView, shopView, titleView, workshopView, type PickSel } from './ui/views.ts';
@@ -656,6 +656,15 @@ export class App {
     else this.endRun(r);
     this.showRun();
     if (got && prev && trinketCount(r) > trinketCount(prev)) this.fanfare(got.id);
+    // two things that belong together just came into the build: a small KOMBO! ribbon in the corner
+    if (prev) {
+      const had = new Set(activeCombos({ owned: prev.trinkets, ups: prev.up }).map((c) => c.id));
+      const fresh = activeCombos({ owned: r.trinkets, ups: r.up }).filter((c) => !had.has(c.id));
+      if (fresh.length && !chk.unlocked.length) {
+        sfx.fanfare(this.audio, this.master);
+        kombo(this.card, fresh[0]!.emoji, fresh.length > 1 ? `${fresh[0]!.name} +${fresh.length - 1}` : fresh[0]!.name, fresh[0]!.text);
+      }
+    }
     for (const c of chk.unlocked) {
       sfx.fanfare(this.audio, this.master);
       upplast(this.card, kitOf(c.body).active.emoji, CAR_BODY_NAMES[c.body], c.title);

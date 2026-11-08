@@ -260,6 +260,9 @@ const rally = (ctx: GameContext): GameInstance => {
   };
   placeCamBtn(!!ctx.controls?.pedals);
   hud.setTrinkets(mods.items);
+  // the combos that are on, as a small line under the position box a moment after the start
+  const comboNames = mods.items.filter((i) => i.id.startsWith('combo.')).map((i) => `${i.emoji} ${i.name}`);
+  if (comboNames.length) setTimeout(() => !destroyed && hud.toast(`⭐ Kombo: ${comboNames.slice(0, 3).join(', ')}`), 1500);
   hud.disco(mt.disco);
   const audio = new RallyAudio(ctx.audio, ctx.out);
   const skyPreset = rain ? rainy(course.theme.sky[timeOfDay]) : course.theme.sky[timeOfDay];

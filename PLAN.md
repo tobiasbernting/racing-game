@@ -148,6 +148,11 @@ run strong, which is right; the rivals and courses must keep up. Design directio
     (`BODY_LAP`) in the balance simulation and a test over all twenty bodies.
 11. **The car grows**: pick 1 of 3 upgrades, the Ram/Race trees and the Fuffens/Stunt/Girig side paths, visible
     mods on the car, cross-path combos, stunt ramps on courses; every run should feel different.
+    Built (see README, "Bilen som växer"): five trees of upgrade lines with tiers and a capstone (`src/run/upgrades.ts`), two ability
+    upgrades per vehicle, ten named combos shown as a small KOMBO! ribbon and a gold-rimmed icon, a win offers a pick of six (three trinkets or three
+    upgrade cards, leaning on the race kind), Skruvhörnan sells nodes, the old part levels migrate into nodes (tested), dirty tricks on the road
+    (oil, mines, fake coins, smoke), stunts (air, flips, near misses) that fill the nitro, bolt-on looks for all twenty bodies (`src/rally/modlook.ts`),
+    the Bygget screen and the trees on the result screen, and a steeper rival curve to keep up. Stunt ramps on courses are not built (left for phase 12).
 12. **Derby arena + balance**: last-car-standing arena for elites and bosses, playtest-driven balance, maybe heat
     levels.
 

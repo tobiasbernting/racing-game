@@ -233,6 +233,14 @@ const nodeLabel = (n: MapNode): string => {
   return NODE_NAMES[n.type];
 };
 
+/** A button for the map's top bar: a picture and a word; on a narrow screen only the picture (the word stays as its name). */
+function iconBtn(emoji: string, label: string, onClick: () => void): HTMLButtonElement {
+  const b = btn('rg-icon wide', [el('span', null, emoji), el('span', 'rg-bt', ` ${label}`)], onClick);
+  b.setAttribute('aria-label', label);
+  b.title = label;
+  return b;
+}
+
 export function mapView(o: MapOpts): HTMLElement {
   const run = o.run;
   const m = mapOf(run);
@@ -301,7 +309,13 @@ export function mapView(o: MapOpts): HTMLElement {
   menu.setAttribute('aria-label', 'Meny');
   return screen(
     'rg-mapscreen',
-    statusBar(run, run.interest ? el('span', 'rg-interest', `🏦 +${run.interest} kr ränta`) : null, btn('rg-icon wide', '🧰 Bygget', o.onBuild), btn('rg-icon wide', '🎒 Skräpet', o.onBag), menu),
+    statusBar(
+      run,
+      run.interest ? el('span', 'rg-interest', `🏦 +${run.interest}`, el('span', 'rg-bt', ' kr ränta')) : null,
+      iconBtn('🧰', 'Bygget', o.onBuild),
+      iconBtn('🎒', 'Skräpet', o.onBag),
+      menu,
+    ),
     field,
     legend,
     kinds,
