@@ -34,7 +34,7 @@ export const rivalLap = (course: RallyCourse, r: { skill: number; grip: number; 
   baseLap(course) * carGain(r.grip, r.power) * driverFactor(r.skill, r.grip) * (1 - 0.013 * (r.sharp ?? 0)) * (1 - 0.012 * (r.nitro ?? 0));
 
 /** Seconds per lap that trinkets with a speed hook give a player who uses them well, per copy (the hooks are capped in the game). */
-export const HOOK_SAVE: Record<string, number> = { kaffekoppen: 0.45, sladdgradde: 0.35, myntturbo: 0.3, tvattbjorn: 0.25 };
+export const HOOK_SAVE: Record<string, number> = { kaffekoppen: 0.45, sladdgradde: 0.35, myntturbo: 0.3, tvattbjorn: 0.25, kraftdryck: 0.15, efterklang: 0.1, rampgalning: 0.1 };
 
 /** Lap-time factor of each of the ten newest vehicles against the plain rally car (1), fitted to the real physics in src/rally/bodypace.test.ts. */
 export const BODY_LAP: Partial<Record<CarBody, number>> = {

@@ -1,10 +1,10 @@
-// The trinkets: small, loud rule changes the player collects during a run. A trinket is data (name, icon,
+// The talismans (ids and save keys still say `trinket`): small, loud rule changes the player collects during a run. A trinket is data (name, icon,
 // rarity, one Swedish line) plus up to three things the race understands (see rally/mods.ts):
 //   tune   changes numbers when the race starts,
 //   hooks  reacts to boosts, drifts, bumps, laps, pickups and the finish,
 //   perk   changes the run itself (shop prices, hearts, reward choices, kronor).
 // Owning the same trinket twice stacks it: every effect reads `n`. To add a trinket, add one entry here.
-import type { CarBody } from '../shared/rally.ts';
+import type { CarBody, RaceRules, RallyTime, RallyWeather } from '../shared/rally.ts';
 import { capTune, softCap, neutralTune, ModBus, type HookCtx, type ModEntry, type ModHooks, type ModItem, type ModTune, type RaceMods } from '../rally/mods.ts';
 
 export const RARITIES = ['common', 'rare', 'legendary'] as const;
@@ -37,12 +37,12 @@ export interface TrinketDef {
   maxStack?: number;
   /** One short Swedish line. */
   text: string;
-  /** Trophies needed before it can show up in shops and rewards. */
-  unlock: number;
   /** Changes numbers when the race starts; `body` is the vehicle the player drives (some trinkets only help one kind). */
   tune?(t: ModTune, n: number, body: CarBody): void;
   hooks?: ModHooks;
   perk?: Perk;
+  /** Changes the sky of every race of the run: rain or clear, night or day (see `skyOf`). */
+  sky?: { weather?: RallyWeather; time?: RallyTime };
 }
 
 /** Highest stack count that still adds something. */
@@ -67,6 +67,78 @@ const every = (c: HookCtx, key: string, dt: number, interval: number): boolean =
   return true;
 };
 
+/** A random effect for the chaos talismans: each one is a small thing the race can already do. Returns the pop-up line. */
+const CHAOS = ['boost', 'ghost', 'cannon', 'pancake', 'swap', 'slime', 'nitro', 'coins', 'flame', 'hop'] as const;
+export type ChaosFx = (typeof CHAOS)[number];
+export function chaosEffect(c: HookCtx, id: string, fx: ChaosFx = CHAOS[Math.floor(Math.random() * CHAOS.length)]!): string {
+  const a = c.api;
+  let text = '';
+  switch (fx) {
+    case 'boost':
+      a.boost(1.6, 1.35);
+      text = 'RUSNING!';
+      break;
+    case 'ghost':
+      a.ghost(2.4);
+      text = 'SPÖKE!';
+      break;
+    case 'cannon':
+      a.cannon(1.4);
+      text = 'KANON!';
+      break;
+    case 'pancake':
+      a.squashLeader(2.2);
+      text = 'PANNKAKA!';
+      break;
+    case 'swap':
+      if (a.swapAhead()) text = 'PLATSBYTE!';
+      else {
+        a.boost(1.2, 1.3);
+        text = 'RUSNING!';
+      }
+      break;
+    case 'slime':
+      a.banana();
+      a.banana();
+      text = 'SLEM!';
+      break;
+    case 'nitro':
+      a.nitro(0.5);
+      text = 'NITRO!';
+      break;
+    case 'coins':
+      a.kronor(40);
+      text = '+40 KR';
+      break;
+    case 'flame':
+      a.flame();
+      text = 'ELD!';
+      break;
+    case 'hop':
+      a.bounce(8);
+      text = 'HOPP!';
+      break;
+  }
+  a.sparkle(6);
+  a.say(id, text);
+  return text;
+}
+
+/** What the sky of a race becomes with the talismans owned: rain beats clear, night beats day unless the sun is out. */
+export function skyOf(owned: readonly Owned[]): { weather?: RallyWeather; time?: RallyTime } {
+  const sk = owned.filter((o) => o.n > 0).map((o) => trinketById(o.id)?.sky).filter((x): x is NonNullable<typeof x> => !!x);
+  const weather: RallyWeather | undefined = sk.some((x) => x.weather === 'rain') ? 'rain' : sk.some((x) => x.weather === 'clear') ? 'clear' : undefined;
+  const time: RallyTime | undefined = sk.some((x) => x.time === 'day') ? 'day' : sk.some((x) => x.time === 'night') ? 'night' : undefined;
+  return { weather, time };
+}
+
+/** The rules of a race with the sky the talismans pick (Regnmakaren, Solstrålen, Nattskiftet), except for the rabbit boss, whose day is part of the joke. */
+export function withSky(rules: RaceRules, owned: readonly Owned[], boss?: string): RaceRules {
+  const sky = skyOf(owned);
+  if (boss === 'kanin' || (!sky.weather && !sky.time)) return rules;
+  return { ...rules, ...(sky.weather ? { weather: sky.weather } : {}), ...(sky.time ? { time: sky.time } : {}) };
+}
+
 export const TRINKETS: TrinketDef[] = [
   {
     id: 'gummianka',
@@ -75,7 +147,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'stunt',
     text: 'Varje stöt gör KABOING och du studsar högre. Ingen har sagt att det var bilen.',
-    unlock: 0,
     hooks: {
       tick(c, dt) {
         c.st.cd = Math.max(0, (c.st.cd ?? 0) - dt);
@@ -99,7 +170,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'ram',
     maxStack: 3,
     text: 'Hjulen blir dubbelt så stora. Grannen undrar vart de tog vägen.',
-    unlock: 0,
     tune(t, n) {
       t.wheels *= Math.min(3, 1 + n);
       t.offroad *= 1 + 0.12 * n;
@@ -113,7 +183,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'girig',
     text: 'Mynt flyger till dig från andra sidan banan. Det luktar vitlök.',
-    unlock: 0,
     tune(t, n) {
       t.magnet = Math.max(t.magnet, stackLin(16, 8, n));
     },
@@ -132,7 +201,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'stunt',
     text: 'Smäller du i ett staket studsar du framåt. Grannen är inte glad.',
-    unlock: 0,
     hooks: {
       hit(c, kind, speed) {
         if (kind !== 'wall' || speed < 1.5) return;
@@ -150,7 +218,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'fuffens',
     text: 'Du lämnar en halkig sörja bakom dig. De andra snurrar. Hoppsan!',
-    unlock: 0,
     hooks: {
       tick(c, dt, s) {
         if (!s.racing || s.speed < 8) return;
@@ -169,7 +236,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'race',
     maxStack: 3,
     text: 'Sladdar du fylls turbon tre gånger snabbare. Drivs av skräp.',
-    unlock: 1,
     tune(t, n) {
       t.driftRate *= 1 + 2 * n;
     },
@@ -186,7 +252,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'stunt',
     text: 'Tryck handbromsen när du kör rakt fram: HOPP! Sätet skjuter iväg dig.',
-    unlock: 0,
     tune(t, n) {
       t.jump = Math.max(t.jump, jumpPower(n));
     },
@@ -210,7 +275,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'girig',
     maxStack: 3,
     text: 'Varje mynt på banan är värt mer. Farfar behövde dem inte längre.',
-    unlock: 0,
     tune(t, n) {
       t.coinValue *= 1 + 0.75 * n;
     },
@@ -222,7 +286,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'girig',
     text: 'Du får kronor för varje varv. Skatteverket får inte veta.',
-    unlock: 0,
     hooks: {
       lap(c) {
         c.api.kronor(stackLin(10, 6, c.n));
@@ -238,7 +301,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'race',
     maxStack: 4,
     text: 'Motorn går på snus: mer kraft. Läkaren avråder.',
-    unlock: 0,
     tune(t, n) {
       t.power *= 1 + 0.08 * n;
     },
@@ -250,7 +312,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'race',
     text: 'Lera och gräs? Pyttsan. Mammas gamla tofflor klarar allt.',
-    unlock: 0,
     tune(t, n) {
       t.mudproof = true;
       t.offroad *= 1 + 0.2 * n;
@@ -269,7 +330,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'stunt',
     maxStack: 3,
     text: 'Månens tyngdkraft: du svävar länge! Lite yr i huvudet också.',
-    unlock: 2,
     tune(t, n) {
       t.gravity *= Math.max(0.28, Math.pow(0.7, n));
     },
@@ -281,7 +341,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'fuffens',
     text: 'En tjock glitterdimma bakom dig: bilarna där bak saktar in och fattar ingenting.',
-    unlock: 1,
     hooks: {
       tick(c, dt, s) {
         if (!s.racing) return;
@@ -298,7 +357,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'race',
     text: 'Efter varje varv slurpar du kaffe och drar på med extra fart. Hjärtat orkar.',
-    unlock: 0,
     hooks: {
       lap(c) {
         c.api.boost(stackLin(1.4, 0.7, c.n), 1.35);
@@ -315,7 +373,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'race',
     maxStack: 3,
     text: 'Sladdar du, så glider du snabbare. Doftar pommes.',
-    unlock: 2,
     hooks: {
       tick(c, dt, s) {
         if (!s.drifting || s.air) return;
@@ -332,7 +389,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'race',
     maxStack: 3,
     text: 'Lång raketstart när det blir grönt. Burritot går inte att ta tillbaka.',
-    unlock: 1,
     tune(t, n) {
       t.launch += 2.2 * n;
     },
@@ -350,7 +406,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'fuffens',
     maxStack: 3,
     text: 'En extra nitro i varje lopp. Lämnar ett grönt moln som får bakomvarande att svaja.',
-    unlock: 1,
     tune(t, n) {
       t.charges += n;
     },
@@ -370,7 +425,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'kaos',
     text: 'Glitter bakom bilen, och kronor för varje omkörning. Kungen hade varit stolt.',
-    unlock: 2,
     tune(t) {
       t.glitter = true;
     },
@@ -396,7 +450,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'ram',
     maxStack: 3,
     text: 'Bilar du krockar med flyger iväg. Älgen vill ha tillbaka dem.',
-    unlock: 3,
     tune(t, n) {
       t.shove += n;
     },
@@ -417,7 +470,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'race',
     maxStack: 3,
     text: 'Nitron räcker dubbelt så länge, men magen krånglar: du åker i sicksack.',
-    unlock: 2,
     tune(t, n) {
       t.nitroSeconds *= 1 + n;
       t.nitroPower *= 1 + 0.1 * n;
@@ -436,7 +488,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'fuffens',
     text: 'Efter varje boost kör du rakt igenom andra bilar. Under lakanet luktar det mögel.',
-    unlock: 3,
     hooks: {
       boost(c, kind) {
         if (kind === 'start') return;
@@ -452,7 +503,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'ram',
     text: 'Boosten skjuter varmkorv som puttar bort bilarna framför. Med senap.',
-    unlock: 3,
     hooks: {
       boost(c, kind) {
         if (kind === 'start') return;
@@ -468,7 +518,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'fuffens',
     text: 'Då och då landar en jättepannkaka på ledarens bil. Den blir platt. Sirap ingår.',
-    unlock: 4,
     hooks: {
       tick(c, dt, s) {
         if (!s.racing) return;
@@ -488,7 +537,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'kaos',
     text: 'Disco på banan! Och 10 % mer kronor i mål. Pinsamt, men lönsamt.',
-    unlock: 5,
     tune(t) {
       t.disco = true;
     },
@@ -507,7 +555,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'legendary',
     path: 'race',
     text: 'Första varvets tid räknas bara hälften. Garantin gick ut 1987.',
-    unlock: 8,
     hooks: {
       finish(c, r) {
         const first = r.laps[0];
@@ -526,7 +573,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'ram',
     maxStack: 2,
     text: 'Bilen blir jättestor och puttar undan alla. RAWR. Och diesel.',
-    unlock: 6,
     tune(t, n) {
       t.size *= Math.min(2.2, 1 + 0.45 * n);
       t.shove += 0.5 * n;
@@ -545,7 +591,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'legendary',
     path: 'kaos',
     text: 'Efter varje varv: PRRRT och ett grönt moln, plus något slumpat. Alla luktar.',
-    unlock: 6,
     hooks: {
       lap(c) {
         const k = Math.floor(Math.random() * 4);
@@ -568,7 +613,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'kaos',
     text: 'Då och då byter du plats med bilen framför dig. Mitt i farten. Ingen frågar dig först.',
-    unlock: 4,
     hooks: {
       tick(c, dt, s) {
         if (!s.racing) return;
@@ -593,7 +637,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'kaos',
     text: 'Då och då landar en ko (eller en höbal, det är samma sak) på vägen framför en rival.',
-    unlock: 2,
     hooks: {
       tick(c, dt, s) {
         if (!s.racing) return;
@@ -613,7 +656,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'kaos',
     text: 'Växellådan smäller till då och då: oftast ett rejält kast framåt, ibland ett litet bakåt.',
-    unlock: 1,
     hooks: {
       tick(c, dt, s) {
         if (!s.racing || s.air) return;
@@ -637,7 +679,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'kaos',
     text: 'Varje varv en lott: kronor, konfetti, spökläge eller ett jättekast. Ingen vet vilken.',
-    unlock: 3,
     hooks: {
       lap(c) {
         const k = Math.floor(Math.random() * 4);
@@ -660,7 +701,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'girig',
     text: 'Allt i Mackens kiosk blir 15 % billigare. Fråga inte hur du fick den.',
-    unlock: 0,
     perk: { shopDiscount: 0.15 },
   },
   {
@@ -670,7 +710,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'girig',
     text: 'Ett extra hjärta att ha, och du blir hel igen. Lite begagnat.',
-    unlock: 4,
     perk: { maxHearts: 1 },
   },
   {
@@ -680,7 +719,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'kaos',
     text: 'Du ser ett extra alternativ när du får välja. Hon tar 99 kr i minuten.',
-    unlock: 4,
     perk: { choices: 1 },
   },
   {
@@ -691,7 +729,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'girig',
     maxStack: 2,
     text: 'Alla lopp ger 50 % mer kronor. Du berättar inte för någon.',
-    unlock: 9,
     perk: { kronor: 0.5 },
   },
   // ---- phase 3: things for the new vehicles and courses ----
@@ -703,7 +740,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'race',
     maxStack: 3,
     text: 'Mc:n slutar ramla. Andra får en passagerare som gnäller men betalar.',
-    unlock: 5,
     tune(t, n, body) {
       if (body !== 'moto') return;
       t.sidecar = true;
@@ -727,7 +763,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'ram',
     text: 'Traktorn får en jättefläkt: högre fart. Alla blåser undan bilarna framför.',
-    unlock: 5,
     tune(t, n, body) {
       if (body !== 'tractor') return;
       t.top *= 1 + 0.3 * n;
@@ -750,7 +785,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'fuffens',
     text: 'Tutan ger kronor och puttar undan bilarna framför. Irriterande.',
-    unlock: 4,
     hooks: {
       honk(c, near) {
         const k = c.body === 'moped' ? 2 : 1;
@@ -768,7 +802,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'legendary',
     path: 'kaos',
     text: 'Du byter fordon varje varv. Vad blir det nu? Ingen vet. Ingen har försäkring.',
-    unlock: 10,
     hooks: {
       lap(c) {
         c.api.swapVehicle();
@@ -788,7 +821,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'ram',
     maxStack: 3,
     text: 'Alla skador blir mindre. Alla tror att du är farlig.',
-    unlock: 0,
     tune(t, n) {
       t.tough *= Math.pow(0.75, n);
     },
@@ -806,7 +838,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'stunt',
     text: 'Lite mindre tyngdkraft: längre hopp och mjukare landningar. Kalsongerna lyfter.',
-    unlock: 1,
     tune(t, n) {
       t.gravity *= Math.max(0.45, Math.pow(0.82, n));
     },
@@ -818,7 +849,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'girig',
     text: 'Då och då hittar du lösgodis att sälja. Dåligt för tänderna, bra för plånboken.',
-    unlock: 0,
     hooks: {
       tick(c, dt, s) {
         if (!s.racing) return;
@@ -837,7 +867,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'girig',
     text: 'Var sjätte mynt du tar ger en kort fartboost. Burkar är bensin.',
-    unlock: 3,
     hooks: {
       pickup(c, kind) {
         if (kind !== 'coin') return;
@@ -856,7 +885,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'girig',
     text: 'Kommer du etta eller tvåa i mål får du en bonus. Pappa är stolt, typ.',
-    unlock: 2,
     hooks: {
       finish(c, r) {
         if (!r.finished || r.place > 2) return;
@@ -873,7 +901,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'race',
     text: 'Mer grepp, mest på halt och löst underlag. Isen smälter av värmen.',
-    unlock: 1,
     tune(t, n) {
       t.grip *= 1 + 0.05 * n;
       t.offroad *= 1 + 0.1 * n;
@@ -886,7 +913,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'ram',
     text: 'Efter en rejäl smäll blir du genomskinlig en stund och slipper fler. Pfff!',
-    unlock: 3,
     hooks: {
       tick(c, dt) {
         c.st.cd = Math.max(0, (c.st.cd ?? 0) - dt);
@@ -906,7 +932,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'fuffens',
     text: 'Tuta (H) så flyger bilarna framför iväg! Den tutar själv när någon är nära.',
-    unlock: 6,
     hooks: {
       honk(c, near) {
         c.api.shove(13, stackLin(6, 3, c.n));
@@ -922,7 +947,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'common',
     path: 'kaos',
     text: 'Varje turbosladd ger lite kronor. Det bubblar. Doftar damm.',
-    unlock: 2,
     hooks: {
       drift(c, _seconds, tier) {
         if (tier < 1) return;
@@ -939,7 +963,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'stunt',
     text: 'Du svävar lite och mynt dras till dig. Litet steg, stor plånbok.',
-    unlock: 7,
     tune(t, n) {
       t.gravity *= Math.max(0.5, Math.pow(0.88, n));
       t.magnet = Math.max(t.magnet, stackLin(9, 4, n));
@@ -953,7 +976,6 @@ export const TRINKETS: TrinketDef[] = [
     path: 'girig',
     maxStack: 3,
     text: 'Alla lopp ger 25 % mer kronor. Kedjan sitter fast i byxorna.',
-    unlock: 7,
     perk: { kronor: 0.25 },
   },
   {
@@ -963,7 +985,6 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'girig',
     text: 'Allt i Mackens kiosk blir 25 % billigare. Du ser så gammal ut.',
-    unlock: 4,
     perk: { shopDiscount: 0.25 },
   },
   {
@@ -973,8 +994,318 @@ export const TRINKETS: TrinketDef[] = [
     rarity: 'rare',
     path: 'girig',
     text: 'Ett extra hjärta. Ibland startar den om dig.',
-    unlock: 6,
     perk: { maxHearts: 1 },
+  },
+  // ---- the chaos wave: ability tricks, weather, coin flips and a few for the derby and the ramps ----
+  {
+    id: 'roulett',
+    name: 'Förmågerouletten',
+    emoji: '🎰',
+    rarity: 'legendary',
+    path: 'kaos',
+    maxStack: 1,
+    text: 'Din förmåga slumpas om vid varje varv. Ingen frågar dig först.',
+    hooks: {
+      lap(c) {
+        c.api.rerollAbility();
+        c.api.say('roulett', 'NY FÖRMÅGA!');
+      },
+    },
+  },
+  {
+    id: 'adrenalin',
+    name: 'Adrenalinsprutan',
+    emoji: '💉',
+    rarity: 'rare',
+    path: 'ram',
+    maxStack: 3,
+    text: 'Varje takedown kortar din förmågas nedkylning med 3 s. Läkaren tittar bort.',
+    hooks: {
+      takedown(c) {
+        c.api.abilityCooldown(stackLin(3, 1.5, c.n));
+        c.api.say('adrenalin', 'Laddat!');
+      },
+    },
+  },
+  {
+    id: 'kopiatorn',
+    name: 'Kopiatorn',
+    emoji: '📠',
+    rarity: 'rare',
+    path: 'kaos',
+    maxStack: 1,
+    text: 'Använder du din förmåga använder du ledarens också. Det är en hyllning.',
+    hooks: {
+      ability(c) {
+        if (c.api.copyLeaderAbility()) c.api.say('kopiatorn', 'KOPIERAT!');
+      },
+    },
+  },
+  {
+    id: 'nitrolotten',
+    name: 'Nitrolotten',
+    emoji: '🎟️',
+    rarity: 'rare',
+    path: 'kaos',
+    maxStack: 2,
+    text: 'Kortare nitro, men varje tändning drar en lott: pannkaka, spöke eller platsbyte.',
+    tune(t, n) {
+      t.nitroSeconds *= Math.pow(0.78, n);
+    },
+    hooks: {
+      boost(c, kind) {
+        if (kind === 'nitro') chaosEffect(c, 'nitrolotten');
+      },
+    },
+  },
+  {
+    id: 'regnmakaren',
+    name: 'Regnmakaren',
+    emoji: '🌧️',
+    rarity: 'rare',
+    path: 'fuffens',
+    maxStack: 1,
+    text: 'Det regnar i varje lopp. Du har stövlar och mer grepp, de andra har hopp.',
+    sky: { weather: 'rain' },
+    tune(t) {
+      t.grip *= 1.1;
+      t.offroad *= 1.15;
+      t.mudproof = true;
+    },
+  },
+  {
+    id: 'solstralen',
+    name: 'Solstrålen',
+    emoji: '☀️',
+    rarity: 'common',
+    path: 'girig',
+    maxStack: 1,
+    text: 'Aldrig regn, alltid dag, och 8 % extra kronor. Solen vill bli omnämnd.',
+    sky: { weather: 'clear', time: 'day' },
+    perk: { kronor: 0.08 },
+  },
+  {
+    id: 'nattskift',
+    name: 'Nattskiftet',
+    emoji: '🌙',
+    rarity: 'rare',
+    path: 'kaos',
+    maxStack: 1,
+    text: 'Alla lopp körs i natten. Nattmynt är värda 25 % mer. Ugglorna är avundsjuka.',
+    sky: { time: 'night' },
+    tune(t) {
+      t.coinValue *= 1.25;
+    },
+  },
+  {
+    id: 'askmoln',
+    name: 'Åskmolnet',
+    emoji: '⛈️',
+    rarity: 'legendary',
+    path: 'fuffens',
+    maxStack: 1,
+    text: 'Regn i varje lopp, och efter varje varv slår blixten ner i ledaren.',
+    sky: { weather: 'rain' },
+    hooks: {
+      lap(c) {
+        c.api.squashLeader(2.5);
+        c.api.say('askmoln', 'BLIXTEN!');
+      },
+    },
+  },
+  {
+    id: 'verktygslada',
+    name: 'Verktygslådan',
+    emoji: '🧰',
+    rarity: 'legendary',
+    path: 'kaos',
+    maxStack: 2,
+    text: 'Varje ny akt börjar med en slumpad uppgradering på bilen. Ingen minns vem.',
+    // acts when a new act begins (run/flow.ts `toolboxGift`), not in the race
+    perk: {},
+  },
+  {
+    id: 'dubbeltelleringet',
+    name: 'Dubbelt eller inget',
+    emoji: '🪙',
+    rarity: 'rare',
+    path: 'girig',
+    maxStack: 3,
+    text: 'I mål singlas en slant: dubbla loppets kronor eller inga alls.',
+    hooks: {
+      finish(c, r) {
+        const pot = r.kronor + r.coins;
+        if (pot <= 0) return;
+        const win = Math.random() < 0.5 + 0.05 * (c.n - 1);
+        c.api.say('dubbeltelleringet', win ? `KRONA! +${pot} kr` : 'KLAVE! Inget alls');
+        return { kronor: win ? pot : -pot };
+      },
+    },
+  },
+  {
+    id: 'vrakplockare',
+    name: 'Vrakplockaren',
+    emoji: '🧲',
+    rarity: 'common',
+    path: 'ram',
+    maxStack: 3,
+    text: 'Varje vrak du lämnar efter dig ger 12 kr och lite nitro. Skrothandlaren betalar bra.',
+    hooks: {
+      takedown(c) {
+        c.api.kronor(Math.round(stackLin(12, 6, c.n)));
+        c.api.nitro(0.25);
+        c.api.say('vrakplockare', 'Skrotpris!');
+      },
+    },
+  },
+  {
+    id: 'hamndsprangare',
+    name: 'Hämndsprängaren',
+    emoji: '💣',
+    rarity: 'rare',
+    path: 'ram',
+    maxStack: 2,
+    text: 'Blir du vrakad smäller du i en stötvåg som kastar undan alla. Sista ordet är ditt.',
+    hooks: {
+      wreck(c) {
+        c.api.shock(stackLin(14, 3, c.n), 20, 22);
+        c.api.say('hamndsprangare', 'BOOM!');
+      },
+    },
+  },
+  {
+    id: 'rampgalning',
+    name: 'Rampgalningen',
+    emoji: '🛝',
+    rarity: 'rare',
+    path: 'stunt',
+    maxStack: 3,
+    text: 'Efter en lång flygning och landning får du kronor och en liten rusning.',
+    tune(t, n) {
+      t.stunt *= 1 + 0.1 * n;
+    },
+    hooks: {
+      tick: (c, dt) => {
+        c.st.cd = Math.max(0, (c.st.cd ?? 0) - dt);
+      },
+      trick(c, kind, v) {
+        if (kind !== 'air' || v < 0.9 || (c.st.cd ?? 0) > 0) return;
+        c.st.cd = 1.5;
+        c.api.kronor(10 + 6 * c.n);
+        c.api.boost(0.7, 1.2);
+        c.api.say('rampgalning', 'Perfekt landning!');
+      },
+    },
+  },
+  {
+    id: 'kraftdryck',
+    name: 'Kraftdrycken',
+    emoji: '🥤',
+    rarity: 'common',
+    path: 'race',
+    maxStack: 3,
+    text: 'Varje förmåga du använder fyller en bit nitro. Mest socker och självförtroende.',
+    hooks: {
+      ability(c) {
+        c.api.nitro(stackLin(0.3, 0.15, c.n));
+        c.api.say('kraftdryck', 'KRAFT!');
+      },
+    },
+  },
+  {
+    id: 'efterklang',
+    name: 'Efterklangen',
+    emoji: '🔁',
+    rarity: 'legendary',
+    path: 'race',
+    maxStack: 1,
+    text: 'Din förmåga ekar: den används en gång till strax efter. Grannarna klagar.',
+    hooks: {
+      ability(c) {
+        c.st.echo = 1.4;
+      },
+      tick(c, dt) {
+        if ((c.st.echo ?? 0) <= 0) return;
+        c.st.echo = (c.st.echo ?? 0) - dt;
+        if ((c.st.echo ?? 0) <= 0) {
+          c.api.repeatAbility();
+          c.api.say('efterklang', 'ETT TILL!');
+        }
+      },
+    },
+  },
+  {
+    id: 'termos',
+    name: 'Termosen',
+    emoji: '☕',
+    rarity: 'common',
+    path: 'race',
+    maxStack: 3,
+    text: 'Din förmåga laddar 12 % fortare. Kaffet är kallt men viljan är het.',
+    tune(t, n) {
+      t.abilCd *= Math.pow(0.88, n);
+    },
+  },
+  {
+    id: 'arenaklocka',
+    name: 'Arenaklockan',
+    emoji: '🔔',
+    rarity: 'rare',
+    path: 'ram',
+    maxStack: 3,
+    text: 'I Blodbad och Rivningsderby lagar du dig en bit var åttonde sekund. Ding!',
+    hooks: {
+      tick(c, dt, s) {
+        if (!s.carnage || !s.racing || !every(c, 'bell', dt, 8)) return;
+        c.api.heal(0.025 * c.n);
+        c.api.say('arenaklocka', 'DING!');
+      },
+    },
+  },
+  {
+    id: 'slumpgenerator',
+    name: 'Slumpgeneratorn',
+    emoji: '🎲',
+    rarity: 'legendary',
+    path: 'kaos',
+    maxStack: 3,
+    text: 'Var 22:a sekund händer något slumpat: rusning, pannkaka, platsbyte eller spöke.',
+    hooks: {
+      tick(c, dt, s) {
+        if (!s.racing || !every(c, 'dice', dt, 22 / (1 + 0.35 * (c.n - 1)))) return;
+        chaosEffect(c, 'slumpgenerator');
+      },
+    },
+  },
+  {
+    id: 'lyckohjul',
+    name: 'Lyckohjulet',
+    emoji: '🎡',
+    rarity: 'rare',
+    path: 'kaos',
+    maxStack: 2,
+    text: 'Var tionde mynt snurrar hjulet och en slumpad belöning dimper ner.',
+    hooks: {
+      pickup(c, kind) {
+        if (kind !== 'coin') return;
+        c.st.coins = (c.st.coins ?? 0) + 1;
+        if (c.st.coins < 10 - 2 * (c.n - 1)) return;
+        c.st.coins = 0;
+        chaosEffect(c, 'lyckohjul', (['boost', 'nitro', 'coins', 'ghost', 'hop'] as const)[Math.floor(Math.random() * 5)]);
+      },
+    },
+  },
+  {
+    id: 'reservdunk',
+    name: 'Reservdunken',
+    emoji: '⛽',
+    rarity: 'common',
+    path: 'race',
+    maxStack: 1,
+    text: 'Din förmåga får en extra rusning på köpet. Doften av bensin sitter kvar i håret.',
+    tune(t) {
+      if (!t.plus.includes('boost')) t.plus.push('boost');
+    },
   },
 ];
 

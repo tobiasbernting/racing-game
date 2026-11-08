@@ -31,7 +31,7 @@ function withParts(r: RunState, parts: Record<string, number>): RunState {
 
 /** A run that has bought everything: the best car, every upgrade node in every tree, every trinket at its highest stack. */
 function allIn(act: number, body: CarBody = 'coupe'): RunState {
-  const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
+  const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c' });
   r.act = act;
   r.up = UPGRADES.filter((u) => !u.body || u.body === body).map((u) => u.id);
   r.trinkets = TRINKETS.map((t) => ({ id: t.id, n: stackCap(t) }));
@@ -40,7 +40,7 @@ function allIn(act: number, body: CarBody = 'coupe'): RunState {
 
 /** A strong build the way a run really ends up with one: the best parts and a dozen of the best trinkets. */
 function strongRun(act: number, body: CarBody = 'coupe'): RunState {
-  const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
+  const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c' });
   r.act = act;
   withParts(r, { engine: 3, tyres: 3, suspension: 1, brakes: 2, turbo: 2, armour: 3 });
   const pick: [string, number][] = [['kanelbullar', 4], ['dubbdack', 4], ['kolsyrad', 3], ['raketkorv', 3], ['tvattbjorn', 3], ['sidvagn', 3], ['kaffekoppen', 3], ['alghorn', 3], ['dino', 2], ['jattehjul', 3], ['sladdgradde', 3]];
@@ -108,10 +108,10 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
     const averageOne = rate('average', 'one');
     console.log('hard: average', averageHard, 'good', goodHard, 'expert', expertHard, '| one: average', averageOne, 'good', goodOne, 'expert', expertOne, '| normal good', goodNormal);
     for (let i = 0; i < 3; i++) {
-      // Hård sits clearly between Normal and Ett liv: a good player wins about 15 to 30 percent, a strong one about 35 to 65
+      // Hård sits clearly between Normal and Ett liv: a good player wins about 15 to 33 percent (a little more since everything is unlocked from the start), a strong one about 35 to 65
       expect(goodHard[i]!).toBeLessThan(goodNormal[i]! - 0.15);
       expect(goodHard[i]!).toBeGreaterThan(0.12);
-      expect(goodHard[i]!).toBeLessThan(0.32);
+      expect(goodHard[i]!).toBeLessThan(0.35);
       expect(expertHard[i]!).toBeGreaterThan(0.35);
       expect(expertHard[i]!).toBeLessThan(0.65);
       expect(goodHard[i]!).toBeGreaterThan(goodOne[i]! + 0.1);
@@ -175,7 +175,7 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
   });
 
   it('Blodbad can be won by a ram-heavy player from third on the road, but not by a clean racer', () => {
-    const run = newRun({ seed: 78, calm: false, body: 'pickup', driver: 'human', paint: '#e8412c', trophies: 99 });
+    const run = newRun({ seed: 78, calm: false, body: 'pickup', driver: 'human', paint: '#e8412c' });
     run.act = 2;
     withParts(run, { engine: 2, tyres: 2, suspension: 0, brakes: 1, turbo: 1, armour: 3 });
     run.trinkets = [['alghorn', 3], ['dino', 2], ['kastrull', 3], ['kanon', 1], ['krockkudde', 1], ['jattehjul', 3], ['dubbdack', 2]].map(([id, n]) => ({ id: id as string, n: n as number }));
@@ -277,7 +277,7 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
     expect(scrapHearts(3, 4)).toBe(1);
     expect(scrapHearts(2, 10)).toBe(2);
     expect(scrapHearts(5, 5)).toBe(0);
-    const hurt = newRun({ seed: 11, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
+    const hurt = newRun({ seed: 11, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c' });
     hurt.hearts = 1;
     let seed = 11;
     while (!reachable({ ...hurt, seed }).some((n) => n.type === 'race')) seed++;
@@ -301,7 +301,7 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
 
   it('the finished builds of the trees, one per path, are a fight in act 3 and nobody is lapped by any of them', () => {
     const build = (body: CarBody, lines: string[]): RunState => {
-      const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
+      const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c' });
       r.act = 2;
       for (const l of lines) {
         const def = UPGRADES.filter((u) => u.line === l);
@@ -353,7 +353,7 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
 
   it('a win is a pick of three, second place a pick of two plain ones, and in Blodbad the hearts follow the rank on points', () => {
     const base = (): RunState => {
-      const r = newRun({ seed: 3, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 99 });
+      const r = newRun({ seed: 3, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c' });
       r.act = 0;
       return r;
     };
@@ -394,7 +394,7 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
   });
 
   it('a heart costs about one race of pay, a quarter less on the last one, and prices grow slower than pay', () => {
-    const run = newRun({ seed: 1, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
+    const run = newRun({ seed: 1, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c' });
     const mid = racePrize({ course: 'farm', laps: 2, ai: 3, difficulty: 'normal', damage: false, weather: 'clear', time: 'day', nitro: true, sameCars: false, pickups: true, kind: 'rally' }, 3, 4);
     expect(healPrice(run)).toBeLessThanOrEqual(mid * 1.6);
     const last = { ...run, hearts: 1 };
@@ -413,7 +413,7 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
 describe('every vehicle in the balance simulation', { timeout: 120_000 }, () => {
   /** A run as a plain player has it in act 3: some parts and the trinkets that come with the vehicle. */
   const plainRun = (body: CarBody): RunState => {
-    const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
+    const r = newRun({ seed: 77, calm: false, body, driver: 'human', paint: '#e8412c' });
     r.act = 2;
     withParts(r, { engine: 2, tyres: 2, suspension: 1, brakes: 1, turbo: 1, armour: 1 });
     return r;

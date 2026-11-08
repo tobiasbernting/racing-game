@@ -6,7 +6,7 @@ import { newRun, type RunState } from './state.ts';
 import { verdictOf } from './summary.ts';
 
 const run = (o: Partial<{ calm: boolean; body: 'hatch' | 'moped'; paint: string }> = {}): RunState => {
-  const r = newRun({ seed: 7, calm: o.calm ?? false, body: o.body ?? 'hatch', driver: 'cow', paint: o.paint ?? '#e8412c', trophies: 0 });
+  const r = newRun({ seed: 7, calm: o.calm ?? false, body: o.body ?? 'hatch', driver: 'cow', paint: o.paint ?? '#e8412c' });
   r.act = 1;
   r.stats.bossesBeaten = 1;
   r.stats.races = 5;

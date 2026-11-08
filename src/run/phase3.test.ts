@@ -11,7 +11,7 @@ import { CAR_BODY_NAMES, CAR_BODY_TEXT, RALLY_COURSE_NAMES } from '../shared/nam
 import { DRY_COURSES, canRain, skyFor, variationFor } from '../shared/variation.ts';
 import { EVENTS, pickEventId } from './events.ts';
 import { ACTS, ACT_COURSES, BOSS_COURSE, allNodes, generateAct } from './map.ts';
-import { STARTERS, cleanMeta, defaultMeta, unlockedBodies } from './meta.ts';
+import { STARTERS, cleanMeta, defaultMeta } from './meta.ts';
 import { BOSS_DEFS, planRace } from './plan.ts';
 import { newRun } from './state.ts';
 import { TRINKETS, buildMods, trinketById } from './trinkets.ts';
@@ -54,11 +54,10 @@ describe('the new vehicles', () => {
     }
   });
 
-  it('five starters; the rest open by challenges; a stored locked body falls back to the rally car', () => {
-    expect(unlockedBodies(defaultMeta())).toEqual(['hatch', 'buggy', 'pickup', 'moped', 'tractor']);
+  it('every vehicle is open from the start: a stored body is kept, junk falls back to the rally car', () => {
     expect(STARTERS).toHaveLength(5);
-    expect(cleanMeta({ ...defaultMeta(), body: 'sofa' }).body).toBe('hatch');
-    expect(cleanMeta({ ...defaultMeta(), bodies: [...STARTERS, 'sofa'], body: 'sofa' }).body).toBe('sofa');
+    expect(cleanMeta({ ...defaultMeta(), body: 'sofa' }).body).toBe('sofa');
+    expect(cleanMeta({ ...defaultMeta(), body: 'raket' }).body).toBe('hatch');
   });
 
   it('the computer cars sometimes drive them, the same way every time for the same seed', () => {
@@ -257,7 +256,7 @@ describe('variation per seed', () => {
   });
 
   it('every node of a run gets its own sky from its seed', () => {
-    const run = newRun({ seed: 99, body: 'hatch', paint: '#e8412c', driver: 'human', calm: false, trophies: 0 });
+    const run = newRun({ seed: 99, body: 'hatch', paint: '#e8412c', driver: 'human', calm: false });
     const skies = new Set<string>();
     for (let act = 1; act < ACTS; act++)
       for (const n of allNodes(generateAct(run.seed, act))) {
@@ -440,7 +439,7 @@ describe('the new events', () => {
     const maneman = EVENTS.find((e) => e.id === 'maneman')!;
     expect(kamel.acts).toEqual([1]);
     expect(maneman.acts).toEqual([2]);
-    const run = newRun({ seed: 7, body: 'hatch', paint: '#e8412c', driver: 'human', calm: false, trophies: 0 });
+    const run = newRun({ seed: 7, body: 'hatch', paint: '#e8412c', driver: 'human', calm: false });
     const seen = new Map<number, Set<string>>();
     for (let act = 0; act < ACTS; act++) {
       const r = { ...run, act };

@@ -48,7 +48,7 @@ describe('the vehicles\' kits', () => {
 
   it('a run starts with the starting trinket of its vehicle', () => {
     for (const b of CAR_BODIES) {
-      const r = newRun({ seed: 5, calm: false, body: b, driver: 'human', paint: '#e8412c', trophies: 0 });
+      const r = newRun({ seed: 5, calm: false, body: b, driver: 'human', paint: '#e8412c' });
       expect(r.trinkets.map((t) => t.id)).toEqual([KITS[b].trinket]);
       expect(r.got[0]?.id).toBe(KITS[b].trinket);
     }
@@ -58,7 +58,7 @@ describe('the vehicles\' kits', () => {
 describe('the sofa\'s passive', () => {
   it('a random trinket from the pool lands in the build, the same one for the same run and act', () => {
     const mk = () => {
-      const r = newRun({ seed: 11, calm: false, body: 'sofa', driver: 'human', paint: '#e8412c', trophies: 99 });
+      const r = newRun({ seed: 11, calm: false, body: 'sofa', driver: 'human', paint: '#e8412c' });
       r.act = 1;
       return r;
     };
@@ -76,7 +76,7 @@ describe('the sofa\'s passive', () => {
 
   it('beating a boss as the sofa brings a new one into the build, beating it in anything else does not', () => {
     const afterBoss = (body: 'sofa' | 'hatch'): number => {
-      let r = newRun({ seed: 21, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
+      let r = newRun({ seed: 21, calm: false, body, driver: 'human', paint: '#e8412c' });
       r.trinkets = [];
       const boss = allNodes(mapOf(r)).find((n) => n.type === 'boss')!;
       r.screen = { kind: 'reward', nodeId: boss.id, choices: ['gummianka'], source: 'boss' };
@@ -121,12 +121,12 @@ describe('the little formulas', () => {
 
 describe('the abilities in the balance simulation', () => {
   const lapOf = (body: (typeof CAR_BODIES)[number], skill: 'poor' | 'good' = 'good'): number => {
-    const r = newRun({ seed: 5, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 0 });
+    const r = newRun({ seed: 5, calm: false, body, driver: 'human', paint: '#e8412c' });
     r.trinkets = [];
     return playerStats(r, { skill, aggression: 0.3 }).lap('farm');
   };
   const saved = (body: (typeof CAR_BODIES)[number]): number => {
-    const r = newRun({ seed: 5, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 0 });
+    const r = newRun({ seed: 5, calm: false, body, driver: 'human', paint: '#e8412c' });
     r.trinkets = [];
     const s = playerStats(r, { skill: 'good', aggression: 0.3 });
     return s.driftSaved;

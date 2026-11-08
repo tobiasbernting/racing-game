@@ -17,8 +17,8 @@ describe('the trinket list', () => {
     for (const r of RARITIES) expect(TRINKETS.some((t) => t.rarity === r)).toBe(true);
   });
 
-  it('starts with enough trinkets for the first run without any trophies', () => {
-    expect(TRINKETS.filter((t) => t.unlock === 0).length).toBeGreaterThanOrEqual(10);
+  it('has no unlock gate: every talisman is in the pool from the first launch', () => {
+    for (const t of TRINKETS) expect('unlock' in t, t.id).toBe(false);
   });
 });
 
@@ -114,6 +114,10 @@ function recorder(): { api: RaceApi; calls: string[] } {
     nitro: log('nitro'),
     flame: log('flame'),
     heal: log('heal'),
+    rerollAbility: log('rerollAbility'),
+    abilityCooldown: log('abilityCooldown'),
+    copyLeaderAbility: () => (calls.push('copyLeaderAbility'), true),
+    repeatAbility: log('repeatAbility'),
   };
   return { api, calls };
 }
@@ -148,7 +152,7 @@ describe('the effect bus', () => {
       const { api, calls } = recorder();
       const m = buildMods([{ id: 'bananskal', n }]);
       m.bus.bind(api);
-      const s = { speed: 30, steer: 0, handbrake: false, handbrakePressed: false, straight: true, air: false, drifting: false, boosting: false, lap: 1, place: 1, racing: true, time: 0, braking: false, wheelie: false };
+      const s = { speed: 30, steer: 0, handbrake: false, handbrakePressed: false, straight: true, air: false, drifting: false, boosting: false, lap: 1, place: 1, racing: true, time: 0, braking: false, wheelie: false, carnage: false, derby: false };
       for (let i = 0; i < 600; i++) m.bus.tick(0.1, s);
       return calls.filter((c) => c.startsWith('banana')).length;
     };
@@ -247,7 +251,7 @@ describe('the humour is chaos, not toilets', () => {
       m.bus.boost('nitro');
       m.bus.lap(1);
       m.bus.drift(2, 2);
-      m.bus.tick(5, { speed: 30, steer: 0, handbrake: false, handbrakePressed: false, straight: true, air: false, drifting: true, boosting: false, lap: 1, place: 2, racing: true, time: 20, braking: false, wheelie: false });
+      m.bus.tick(5, { speed: 30, steer: 0, handbrake: false, handbrakePressed: false, straight: true, air: false, drifting: true, boosting: false, lap: 1, place: 2, racing: true, time: 20, braking: false, wheelie: false, carnage: false, derby: false });
       expect(calls.filter((c) => c.startsWith('fart') || c.startsWith('gas') || c.startsWith('burp')), t.id).toEqual([]);
     }
   });

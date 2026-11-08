@@ -4,10 +4,11 @@
 import { CAR_BODY_NAMES, CAR_DRIVER_EMOJI, CAR_DRIVER_NAMES } from '../shared/names.ts';
 import { trinketById } from '../run/trinkets.ts';
 import type { RunEnd, RunState } from '../run/state.ts';
-import { PATH_EMOJI, PATH_NAMES, buildTimeline, buildView, challengesOf, fmtMs, nextUnlock, statView, trophyReasons, verdictOf, type StatCard, type TimelineItem } from '../run/summary.ts';
+import { PATH_EMOJI, PATH_NAMES, buildTimeline, buildView, fmtMs, medalsOf, statView, trophyReasons, verdictOf, type StatCard, type TimelineItem } from '../run/summary.ts';
 import { diffLabel, diffOf } from '../run/difficulty.ts';
 import { btn, el } from './dom.ts';
-import { seedLabel } from './parts.ts';
+import { seedChip } from './parts.ts';
+import { nextMedal } from '../run/medals.ts';
 
 const sectionHead = (icon: string, text: string, ...right: (Node | null)[]): HTMLElement => el('div', 'rs-sh', el('span', 'rs-shi', icon), el('h3', null, text), el('span', 'rg-grow'), ...right);
 
@@ -57,7 +58,7 @@ function buildSection(run: RunState): HTMLElement {
     bar.setAttribute('role', 'img');
     bar.setAttribute('aria-label', b.mix.map((m) => `${m.pct} % ${m.name}`).join(', '));
     box.append(bar, el('p', 'rs-mixtxt', b.mix.map((m) => `${m.pct} % ${m.name}`).join(' · ')));
-  } else box.append(el('p', 'rs-empty', 'Ingenting i bygget. Ren talang, inga prylar.'));
+  } else box.append(el('p', 'rs-empty', 'Ingenting i bygget. Ren talang, inga talismaner.'));
   // the vehicle's own kit: the active ability with how often it was used, and the passive
   const ab = b.ability;
   const uses = ab.uses === 0 ? 'Aldrig använd. Den är kränkt.' : `Använd ${ab.uses} ${ab.uses === 1 ? 'gång' : 'gånger'} på rundan.`;
@@ -101,39 +102,30 @@ function buildSection(run: RunState): HTMLElement {
 }
 
 function unlockSection(run: RunState, info: RunEnd): HTMLElement {
-  const box = el('section', 'rs-panel rs-unlocks', sectionHead('🏆', 'Troféer och upplåst'));
+  const box = el('section', 'rs-panel rs-unlocks', sectionHead('🏆', 'Troféer och medaljer'));
   box.append(el('div', 'rs-trophy', `+${info.trophies} 🏆`, el('small', null, `${info.trophyMul && info.trophyMul !== 1 ? ` (×${String(info.trophyMul).replace('.', ',')} ${diffOf(run.diff).name})` : ''} totalt ${info.total}`)));
   const why = trophyReasons(run, info.won);
   box.append(why.length ? el('ul', 'rs-why', ...why.map((w) => el('li', null, el('span', null, w.text), el('b', null, `+${w.n}`)))) : el('p', 'rs-empty', 'Inga troféer den här gången. Kör minst tre lopp nästa gång.'));
-  const unl = [
-    ...info.unlockedBodies.map((b) => `🚗 Ny bil: ${CAR_BODY_NAMES[b]}`),
-    ...info.unlockedTrinkets.map((id) => {
-      const d = trinketById(id);
-      return `${d?.emoji ?? '🎁'} Ny pryl: ${d?.name ?? id}`;
-    }),
-  ];
-  if (unl.length) box.append(el('ul', 'rs-new', ...unl.slice(0, 6).map((u) => el('li', null, u)), unl.length > 6 ? el('li', null, `…och ${unl.length - 6} till`) : null));
-  // the challenges this run moved: vehicles to open
-  const chal = challengesOf(run, info.progress ?? {});
-  if (chal.length) {
+  // the medals this run moved or earned
+  const medals = medalsOf(run, info.progress ?? {});
+  if (medals.length) {
     box.append(
-      el('div', 'rs-chal-h', 'Utmaningar'),
-      el('ul', 'rs-chal', ...chal.map((c) => {
+      el('div', 'rs-chal-h', 'Medaljer'),
+      el('ul', 'rs-chal', ...medals.map((c) => {
         const bar = el('i');
         bar.style.width = `${Math.round((c.after / c.goal) * 100)}%`;
-        return el('li', c.done ? 'done' : null, el('div', 'rs-chal-t', el('b', null, c.done ? `✅ ${CAR_BODY_NAMES[c.body]} upplåst!` : `🔓 ${CAR_BODY_NAMES[c.body]}`), el('span', null, c.title)), el('div', 'rs-prog', bar), el('small', null, c.text));
+        return el('li', c.done ? 'done' : null, el('div', 'rs-chal-t', el('b', null, c.done ? `🏅 MEDALJ! ${c.name}` : `🏅 ${c.name}`), el('span', null, c.title)), el('div', 'rs-prog', bar), el('small', null, c.text));
       })),
     );
   }
-  const nx = nextUnlock(info.total);
+  const nx = nextMedal(info.progress ?? {});
   if (nx) {
-    const pct = Math.max(0, Math.min(100, ((nx.have - nx.from) / Math.max(1, nx.need - nx.from)) * 100));
     const bar = el('div', 'rs-prog');
     const fill = el('i');
-    fill.style.width = `${pct}%`;
+    fill.style.width = `${Math.round((nx.have / nx.medal.goal) * 100)}%`;
     bar.append(fill);
-    box.append(el('div', 'rs-next', el('span', null, `Nästa: ${nx.what}`), bar, el('small', null, `${nx.have} av ${nx.need} 🏆 · ${nx.need - nx.have} kvar`)));
-  } else box.append(el('p', 'rs-empty', 'Alla prylar är upplåsta. Fordon låser du upp med utmaningar.'));
+    box.append(el('div', 'rs-next', el('span', null, `Nästa medalj: ${nx.medal.name}`), bar, el('small', null, `${nx.medal.title} (${nx.have}/${nx.medal.goal})`)));
+  } else box.append(el('p', 'rs-empty', 'Alla medaljer är intjänade. Du är en legend.'));
   return box;
 }
 
@@ -149,7 +141,7 @@ export function resultView(run: RunState, info: RunEnd, o: { onAgain(): void; on
     el('span', 'rs-chip', CAR_DRIVER_EMOJI[driver], ` ${CAR_DRIVER_NAMES[driver]}`),
     el('span', 'rs-chip', swatch, ' Lack'),
     el('span', 'rs-chip', '⏲️', ` ${run.stats.totalTime > 0 ? fmtMs(run.stats.totalTime) : '–'}`, el('small', null, ' åktid')),
-    el('span', 'rs-chip seed', seedLabel(run.seed)),
+    seedChip(run.seed, 'rs-chip seed'),
     run.diff === 'normal' ? null : el('span', `rs-chip diff d-${run.diff}`, diffLabel(run.diff)),
   ];
   const head = el(

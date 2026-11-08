@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { CAR_BODIES, CAR_BODY_DEFS, NITRO_SECONDS, RACE_DNF_PRIZE, cleanRules, newCar, raceMedal, racePrize, type CarBody, type GarageCar } from '../shared/rally.ts';
 import { Loop } from '../arcade/kit.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
-import { AWNING, CHAOS_TEXT, DODGE, DRAFT, EPA_BURST, HOLE_IN_ONE, HOP, ICE_CANNON, JINGLE, KART_SLIDE, KICKSTART, MOW, PASSIVE_RAM, POUND, POWDER, RAMMER, REPAIR, ROCKET, SCAVENGE, SLINGSHOT, SOFTLAND, VIP, WHEELIE_ROCKET, WOBBLE, chaosPick, chargeOf, draftTarget, kitOf, pivotDir } from '../shared/abilities.ts';
+import { AWNING, CHAOS_TEXT, DODGE, DRAFT, EPA_BURST, HOLE_IN_ONE, HOP, ICE_CANNON, JINGLE, KART_SLIDE, KICKSTART, MOW, PASSIVE_RAM, POUND, POWDER, RAMMER, REPAIR, ROCKET, SCAVENGE, SLINGSHOT, SOFTLAND, VIP, WHEELIE_ROCKET, WOBBLE, chaosPick, chargeOf, draftTarget, kitOf, pivotDir, type ActiveDef, type VehicleKit } from '../shared/abilities.ts';
 import { rivalById, rivalCast } from '../shared/rivals.ts';
 import { LASTLAP_BOOST, archetypeBodies, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
 import { KIND_AGGRO, carnagePoints, pointsTable, type RaceKind } from '../shared/kinds.ts';
@@ -115,6 +115,8 @@ interface Entrant {
   dirt: number;
   /** Seconds until a computer car uses its vehicle's ability, and how far its front wheel is lifted (a bike on boost). */
   abilNext: number;
+  /** The active a computer car used last (a talisman can copy it). */
+  lastAbil: ActiveDef | null;
   wheelie: number;
   /** Seconds left blinded by a snow cloud: slower and wandering. */
   blindT: number;
@@ -231,7 +233,9 @@ const rally = (ctx: GameContext): GameInstance => {
   const twist = opts?.twist ?? null;
   // the vehicle's own kit (abilities.ts): off in the fair quick race where every body is levelled
   const abilityOn = !!opts && !rules?.sameCars;
-  const kit = abilityOn ? kitOf(myCar.body) : null;
+  const baseKit = abilityOn ? kitOf(myCar.body) : null;
+  /** The kit the player drives with now: the active can be swapped for another vehicle's by a talisman (the passive stays). */
+  let kit: VehicleKit | null = baseKit;
   /** The hatchback's passive gives a nitro slot of its own (a perfect drift fills it). */
   const nitroSlots = (): number => myTune.charges + (kit?.passive.id === 'nitroTopUp' || kit?.active.id === 'kartSlide' ? 1 : 0) + (mt.fill && myTune.charges < 1 ? 1 : 0);
   /** The handling a body gets from the player's parts and trinkets (the body can change mid-race with a trinket). */
@@ -609,6 +613,7 @@ const rally = (ctx: GameContext): GameInstance => {
           abilCd = 0;
           if (useAbility(meE!)) {
             stats.abilityUses++;
+            mods.bus.ability();
             abilCd = kit?.active.cooldown ?? 0;
           }
         },
@@ -780,6 +785,7 @@ const rally = (ctx: GameContext): GameInstance => {
         calmT: 9,
         dirt: 0,
         abilNext: 9 + Math.random() * 10,
+        lastAbil: null,
         wheelie: 0,
         blindT: 0,
         brain: derby && !isMe && spec ? new DerbyBrain({ aggro: spec.aggro, skill: clamp(spec.skill * (kid ? 0.93 : 1), 0.7, 1.06), phase: k * 1.7 }) : null,
@@ -1318,7 +1324,7 @@ const rally = (ctx: GameContext): GameInstance => {
 
   // ---- trinkets: what a hook can do to the race ----
   const tmpCol = new THREE.Color();
-  const tickState: TickState = { speed: 0, steer: 0, handbrake: false, handbrakePressed: false, straight: false, air: false, drifting: false, boosting: false, lap: 1, place: 1, racing: false, time: 0, braking: false, wheelie: false };
+  const tickState: TickState = { speed: 0, steer: 0, handbrake: false, handbrakePressed: false, straight: false, air: false, drifting: false, boosting: false, lap: 1, place: 1, racing: false, time: 0, braking: false, wheelie: false, carnage: false, derby: false };
 
   function sparkleAt(x: number, y: number, z: number, n: number, spread: number): void {
     for (let k = 0; k < (high ? n : Math.ceil(n / 2)); k++) {
@@ -1368,6 +1374,8 @@ const rally = (ctx: GameContext): GameInstance => {
       ts.time = raceT;
       ts.braking = me.ctl.brake > 0.6 && c.speed > 12;
       ts.wheelie = me.wheelie > 0.2;
+      ts.carnage = carnage;
+      ts.derby = derby;
       mods.bus.tick(dt, ts);
     }
     stuntStep(dt, me, racing);
@@ -1947,6 +1955,7 @@ const rally = (ctx: GameContext): GameInstance => {
       } else if (useAbilityBoosted(me)) {
         abilCd = kit.active.cooldown * mt.abilCd;
         stats.abilityUses++;
+        mods.bus.ability();
         hud.popup(`${kit.active.emoji} ${kit.active.name}`, 'abil');
       }
     }
@@ -2078,6 +2087,7 @@ const rally = (ctx: GameContext): GameInstance => {
       return;
     }
     e.rivalBoostT = Math.max(e.rivalBoostT, 0.9);
+    e.lastAbil = a;
     e.abilNext = a.cooldown * (1.8 + Math.random() * 0.8);
   }
 
@@ -2605,6 +2615,41 @@ const rally = (ctx: GameContext): GameInstance => {
         me.model.setDamage(100 * (1 - me.hp / me.maxHp) * 0.9);
       } else me.model.setDamage(me.damage);
       sparkleAt(me.car.x, me.car.y, me.car.z, 8, 1);
+    },
+    rerollAbility() {
+      if (!baseKit || !kit) return;
+      const others = CAR_BODIES.filter((b) => kitOf(b).active.id !== kit!.active.id);
+      const next = kitOf(others[Math.floor(Math.random() * others.length)]!);
+      kit = { ...baseKit, active: next.active };
+      abilCd = Math.min(abilCd, next.active.cooldown * mt.abilCd * 0.4);
+      abilKey = '';
+      poof(player().car.x, player().car.y, player().car.z);
+      audio.chime();
+      hud.toast(`🎰 Ny förmåga: ${next.active.emoji} ${next.active.name}`);
+    },
+    abilityCooldown(sec) {
+      if (!kit) return;
+      abilCd = Math.max(0, abilCd - sec);
+    },
+    copyLeaderAbility() {
+      if (!kit) return false;
+      const me = player();
+      let lead: Entrant | null = null;
+      for (const e of entrants) if (e !== me && !e.finished && e.wreckT <= 0 && (!lead || e.u > lead.u)) lead = e;
+      if (!lead) return false;
+      const a = lead.lastAbil ?? kitOf(lead.body).active;
+      const saved = kit;
+      kit = { ...saved, active: a };
+      try {
+        if (!useAbility(me)) return false;
+      } finally {
+        kit = saved;
+      }
+      hud.toast(`📠 Kopierade ${lead.name}s ${a.emoji} ${a.name}`);
+      return true;
+    },
+    repeatAbility() {
+      if (kit) useAbilityBoosted(player());
     },
     swapVehicle() {
       const e = player();

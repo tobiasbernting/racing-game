@@ -5,7 +5,7 @@ import { CAR_DRIVERS, CAR_PARTS, isCarPart, PART_MAX_LEVEL, defaultStyle, emptyP
 import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { ACTS, BOSSES, NODE_TYPES, findNode, actMap, type BossId, type NodeType } from './map.ts';
 import { cleanMeta, defaultMeta, type Meta } from './meta.ts';
-import { CHALLENGES } from './unlocks.ts';
+import { MEDALS } from './medals.ts';
 import { asDifficulty, isDifficulty, type Difficulty } from './difficulty.ts';
 import { emptyRunStats, maxHeartsOf, validPaint, type Acquired, type NodeLog, type RunEnd, type RunState, type Screen } from './state.ts';
 import { MAX_STACK, isTrinket, type Owned } from './trinkets.ts';
@@ -119,11 +119,11 @@ function cleanEndScreen(raw: unknown, act: number, seed: number): Screen | null 
   return s?.kind === 'postrace' ? s : null;
 }
 
-/** Challenge progress as stored: known challenge ids with whole numbers. */
+/** Medal progress as stored: known medal ids with whole numbers. */
 function cleanProgress(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {};
   if (!isObj(raw)) return out;
-  for (const c of CHALLENGES) {
+  for (const c of MEDALS) {
     const v = raw[c.id];
     if (typeof v === 'number' && Number.isFinite(v) && v > 0) out[c.id] = Math.min(c.goal, Math.floor(v));
   }
@@ -236,7 +236,6 @@ export function parseRun(raw: unknown): RunState | null {
     seed,
     calm,
     diff,
-    pool: num(raw.pool, 0, 9999, 0),
     act,
     at,
     path: Array.isArray(raw.path) ? raw.path.filter((x): x is string => typeof x === 'string' && !!findNode(m, x)).slice(0, 12) : [],

@@ -11,8 +11,8 @@ import { RALLY_COURSE_NAMES } from '../shared/names.ts';
 import { ARENAS } from '../shared/derby.ts';
 import { Rng } from './rng.ts';
 import { DIFFS } from './difficulty.ts';
-import { actScale, addKronor, addTrinket, addUp, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, scrapHearts, type NodeLog, type RaceSummary, type RunState } from './state.ts';
-import { interestOn, isUpgrade, runPerks } from './upgrades.ts';
+import { actScale, addKronor, addTrinket, addUp, ownedN, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, scrapHearts, type NodeLog, type RaceSummary, type RunState } from './state.ts';
+import { available, interestOn, isUpgrade, runPerks } from './upgrades.ts';
 
 /** Trophies and the end screen come from here when status is not 'running'. */
 export const isOver = (r: RunState): boolean => r.status !== 'running';
@@ -231,7 +231,10 @@ export function finishNode(run: RunState): RunState {
     if (r.act >= ACTS) {
       r.act = ACTS - 1;
       r.status = 'won';
-    } else if (r.car.body === 'sofa') chaosGift(r);
+    } else {
+      if (r.car.body === 'sofa') chaosGift(r);
+      toolboxGift(r);
+    }
   } else {
     r.at = scr.nodeId;
     r.path.push(scr.nodeId);
@@ -239,12 +242,25 @@ export function finishNode(run: RunState): RunState {
   return r;
 }
 
-/** The sofa's passive: a random trinket from the pool lands in the build at the start of each new act. */
+/** The sofa's passive: a random talisman from the pool lands in the build at the start of each new act. */
 export function chaosGift(r: RunState): string | null {
   const id = drawTrinkets(r, Rng.for(r.seed, 'sofa', r.act), 1, 'event')[0];
   if (!id) return null;
   addTrinket(r, id, { from: 'Kaosarvet: soffan hittade den', node: '' });
   return id;
+}
+
+/** Verktygslådan: at the start of each new act somebody bolts a random open upgrade node onto the car (one for each toolbox, none when the trees are full). */
+export function toolboxGift(r: RunState): string[] {
+  const got: string[] = [];
+  for (let i = 0; i < ownedN(r, 'verktygslada'); i++) {
+    const open = available(r.up, r.car.body).filter((u) => !u.cap);
+    if (!open.length) break;
+    const pick = Rng.for(r.seed, 'toolbox', r.act, i).pick(open);
+    addUp(r, pick.id, { from: 'Verktygslådan: någon skruvade dit den', node: '' });
+    got.push(pick.id);
+  }
+  return got;
 }
 
 /** Acts completed, for the trophies and the summary. */

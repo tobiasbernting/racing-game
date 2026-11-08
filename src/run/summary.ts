@@ -7,7 +7,7 @@ import { ACTS, NODE_EMOJI, NODE_NAMES } from './map.ts';
 import { DERBY_EMOJI, DERBY_NAME } from '../shared/derby.ts';
 import { kitOf, LEAN_EMOJI, LEAN_NAMES } from '../shared/abilities.ts';
 import { diffLabel, diffOf, trophyScale } from './difficulty.ts';
-import { challengeReport, type ChallengeLine } from './unlocks.ts';
+import { medalReport, type MedalLine } from './medals.ts';
 import type { NodeLog, RunState, RunStats } from './state.ts';
 import { TRINKETS, trinketById, type TrinketPath } from './trinkets.ts';
 import { TREES, TREE_INFO, activeCombos, itemInfo, nodePath, reqName, treeLines, upgradeById, type TreeId } from './upgrades.ts';
@@ -87,7 +87,7 @@ function defs(run: RunState): Def[] {
     { id: 'nitro', icon: '🔥', label: 'Nitro', n: s.nitroSeconds, ref: 30, fmt: (n) => `${sv(n, 1)} s`, line: (n) => `${sv(n)} sekunder nitro. Bilen luktar nybakad pizza.` },
     { id: 'coins', icon: '🪙', label: 'Mynt', n: s.coins, ref: 70, line: (n) => `${n} mynt plockade du upp. Fickorna klirrar när du går.` },
     { id: 'earned', icon: '💰', label: 'Kronor tjänade', n: s.kronorEarned, ref: 1800, fmt: (n) => `${sv(n)} kr`, line: (n) => `${sv(n)} kr tjänade du. Skatteverket har börjat ringa.` },
-    { id: 'spent', icon: '🛒', label: 'Kronor spenderade', n: s.kronorSpent, ref: 1200, fmt: (n) => `${sv(n)} kr`, line: (n) => `${sv(n)} kr gick till prylar. Mackens ägare köpte en segelbåt.` },
+    { id: 'spent', icon: '🛒', label: 'Kronor spenderade', n: s.kronorSpent, ref: 1200, fmt: (n) => `${sv(n)} kr`, line: (n) => `${sv(n)} kr gick till talismaner. Mackens ägare köpte en segelbåt.` },
     { id: 'hearts', icon: '💔', label: 'Hjärtan förlorade', n: s.heartsLost, ref: 7, line: (n) => `${n} hjärtan förlorade. Din cardiolog vill prata.` },
     { id: 'oil', icon: '🛢️', label: 'Oljefläckar', n: s.oilHits, ref: 5, line: (n) => `${times(n)} i oljan. Du och oljan är officiellt bästisar.` },
     { id: 'hazards', icon: '🍌', label: 'Fällor utlagda', n: s.hazards + 0, ref: 12, line: (n) => `${n} fällor lade du ut åt andra. Du är trevlig på ett ovanligt sätt.` },
@@ -99,7 +99,7 @@ function defs(run: RunState): Def[] {
     { id: 'bosses', icon: '👑', label: 'Bossar slagna', n: s.bossesBeaten, ref: 3, fmt: (n) => `${n} av ${ACTS}`, line: (n) => (n >= ACTS ? 'Alla bossar slagna. De bildar en stödgrupp.' : `${n} av ${ACTS} bossar slagna. De andra vågar inte titta på dig.`) },
   ];
   if (tt && tdef) list.push({ id: 'trinket', icon: tdef.emoji, label: `Mest utlöst: ${tdef.name}`, n: tt.n, ref: 55, fmt: (n) => `${n} gånger`, line: (n) => `${tdef.name} utlöstes ${times(n)}. Den jobbar hårdare än du.` });
-  else list.push({ id: 'trinket', icon: '🎁', label: 'Mest utlöst pryl', n: 0, ref: 55, fmt: () => '–', line: () => '' });
+  else list.push({ id: 'trinket', icon: '🎁', label: 'Mest utlöst talisman', n: 0, ref: 55, fmt: () => '–', line: () => '' });
   list.push({ id: 'time', icon: '⏲️', label: 'Total åktid', n: 0, ref: 1, fmt: () => fmtMs(s.totalTime), line: () => '' });
   return list;
 }
@@ -324,9 +324,9 @@ export function abilityOf(run: RunState): AbilityInfo {
   return { emoji: k.active.emoji, name: k.active.name, text: k.active.text, uses: Math.round(run.stats.abilityUses), passive: { name: k.passive.name, text: k.passive.text }, lean: `${LEAN_EMOJI[k.lean]} ${LEAN_NAMES[k.lean]}`, vehicle: CAR_BODY_NAMES[run.car.body], ups: run.up.map((id) => upgradeById(id)).filter((u): u is NonNullable<typeof u> => !!u && u.tree === 'car').map((u) => ({ name: u.name, text: u.text })) };
 }
 
-/** The challenges this run moved or completed, for the result screen. */
-export function challengesOf(run: RunState, progressNow: Record<string, number>): ChallengeLine[] {
-  return challengeReport(run.chal0, progressNow, run.end?.unlockedBodies ?? run.opened);
+/** The medals this run moved or earned, for the result screen. */
+export function medalsOf(run: RunState, progressNow: Record<string, number>): MedalLine[] {
+  return medalReport(run.chal0, progressNow, run.end?.unlockedBodies ?? run.opened);
 }
 
 export interface BuildView {
@@ -389,28 +389,4 @@ export function trophyReasons(run: RunState, won: boolean): TrophyReason[] {
   const extra = trophyScale(run.diff, base) - base;
   if (extra > 0) out.push({ text: `${diffLabel(run.diff)}: ${String(diffOf(run.diff).trophyMul).replace('.', ',')}× troféer`, n: extra });
   return out;
-}
-
-export interface NextUnlock {
-  what: string;
-  need: number;
-  have: number;
-  /** The trophy count of the step before, for the bar. */
-  from: number;
-}
-
-/** The next batch of new trinkets above `total` trophies (vehicles open through challenges now), or null when everything is open. */
-export function nextUnlock(total: number): NextUnlock | null {
-  const steps = new Map<number, string[]>();
-  const add = (t: number, what: string): void => {
-    if (t > 0) steps.set(t, [...(steps.get(t) ?? []), what]);
-  };
-  const byT = new Map<number, number>();
-  for (const t of TRINKETS) if (t.unlock > 0) byT.set(t.unlock, (byT.get(t.unlock) ?? 0) + 1);
-  for (const [t, n] of byT) add(t, `🎁 ${n} ${n === 1 ? 'ny pryl' : 'nya prylar'}`);
-  const keys = [...steps.keys()].sort((a, b) => a - b);
-  const need = keys.find((k) => k > total);
-  if (need === undefined) return null;
-  const from = [...keys, 0].filter((k) => k <= total).sort((a, b) => b - a)[0] ?? 0;
-  return { what: steps.get(need)!.join(' + '), need, have: total, from };
 }

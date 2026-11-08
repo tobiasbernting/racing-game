@@ -166,6 +166,9 @@ export interface TickState {
   /** Braking hard at speed, and on one wheel line (a wheelie, or a long wide slide). */
   braking: boolean;
   wheelie: boolean;
+  /** Blodbad (health bars, wrecks, takedowns) and, inside it, the Rivningsderby arena. */
+  carnage: boolean;
+  derby: boolean;
 }
 
 export interface FinishInfo {
@@ -241,6 +244,14 @@ export interface RaceApi {
   flame(): void;
   /** Heals the plating (and, in Blodbad, the health) by this much of the whole (0..1). */
   heal(frac: number): void;
+  /** The active ability becomes another vehicle's (a random one), and its cooldown starts afresh at most a couple of seconds out. */
+  rerollAbility(): void;
+  /** Takes seconds off the ability's cooldown (a negative number adds). */
+  abilityCooldown(sec: number): void;
+  /** Uses the active of the front-most rival at once (the one it used last), without the cooldown; false when there is nobody to copy. */
+  copyLeaderAbility(): boolean;
+  /** Uses the player's own active again, without the cooldown or a count. */
+  repeatAbility(): void;
 }
 
 export interface HookCtx {
@@ -271,6 +282,8 @@ export interface ModHooks {
   takedown?(c: HookCtx): void;
   wreck?(c: HookCtx): void;
   overtake?(c: HookCtx, leader: boolean): void;
+  /** The player used the vehicle's active ability (not when a talisman repeats or copies one). */
+  ability?(c: HookCtx): void;
 }
 
 /** One kind of trinket the player carries. */
@@ -338,6 +351,9 @@ export class ModBus {
   }
   overtake(leader: boolean): void {
     for (const e of this.entries) e.hooks.overtake?.(e.ctx, leader);
+  }
+  ability(): void {
+    for (const e of this.entries) e.hooks.ability?.(e.ctx);
   }
   finish(r: FinishInfo): Required<FinishAdjust> {
     const out = { kronor: 0, time: 0 };

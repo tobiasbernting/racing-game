@@ -41,7 +41,7 @@ import {
 import type { RaceKind } from '../shared/kinds.ts';
 
 const fresh = (body: CarBody = 'hatch', ups: string[] = []): RunState => {
-  const r = newRun({ seed: 41, calm: false, body, driver: 'human', paint: '#e8412c', trophies: 99 });
+  const r = newRun({ seed: 41, calm: false, body, driver: 'human', paint: '#e8412c' });
   r.trinkets = [];
   r.up = [];
   for (const id of ups) takeNode(r.up, id);

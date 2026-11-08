@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { STARTERS, cleanMeta, defaultMeta, trophiesFor, unlockedBodies, unlockedTrinkets } from './meta.ts';
+import { STARTERS, cleanMeta, defaultMeta, trophiesFor } from './meta.ts';
 import { META_KEY, RUN_KEY, clearRun, loadMeta, loadRun, parseRun, saveMeta, saveRun } from './save.ts';
 import { continueAfterRace, enterNode, submitRace } from './flow.ts';
 import { newRun, reachable, type RunState } from './state.ts';
@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 const sample = (): RunState => {
-  let run = newRun({ seed: 2024, calm: false, body: 'buggy', driver: 'pig', paint: '#2f6fe0', trophies: 5 });
+  let run = newRun({ seed: 2024, calm: false, body: 'buggy', driver: 'pig', paint: '#2f6fe0' });
   run.trinkets = [{ id: 'gummianka', n: 2 }, { id: 'jattehjul', n: 1 }];
   run.kronor = 123;
   run.up = ['race.engine1', 'race.engine2'];
@@ -50,7 +50,7 @@ describe('saving a run', () => {
   });
 
   it('keeps a shop or a reward in progress', () => {
-    let run = newRun({ seed: 5, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 3 });
+    let run = newRun({ seed: 5, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c' });
     run.screen = { kind: 'reward', nodeId: 'a0r0c0', choices: ['gummianka', 'bananskal'], ups: ['race.grip1', 'ram.spikes1'], source: 'boss' };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);
     run = { ...run, screen: { kind: 'shop', nodeId: 'a0r0c0', stock: [{ id: 'gummianka', sold: true }, { id: 'jattehjul', sold: false }], rerolls: 2, healed: true, repaired: false } };
@@ -128,13 +128,9 @@ describe('saving a run', () => {
 });
 
 describe('meta progress', () => {
-  it('starts with the five starters', () => {
-    expect(unlockedBodies(defaultMeta())).toEqual(STARTERS);
-  });
-
-  it('trophies put more trinkets in the pool', () => {
-    expect(unlockedTrinkets(0).length).toBeLessThan(unlockedTrinkets(5).length);
-    expect(unlockedTrinkets(100)).toHaveLength(TRINKETS.length);
+  it('starts with no medals and nothing locked: trophies only keep score', () => {
+    expect(defaultMeta().progress).toEqual({});
+    expect('bodies' in defaultMeta()).toBe(false);
   });
 
   it('trophies: more for further acts and for winning', () => {
@@ -147,7 +143,7 @@ describe('meta progress', () => {
   });
 
   it('round trips and falls back to fresh progress on junk', () => {
-    const m = { ...defaultMeta(), trophies: 9, runs: 3, bestAct: 2, seen: ['gummianka', 'xx'], diff: 'calm' as const, bodies: [...STARTERS, 'coupe' as const], body: 'coupe' as const, driver: 'cat' as const };
+    const m = { ...defaultMeta(), trophies: 9, runs: 3, bestAct: 2, seen: ['gummianka', 'xx'], diff: 'calm' as const, body: 'coupe' as const, driver: 'cat' as const };
     saveMeta(m);
     const back = loadMeta();
     expect(back.trophies).toBe(9);
@@ -158,9 +154,9 @@ describe('meta progress', () => {
     store.setItem(META_KEY, 'trasig');
     expect(loadMeta()).toEqual(defaultMeta());
     expect(cleanMeta(null)).toEqual(defaultMeta());
-    expect(cleanMeta({ trophies: 'många', body: 'monster' })).toEqual(defaultMeta());
-    // a locked body is not kept
-    expect(cleanMeta({ trophies: 1, body: 'monster' }).body).toBe('hatch');
+    expect(cleanMeta({ trophies: 'många', body: 'raket' })).toEqual(defaultMeta());
+    // nothing is locked: any real vehicle is kept
+    expect(cleanMeta({ trophies: 1, body: 'monster' }).body).toBe('monster');
   });
 
   it('carries over the car the quick race remembered', () => {
@@ -175,7 +171,7 @@ describe('a finished run stays saved until its summary is left', () => {
   it('keeps the last race card and how the run was counted, so a reload counts nothing twice', async () => {
     const { newRun } = await import('./state.ts');
     const { parseRun } = await import('./save.ts');
-    const r = newRun({ seed: 9, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
+    const r = newRun({ seed: 9, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c' });
     r.status = 'dead';
     r.hearts = 0;
     r.end = { won: false, trophies: 1, total: 1, unlockedBodies: [], unlockedTrinkets: [], progress: {} };
@@ -188,7 +184,7 @@ describe('a finished run stays saved until its summary is left', () => {
 
 describe('a save from before phase 6', () => {
   it('still loads: a race card without kinds or points, stats without takedowns, a reward without a source we know', () => {
-    const run = newRun({ seed: 11, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 3 });
+    const run = newRun({ seed: 11, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c' });
     const first = reachable(run)[0]!;
     const old = JSON.parse(JSON.stringify({ ...run, screen: { kind: 'postrace', nodeId: first.id, summary: { place: 1, n: 4, finished: true, time: 90000, heartLost: false, prize: 100, coins: 5, bonus: 0, total: 110, medal: null, reward: true } } }));
     delete old.stats.takedowns;
@@ -204,7 +200,7 @@ describe('a save from before phase 6', () => {
   });
 
   it('round trips the new card fields and a reward that offers a part upgrade or a consolation', () => {
-    const run = newRun({ seed: 12, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 3 });
+    const run = newRun({ seed: 12, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c' });
     const id = reachable(run)[0]!.id;
     run.screen = { kind: 'postrace', nodeId: id, summary: { place: 1, n: 4, finished: true, time: 90000, heartLost: false, hearts: 0, prize: 100, coins: 5, bonus: 0, total: 110, medal: null, reward: true, rewardKind: 'win', kind: 'carnage', points: 14, takedowns: 3, wrecked: 1, roadPlace: 3 } };
     expect(parseRun(JSON.parse(JSON.stringify(run)))?.screen).toEqual(run.screen);

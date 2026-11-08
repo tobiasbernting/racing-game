@@ -995,7 +995,7 @@ export function reqName(r: Req): string {
     const t = trinketById(r.trinket);
     return t ? `${t.emoji} ${t.name}` : r.trinket;
   }
-  return `🎲 en ${r.path === 'kaos' ? 'Kaos' : r.path}-pryl`;
+  return `🎲 en ${r.path === 'kaos' ? 'Kaos' : r.path}-talisman`;
 }
 
 export const COMBOS: ComboDef[] = [
@@ -1135,6 +1135,35 @@ export const COMBOS: ComboDef[] = [
         if (kind !== 'air') return;
         c.api.mine();
         c.api.say('combo.minfaltet', 'Minfältet!');
+      },
+    },
+  },
+  {
+    id: 'combo.skyfallet',
+    name: 'Skyfallet',
+    emoji: '☔',
+    a: { trinket: 'regnmakaren' },
+    b: { trinket: 'askmoln' },
+    text: 'Efter varje varv slår blixten ner i ledaren och ett skyfall sköljer undan bilarna runt dig.',
+    hooks: {
+      lap(c) {
+        c.api.shock(16, 9, 12);
+        c.api.say('combo.skyfallet', 'Skyfallet!');
+      },
+    },
+  },
+  {
+    id: 'combo.formagekaoset',
+    name: 'Förmågekaoset',
+    emoji: '🌀',
+    a: { trinket: 'roulett' },
+    b: { trinket: 'kopiatorn' },
+    text: 'Varje gång du använder en förmåga är det en chans på tre att den ekar tillbaka med en rusning.',
+    hooks: {
+      ability(c) {
+        if (Math.random() > 0.34) return;
+        c.api.boost(1.3, 1.3);
+        c.api.say('combo.formagekaoset', 'Kaos-eko!');
       },
     },
   },

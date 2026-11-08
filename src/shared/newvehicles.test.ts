@@ -8,7 +8,7 @@ import { Shots } from '../rally/shots.ts';
 import { Track } from '../rally/track.ts';
 import { COURSES } from '../rally/courses.ts';
 import { STARTERS } from '../run/meta.ts';
-import { CHALLENGES, challengeFor } from '../run/unlocks.ts';
+import { MEDALS, medalFor } from '../run/medals.ts';
 import { newRun } from '../run/state.ts';
 import { trinketById } from '../run/trinkets.ts';
 import { abilityOf, buildView } from '../run/summary.ts';
@@ -102,7 +102,7 @@ describe('the ten new vehicles', () => {
 
   it('start a run with their own starting trinket', () => {
     for (const b of NEW) {
-      const r = newRun({ seed: 3, calm: false, body: b, driver: 'human', paint: '#e8412c', trophies: 0 });
+      const r = newRun({ seed: 3, calm: false, body: b, driver: 'human', paint: '#e8412c' });
       expect(r.trinkets.map((t) => t.id)).toContain(kitOf(b).trinket);
     }
   });
@@ -145,7 +145,7 @@ describe('the ten new vehicles', () => {
 
   it('show up on the result screen with their own ability, passive and lean', () => {
     for (const b of NEW) {
-      const r = newRun({ seed: 3, calm: false, body: b, driver: 'human', paint: '#e8412c', trophies: 0 });
+      const r = newRun({ seed: 3, calm: false, body: b, driver: 'human', paint: '#e8412c' });
       const a = abilityOf(r);
       expect(a.name).toBe(kitOf(b).active.name);
       expect(a.passive.name).toBe(kitOf(b).passive.name);
@@ -155,34 +155,34 @@ describe('the ten new vehicles', () => {
   });
 
   it('are each opened by exactly one challenge, and a few of them are easy for a ten-year-old', () => {
-    for (const b of NEW) expect(CHALLENGES.filter((c) => c.body === b)).toHaveLength(1);
-    expect(CHALLENGES).toHaveLength(15);
+    for (const b of NEW) expect(MEDALS.filter((c) => c.body === b)).toHaveLength(1);
+    expect(MEDALS).toHaveLength(15);
     // the golf cart: reach act 2 on Söndagsåkare; the camper: just play five runs; the mower: press the button
-    const calm = newRun({ seed: 1, calm: true, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
+    const calm = newRun({ seed: 1, calm: true, body: 'hatch', driver: 'human', paint: '#e8412c' });
     calm.act = 1;
-    expect(challengeFor('golf')!.measure(calm)).toBe(1);
+    expect(medalFor('golf')!.measure(calm)).toBe(1);
     calm.calm = false;
-    expect(challengeFor('golf')!.measure(calm)).toBe(0);
-    expect(challengeFor('camper')!.mode).toBe('total');
-    expect(challengeFor('camper')!.goal).toBeLessThanOrEqual(5);
-    expect(challengeFor('mower')!.goal).toBeLessThanOrEqual(20);
+    expect(medalFor('golf')!.measure(calm)).toBe(0);
+    expect(medalFor('camper')!.mode).toBe('total');
+    expect(medalFor('camper')!.goal).toBeLessThanOrEqual(5);
+    expect(medalFor('mower')!.goal).toBeLessThanOrEqual(20);
     // the rest measure what they say
-    const r = newRun({ seed: 1, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
+    const r = newRun({ seed: 1, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c' });
     r.stats.coins = 150;
     r.stats.driftSeconds = 41.5;
     r.stats.kronorSpent = 900;
     r.stats.abilityUses = 20;
     r.trinkets = [{ id: 'kastrull', n: 7 }, { id: 'dino', n: 5 }];
-    expect(challengeFor('icecream')!.measure(r)).toBe(150);
-    expect(challengeFor('kart')!.measure(r)).toBe(41);
-    expect(challengeFor('limo')!.measure(r)).toBe(900);
-    expect(challengeFor('mower')!.measure(r)).toBe(20);
-    expect(challengeFor('garbage')!.measure(r)).toBe(12);
+    expect(medalFor('icecream')!.measure(r)).toBe(150);
+    expect(medalFor('kart')!.measure(r)).toBe(41);
+    expect(medalFor('limo')!.measure(r)).toBe(900);
+    expect(medalFor('mower')!.measure(r)).toBe(20);
+    expect(medalFor('garbage')!.measure(r)).toBe(12);
     // the rocket cart is the hardest: win a run with the moppe or the traktor
     r.status = 'won';
-    expect(challengeFor('cart')!.measure(r)).toBe(0);
+    expect(medalFor('cart')!.measure(r)).toBe(0);
     r.car = newCar(1, 'moped', '');
-    expect(challengeFor('cart')!.measure(r)).toBe(1);
+    expect(medalFor('cart')!.measure(r)).toBe(1);
   });
 });
 

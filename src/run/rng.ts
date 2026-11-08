@@ -2,6 +2,7 @@
 // a shop's stock, what an event does) makes its own generator from the run seed plus a few labels, so a run
 // restored from a save decides exactly as it would have.
 import { rng } from '../rally/util.ts';
+import { randomSeed } from './seedcode.ts';
 
 /** A 32-bit hash of a seed and any labels (strings or numbers). */
 export function hashSeed(seed: number, ...parts: (string | number)[]): number {
@@ -69,5 +70,5 @@ export class Rng {
   }
 }
 
-/** A fresh seed for a new run. */
-export const newSeed = (): number => (Math.floor(Math.random() * 0xffffffff) >>> 0) || 1;
+/** A fresh seed for a new run: one that has a readable code (run/seedcode.ts). */
+export const newSeed = (): number => randomSeed();

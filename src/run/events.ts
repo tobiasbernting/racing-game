@@ -162,7 +162,7 @@ export const EVENTS: EventDef[] = [
       {
         label: 'Jaga guldpotten',
         outcomes: [
-          { w: 25, text: 'Guldpotten fanns på riktigt! En leprechaun bara gråter i buskarna. Och du får en pryl också.', fx: [{ k: 'kr', n: 80 }, { k: 'trinket' }] },
+          { w: 25, text: 'Guldpotten fanns på riktigt! En leprechaun bara gråter i buskarna. Och du får en talisman också.', fx: [{ k: 'kr', n: 80 }, { k: 'trinket' }] },
           { w: 75, text: 'Det var bara glitter. Och en tom Pringles-burk. Du tappar 15 kr på jakten.', fx: [{ k: 'kr', n: -15 }] },
         ],
       },
@@ -184,7 +184,7 @@ export const EVENTS: EventDef[] = [
     title: 'Snögubben med skylt',
     text: 'En snögubbe står mitt i sommaren med en skylt: ”Kramar eller kronor? Jag smälter snart. Bestäm dig.”',
     choices: [
-      { label: 'Ge en kram', outcomes: [{ text: 'Brrr, iskallt! Men snögubben ger dig 40 kr och en pryl ur sin morot. Fråga inte var.', fx: [{ k: 'kr', n: 40 }, { k: 'trinket', rarity: 'common' }] }] },
+      { label: 'Ge en kram', outcomes: [{ text: 'Brrr, iskallt! Men snögubben ger dig 40 kr och en talisman ur sin morot. Fråga inte var.', fx: [{ k: 'kr', n: 40 }, { k: 'trinket', rarity: 'common' }] }] },
       { label: 'Ta kronorna', outcomes: [{ text: 'Snögubben smälter lite av besvikelse. Du får 50 kr. Du är en monsterperson.', fx: [{ k: 'kr', n: 50 }] }] },
     ],
   },
@@ -219,7 +219,7 @@ EVENTS.push(
       {
         label: 'Fånga stenen',
         outcomes: [
-          { w: 60, text: 'Stenen är bara varm, som en nygammal pizza. I paketet ligger en riktig pryl.', fx: [{ k: 'trinket' }] },
+          { w: 60, text: 'Stenen är bara varm, som en nygammal pizza. I paketet ligger en riktig talisman.', fx: [{ k: 'trinket' }] },
           { w: 40, text: 'AJ, VARM! Bilen blir sotig och skadad. Vulkanen skäms.', fx: [{ k: 'damage', n: 20 }] },
         ],
       },
