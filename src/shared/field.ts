@@ -4,6 +4,7 @@
 import { KIND_AGGRO, type RaceKind } from './kinds.ts';
 import { PART_EFFECTS, type CarBody } from './rally.ts';
 import { ARCHETYPES, rivalCast, type Archetype } from './rivals.ts';
+import type { Difficulty } from '../run/difficulty.ts';
 
 export type RivalRole = 'rival' | 'elite' | 'boss';
 
@@ -249,6 +250,8 @@ export interface FieldPlan {
   act: number;
   row: number;
   calm: boolean;
+  /** The run's difficulty: it scales the comeback help for the player (rally/catchup.ts). */
+  diff: Difficulty;
   /** How far into the run, 0..1. */
   t: number;
   rivals: RivalSpec[];
@@ -267,6 +270,8 @@ export interface FieldInput {
   row: number;
   role: RivalRole;
   calm: boolean;
+  /** The difficulty, if the caller knows it (otherwise Söndagsåkare or Normal from `calm`). */
+  diff?: Difficulty;
   /** Computer cars. */
   ai: number;
   /** `rivalId`: the rival the boss is also (it stays off the grid). `perfect`: the line is the racing line, and the nitro goes off on every straight. */
@@ -355,7 +360,7 @@ export function buildField(i: FieldInput): FieldPlan {
       rules,
     });
   }
-  return { kind: i.kind, act: i.act, row: i.row, calm: i.calm, t, rivals, catchUp: catchUpFor(i.act, i.calm), sharp: i.calm ? 0.3 * t : 0.2 + 0.8 * t, hazards: hazardsFor(i.act, i.kind, i.calm), narrow: narrowFor(i.act, i.calm) };
+  return { kind: i.kind, act: i.act, row: i.row, calm: i.calm, diff: i.diff ?? (i.calm ? 'calm' : 'normal'), t, rivals, catchUp: catchUpFor(i.act, i.calm), sharp: i.calm ? 0.3 * t : 0.2 + 0.8 * t, hazards: hazardsFor(i.act, i.kind, i.calm), narrow: narrowFor(i.act, i.calm) };
 }
 
 export const archetypeCounts = (f: FieldPlan): Record<Archetype, number> => {

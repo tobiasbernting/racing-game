@@ -6,6 +6,7 @@
 import { MAX_CHARGES, MAX_NITRO_SECONDS, capGrip, capPower } from '../rally/mods.ts';
 import { ramPowerOf } from '../rally/combat.ts';
 import { LASTLAP_BOOST, catchUpBoost, easeOff, type RivalSpec } from '../shared/field.ts';
+import { RAGE, comebackLevel, helpK, rageStrength, rivalEase, simSpeedBonus, slipDepth, slipK } from '../rally/catchup.ts';
 import { carnagePoints, pointsTable } from '../shared/kinds.ts';
 import { DERBY_SECONDS } from '../shared/derby.ts';
 import { BODY_LAP, HOOK_SAVE, HUMAN_FACTOR, NITRO_SAVE, baseLap, carGain, driftSaving, rivalLap, type HumanSkill } from '../shared/pace.ts';
@@ -137,6 +138,9 @@ interface Car {
   t: number;
   done: boolean;
   pen: number;
+  /** The player's rage left (s) and whether the last second was spent standing still. */
+  rage?: number;
+  stood?: boolean;
 }
 
 /** How well a driver of each kind dodges the hits in a derby (a good player sees them coming). */
@@ -291,7 +295,7 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
   // being gone for by the rivals who like contact (already scaled by the race kind): shoves, spins and lost speed
   const hunted = field.rivals.reduce((a, sp) => a + (carnage ? Math.max(0.3, sp.aggro) : sp.aggro) * sp.ram, 0);
   const contactCost = (laps * 0.4 * hunted) / (0.7 + 0.3 * Math.sqrt(stats.mass));
-  const myPenalty = contactCost + hazardCost(HAZARD_HIT[m.skill], 1) +  (carnage ? myWrecks * 3.0 + myTake * 0.6 * (0.4 + m.aggression) : 0) + (poisson(rg, laps * INCIDENT[m.skill]) * 6);
+  const myPenalty = contactCost + hazardCost(HAZARD_HIT[m.skill], 1) +  (carnage ? myWrecks * 3.0 + myTake * 0.6 * (0.4 + m.aggression) : 0) + (poisson(rg, laps * INCIDENT[m.skill]) * 5.6);
   // per-car pace for each lap (noise), with the player's savings spread over the race
   const pace: number[][] = cars.map((c) => Array.from({ length: laps }, () => LAP_M / (c.lap * (1 + c.sigma * gauss(rg)))));
   const me = cars[0]!;
@@ -308,6 +312,10 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
     c.pen = pen + hazardCost(0.22, c.spec?.slip ?? 1) + mutual;
   }
   const total = laps * LAP_M;
+  // the comeback help (rally/catchup.ts) for this difficulty: the same formulas the race itself uses
+  const helpDiff = field.diff;
+  const hk = helpK(helpDiff);
+  const sk = slipK(helpDiff);
   let t = 0;
   let snap: number[] | null = null;
   while (cars.some((c) => !c.done) && t < 900) {
@@ -318,13 +326,38 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
       const wait = Math.min(1, c.pen);
       c.pen -= wait;
       const run1 = 1 - wait;
+      // the player's rage starts as the car gets going again after an incident
+      if (c === me) {
+        if (wait > 0) c.stood = true;
+        else if (c.stood) {
+          c.stood = false;
+          if (hk > 0) c.rage = RAGE.seconds;
+        }
+      }
       if (run1 <= 0) return;
       const lapNo = Math.min(laps - 1, Math.floor(c.u / LAP_M));
       let v = pace[idx]![lapNo]!;
       if (c !== me && !me.done) {
         const gap = c.u - me.u;
-        v *= (1 + catchUpBoost(-gap, field.catchUp)) * (1 - easeOff(gap, field.catchUp));
+        v *= (1 + catchUpBoost(-gap, field.catchUp)) * (1 - easeOff(gap, field.catchUp)) * (1 - rivalEase(gap, hk * (c.spec?.boss ? 0.6 : 1)));
         if (c.spec?.rules.includes('lastlap') && lapNo >= laps - 1) v *= 1 + LASTLAP_BOOST;
+      }
+      if (c === me && !me.done) {
+        // slipström behind a car just ahead, the comeback for a player far behind and low in the order, and the rage after an incident
+        let lead = -1e9;
+        let ahead = 0;
+        let draft = 0;
+        for (const o of cars) {
+          if (o === me) continue;
+          lead = Math.max(lead, o.u);
+          if (o.u > me.u) ahead++;
+          // only about half the time near a car is spent in its lane
+          draft = Math.max(draft, slipDepth(o.u - me.u, 0.9, 40) * 0.5);
+        }
+        const level = comebackLevel(lead - me.u, ahead + 1, cars.length);
+        const rageNow = rageStrength(me.rage ?? 0, RAGE.seconds);
+        v *= 1 + simSpeedBonus({ level, k: hk, rage: rageNow, slip: draft, slipK: sk });
+        me.rage = Math.max(0, (me.rage ?? 0) - 1);
       }
       c.u += v * run1;
       if (c.u >= total) {

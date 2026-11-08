@@ -10,6 +10,7 @@ import { buildField, unit, type FieldPlan } from '../shared/field.ts';
 import { BORROWED, GIMMICKS, type GimmickId } from '../shared/gimmicks.ts';
 import type { Archetype } from '../shared/rivals.ts';
 import { ARENAS, DERBY_NAME, type ArenaId } from '../shared/derby.ts';
+import { asDifficulty, type Difficulty } from './difficulty.ts';
 
 export interface BossDef {
   id: BossId;
@@ -220,7 +221,9 @@ export function targetTimeMs(course: RallyCourse, laps: number, act = 0): number
   return Math.round(RALLY_COURSE_DEFS[course].gold * laps * 1000 * slack + [3000, 2000, 1000][Math.min(2, Math.max(0, act))]!);
 }
 
-export function planRace(node: MapNode, calm: boolean): RacePlan {
+export function planRace(node: MapNode, difficulty: Difficulty | boolean): RacePlan {
+  const diff = asDifficulty(difficulty);
+  const calm = diff === 'calm';
   const act = node.act;
   const course = node.course ?? 'farm';
   const kind: RaceKind = node.kind ?? 'rally';
@@ -308,6 +311,7 @@ export function planRace(node: MapNode, calm: boolean): RacePlan {
     row: node.row,
     role: node.type === 'elite' ? 'elite' : boss ? 'boss' : 'rival',
     calm,
+    diff,
     ai: rules.ai,
     boss: boss ? { id: boss.id, archetype: boss.archetype, power: boss.twist.boss?.power, skill: boss.twist.boss?.skill, rivalId: boss.rivalId, perfect: boss.champion } : undefined,
   });
