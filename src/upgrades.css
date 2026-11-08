@@ -306,3 +306,6 @@
   .rg-dtable li { padding: 1px 8px; }
 }
 .rg-scrap { font-size: 14px; font-weight: 800; opacity: 0.85; }
+
+/* the ribbons on the result screen sit low, on the left over the footer, not over the chips in the header's corner */
+.arc-unl.low { top: auto; right: auto; left: max(12px, env(safe-area-inset-left)); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 74px); }
