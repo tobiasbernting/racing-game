@@ -29,7 +29,7 @@ import { btn, el, plural } from './dom.ts';
 import { treeLabel, upgradeCard } from './upgrades.ts';
 import { ACT_NAMES, arrowSvg, chip, seedChip, statusBar, trinketCard, trinketIcons } from './parts.ts';
 import { countUp } from './juice.ts';
-import type { Settings } from '../settings.ts';
+import { BRIGHTNESS_MAX, BRIGHTNESS_MIN, type Settings } from '../settings.ts';
 import { SCHEMES, SCHEME_NAMES, SCHEME_TEXT, SIZES, SIZE_NAMES, isManual, type ControlPrefs, type Scheme } from '../controls.ts';
 import type { RunEnd } from '../run/state.ts';
 
@@ -881,6 +881,7 @@ export function settingsView(o: SettingsOpts): HTMLElement {
     btn('rg-btn rg-set rg-setname', [el('span', null, `🧑 Du heter: ${o.who}`), el('small', null, 'Byt namn eller rallynamn')], o.onName),
     el('div', 'rg-setvol', el('span', 'rg-setlabel', '🔊 Ljud'), vols),
     controlsSection(o),
+    pictureSection(o),
     toggle('🎵', 'Musik', 'Soundtracket till kaoset', () => s.music, (v) => { s.music = v; o.onChange(); }),
     toggle('📳', 'Skakningar', 'Kameran vibrerar vid krascher och landningar', () => s.shake, (v) => { s.shake = v; o.onChange(); }),
     el('div', 'rg-setvol', el('span', 'rg-setlabel', '💥 Pop-ups'), popRow),
@@ -889,6 +890,67 @@ export function settingsView(o: SettingsOpts): HTMLElement {
     o.fullscreen === null ? null : btn('rg-btn rg-set', '⛶ Helskärm på/av (ingen kant, ingen nåd)', o.onFullscreen),
   );
   return screen('rg-settings', el('div', 'rg-top', el('h2', 'rg-h tight', '⚙️ Inställningar')), el('div', 'rg-setbody', grid), foot(go('Klart, KÖR!', o.onClose)));
+}
+
+/** The Bild part of the settings (Game Accessibility Guidelines: a brightness setting, the effects can be turned down, enough contrast). */
+function pictureSection(o: SettingsOpts): HTMLElement {
+  const s = o.settings;
+  const box = el('div', 'rg-ctl rg-pic');
+  box.append(el('div', 'rg-setlabel', '🖼️ Bild'));
+  const chips = <T extends string | boolean>(label: string, items: readonly (readonly [T, string])[], get: () => T, set: (v: T) => void): HTMLElement => {
+    const wrap = el('div', 'rg-ctlrow');
+    const row = el('div', 'rg-vols');
+    const btns: [HTMLElement, T][] = [];
+    const paint = (): void => btns.forEach(([b, v]) => b.setAttribute('aria-pressed', String(get() === v)));
+    for (const [v, name] of items) {
+      const b = btn('rg-chipbtn', name, () => {
+        set(v);
+        paint();
+        o.onChange();
+      });
+      btns.push([b, v]);
+      row.append(b);
+    }
+    paint();
+    wrap.append(el('span', 'rg-setlabel', label), row);
+    return wrap;
+  };
+  // Ljusstyrka: a gamma in the post pass, live in the race
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.className = 'rg-slider';
+  slider.min = String(BRIGHTNESS_MIN);
+  slider.max = String(BRIGHTNESS_MAX);
+  slider.step = '0.05';
+  slider.value = String(s.brightness);
+  slider.setAttribute('aria-label', 'Ljusstyrka');
+  const val = el('span', 'rg-slidev', '');
+  const paintVal = (): void => {
+    val.textContent = s.brightness === 1 ? 'Normal' : `${s.brightness > 1 ? '+' : '−'}${Math.round(Math.abs(s.brightness - 1) * 100)} %`;
+    slider.setAttribute('aria-valuetext', val.textContent);
+  };
+  paintVal();
+  slider.addEventListener('input', () => {
+    s.brightness = Math.round(Number(slider.value) * 20) / 20;
+    paintVal();
+    o.onChange();
+  });
+  const reset = btn('rg-chipbtn', 'Normal', () => {
+    s.brightness = 1;
+    slider.value = '1';
+    paintVal();
+    o.onChange();
+  });
+  reset.setAttribute('aria-label', 'Ljusstyrka tillbaka till normal');
+  const bright = el('div', 'rg-ctlrow', el('span', 'rg-setlabel', '☀️ Ljusstyrka'), el('div', 'rg-slidewrap', slider, val, reset));
+  box.append(
+    bright,
+    chips('🌙 Mörker', [['normal', 'Normal'], ['bright', 'Ljusare natt'], ['none', 'Ingen natt']] as const, () => s.dark, (v) => (s.dark = v)),
+    chips('✨ Effekter', [['full', 'Fulla'], ['less', 'Färre']] as const, () => s.effects, (v) => (s.effects = v)),
+    chips('🛣️ Hög kontrast-väg', [[false, 'Av'], [true, 'På']] as const, () => s.hiRoad, (v) => (s.hiRoad = v)),
+    el('p', 'rg-ctlnote', 'Ljusstyrkan syns direkt. Mörker, Effekter och Hög kontrast-väg gäller från nästa lopp. Färre effekter: mindre kameraskak, korn, vinjett, fartstreck och inga blixtrande ljus. Ingen natt byter nattloppen mot skymning.'),
+  );
+  return box;
 }
 
 /** The Kontroller part of the settings: scheme, shifting, button size and opacity, left-handed, move buttons, vibration. */

@@ -3,6 +3,7 @@
 // windows, street lamps and neon signs. Also the extra fence kinds, the city tunnel, rain and snow.
 // Same style as models.ts: low-poly vertex-coloured geometry, instanced in tiles.
 import * as THREE from 'three';
+import { settings } from '../settings.ts';
 import type { CourseDef, ScenerySet } from './courses.ts';
 import { Geo, blobTex, canvasTex, mat } from './geo.ts';
 import { forest, lakeDist, streamDist } from './layout.ts';
@@ -878,7 +879,8 @@ export function buildThemeScenery(track: Track, terrain: Terrain, course: Course
       for (const f of anims) f(time, focus);
       for (let k = 0; k < neons.length; k++) {
         // one sign in five flickers now and then
-        const fl = k % 5 === 2 && Math.sin(time * 13 + k) > 0.92 ? 0.35 : 1;
+        // (about once a second at most, a dip to 60 %, and never with Effekter: Färre)
+        const fl = k % 5 === 2 && settings.effects !== 'less' && Math.sin(time * 5.5 + k) > 0.92 ? 0.6 : 1;
         neons[k]!.color.setScalar(fl);
       }
       if (smokePts && smoke) {

@@ -255,8 +255,16 @@ const rally = (ctx: GameContext): GameInstance => {
   const course = arenaC ? arenaC.def : courseFor(rules?.course ?? 'farm', vary, field?.narrow ?? 1);
   const LAPS = derby ? 999 : rules ? rules.laps : LAPS_Q;
   const rain = rules?.weather === 'rain' && canRain(course.id);
-  const timeOfDay = rules?.time ?? 'day';
+  // Inställningar > Bild: "Ingen natt" swaps every night race for dusk on this device (the city is always lit, so it keeps its lamps)
+  const darkNone = settings.dark === 'none';
+  const timeOfDay = darkNone && rules?.time === 'night' ? 'sunset' : (rules?.time ?? 'day');
   const night = course.theme.alwaysNight || timeOfDay === 'night';
+  /** Effekter: Färre. */
+  const lessFx = settings.effects === 'less';
+  /** Hög kontrast-väg: edge lines, reflector posts and big chevrons by day too. */
+  const hiRoad = settings.hiRoad;
+  /** Ljusare natt lifts the shadows and the moon further. */
+  const brightNight = settings.dark === 'bright';
   const rainGrip = rain ? 0.85 : 1;
   const diff = DIFF[rules?.difficulty ?? 'normal'];
   // contact damage on the plating: none in Blodbad (that has health), light in Rally, full in Blandat
@@ -332,7 +340,7 @@ const rally = (ctx: GameContext): GameInstance => {
   const renderer = new THREE.WebGLRenderer({ antialias: high && ctx.dpr < 1.6, powerPreference: 'high-performance' });
   renderer.setPixelRatio(ctx.dpr);
   renderer.toneMapping = TONE === 'aces' ? THREE.ACESFilmicToneMapping : TONE === 'agx' ? THREE.AgXToneMapping : THREE.NeutralToneMapping;
-  const grade = gradeFor(course.id, night, rain);
+  const grade = gradeFor(course.id, night, rain, { dark: brightNight ? 'bright' : 'normal', less: lessFx, dusk: timeOfDay === 'sunset' });
   renderer.toneMappingExposure = skyPreset.exposure * grade.exp;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   // the post pass renders more than once a frame: the stats add them up (reset in render())
@@ -343,11 +351,13 @@ const rally = (ctx: GameContext): GameInstance => {
   // the colour grade, vignette and (on 'high') bloom: one extra pass; without half-float targets a CSS vignette stands in
   const post = canPost(renderer) ? new Post(renderer, high, grade, high && ctx.dpr < 1.6) : null;
   let postOn = !!post;
+  let cssBright = 1;
   let vignette: HTMLElement | null = null;
   if (!post || !high) {
     vignette = document.createElement('div');
     vignette.className = 'rg-vignette';
     vignette.style.display = post ? 'none' : 'block';
+    if (lessFx) vignette.style.opacity = '0.45';
     ctx.root.prepend(vignette);
   }
   Object.assign(canvas.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', display: 'block' });
@@ -433,6 +443,11 @@ const rally = (ctx: GameContext): GameInstance => {
   const build = async (): Promise<void> => {
     sky = buildSky(renderer, ctx.quality, skyPreset);
     scene.add(sky.mesh, sky.sun, sky.sun.target, sky.hemi);
+    if (night) {
+      // night you can drive: a stronger sky-and-ground light and a brighter moon (the shadows are lifted again in the grade)
+      sky.hemi.intensity *= brightNight ? 1.8 : 1.35;
+      sky.sun.intensity *= brightNight ? 1.3 : 1.1;
+    }
     scene.fog = sky.fog;
     scene.background = sky.fog.color.clone();
     disposers.push(() => sky.dispose());
@@ -461,7 +476,7 @@ const rally = (ctx: GameContext): GameInstance => {
       await nextFrame();
       if (destroyed) return;
       const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-      const rd = buildRoad(track, terr, ctx.quality, aniso, course, { wet: rain || course.theme.lit, envMap: sky.env, grid: Math.max(6, 1 + nAi) });
+      const rd = buildRoad(track, terr, ctx.quality, aniso, course, { wet: rain || course.theme.lit, envMap: sky.env, grid: Math.max(6, 1 + nAi), night, hiRoad });
       road = rd;
       scene.add(rd.group);
       disposers.push(() => rd.dispose());
@@ -568,7 +583,10 @@ const rally = (ctx: GameContext): GameInstance => {
       () => skids.dispose(),
       () => confetti.dispose(),
     );
-    if (night) addHeadlights();
+    if (night) {
+      addHeadlights();
+      buildRivalLights();
+    }
     hud.progress(1);
     // warm up the shaders so the first frames do not stutter
     placeCamera(0);
@@ -719,6 +737,15 @@ const rally = (ctx: GameContext): GameInstance => {
         },
         /** A fixed camera (x, y, z looking at x, y, z); no arguments puts the chase camera back. */
         cam: (...v: number[]) => (dbgCam = v.length === 6 ? v : null),
+        /** Screen pixel (CSS px of the canvas) of the road point at s ahead of the player and d across, plus the half width there; null when off screen. */
+        probe: (ahead: number, d: number) => {
+          const s0 = meE!.car.proj.s + ahead;
+          const p = track.point(s0, d);
+          const v = new THREE.Vector3(p.x, p.y, p.z).project(camera);
+          if (v.z > 1 || Math.abs(v.x) > 1 || Math.abs(v.y) > 1) return null;
+          const r = canvas.getBoundingClientRect();
+          return { x: (v.x * 0.5 + 0.5) * r.width + r.left, y: (0.5 - v.y * 0.5) * r.height + r.top, hw: track.hw[track.index(s0)]!, surf: track.surf[track.index(s0)]! };
+        },
         /** Where the k-th burning barrel or flare is. */
         smokerAt: (k = 0) => attitude.smokers[k] ?? null,
         /** Warp to just before the k-th burning barrel or flare. */
@@ -908,9 +935,10 @@ const rally = (ctx: GameContext): GameInstance => {
     const me = player();
     const spots = high ? me.model.headlights : [me.model.headlights.reduce((a, b) => a.clone().add(b), new THREE.Vector3()).multiplyScalar(1 / Math.max(1, me.model.headlights.length))];
     for (const p of spots) {
-      const l = new THREE.SpotLight('#fff1d0', high ? 160 : 260, 90, 0.55, 0.5, 1.2);
+      // reaches 40 to 60 m down the road: a wide cone aimed well ahead, with a gentle fall-off (decay 0.9)
+      const l = new THREE.SpotLight('#fff1d0', high ? (brightNight ? 190 : 150) : brightNight ? 320 : 250, 140, 0.62, 0.55, 0.9);
       l.position.copy(p);
-      l.target.position.set(p.x * 0.6, -1.2, p.z + 22);
+      l.target.position.set(p.x * 0.6, -0.4, p.z + 40);
       me.model.root.add(l, l.target);
       headlights.push(l);
     }
@@ -1459,7 +1487,7 @@ const rally = (ctx: GameContext): GameInstance => {
     boostFeelPrev = boostFeel;
     const burn = nitroT > 0 || rocketT > 0 && kit?.active.id === 'rocket' || burstT > 0 ? 1.5 : boostFeel > 0.05 ? 0.35 + 1.1 * boostFeel : 0;
     me.model.setNitro(burn);
-    hud.speedLines(boostFeel > 0.04 ? 0.25 + 0.7 * boostFeel : 0, high);
+    hud.speedLines(boostFeel > 0.04 && !lessFx ? 0.25 + 0.7 * boostFeel : 0, high && !lessFx);
     if (burn > 0 && Math.random() < (high ? 1 : 0.6)) {
       const sinH = Math.sin(c.heading);
       const cosH = Math.cos(c.heading);
@@ -4141,7 +4169,8 @@ const rally = (ctx: GameContext): GameInstance => {
       rd.rotation.set(rx, 0, rz);
     }
     m.brakeMat.color.set(c.braking ? '#ff3a24' : '#701812');
-    m.root.visible = !blink || c.ghost <= 0 || (!!e && e.wreckT > 0) || Math.floor(time * 12) % 2 === 0;
+    // a ghost car blinks at 2.5 Hz at most (WCAG 2.3.1: never more than three flashes a second); with Effekter: Färre it just stays
+    m.root.visible = !blink || c.ghost <= 0 || (!!e && e.wreckT > 0) || lessFx || Math.floor(time * 5) % 2 === 0;
     // blob shadow on the ground, fading as the car flies
     const gy = c.groundAt(c.x, c.z, ground);
     const h = Math.max(0, c.y - gy);
@@ -4161,6 +4190,48 @@ const rally = (ctx: GameContext): GameInstance => {
       const q = e.squash;
       e.model.root.scale.set(base * (1 + 0.35 * q), base * (1 - 0.82 * q), base * (1 + 0.35 * q));
       e.model.shadow.scale.multiplyScalar(base);
+    }
+    if (night && rivalPools.length) updateRivalLights();
+  }
+
+  // ---- the rivals' headlights at night: a soft pool of light on the road ahead of each near car (a cheap additive decal, no real lights) ----
+  const rivalPools: THREE.Mesh[] = [];
+  const poolOwners: Entrant[] = [];
+  function buildRivalLights(): void {
+    const tex = blobTex(128, 0.05);
+    const geo = new THREE.PlaneGeometry(5.5, 15);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(0, 0, 9.5);
+    const m = new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(0.34, 0.31, 0.22), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 });
+    for (const e of entrants) {
+      if (e === meE) continue;
+      const q = new THREE.Mesh(geo, m);
+      q.frustumCulled = false;
+      q.renderOrder = 2;
+      q.visible = false;
+      scene.add(q);
+      rivalPools.push(q);
+      poolOwners.push(e);
+    }
+    disposers.push(() => {
+      for (const q of rivalPools) scene.remove(q);
+      tex.dispose();
+      geo.dispose();
+      m.dispose();
+    });
+  }
+  function updateRivalLights(): void {
+    const cx = camera.position.x;
+    const cz = camera.position.z;
+    for (let k = 0; k < rivalPools.length; k++) {
+      const e = poolOwners[k]!;
+      const q = rivalPools[k]!;
+      const near = !e.gone && e.wreckT <= 0 && Math.hypot(e.car.x - cx, e.car.z - cz) < 85;
+      q.visible = near;
+      if (near) {
+        q.position.set(e.car.x, e.car.y + 0.05, e.car.z);
+        q.rotation.y = e.car.heading;
+      }
     }
   }
 
@@ -4213,7 +4284,7 @@ const rally = (ctx: GameContext): GameInstance => {
     if (phase === 'race') fov += 12 * boostFeel;
     camFov = dt === 0 ? fov : damp(camFov, fov, 3, dt);
     camera.position.copy(camPos);
-    if (shake > 0 && settings.shake) {
+    if (shake > 0 && settings.shake && !lessFx) {
       const t = timeU.value;
       camera.position.x += Math.sin(t * 61) * shake * 0.25;
       camera.position.y += Math.sin(t * 47 + 1) * shake * 0.2;
@@ -4316,8 +4387,22 @@ const rally = (ctx: GameContext): GameInstance => {
       hud.drawMap(runners().filter((r) => !r.gone).map(toRacer), timeU.value);
     }
     renderer.info.reset();
-    if (post && postOn) post.render(scene, camera, timeU.value);
-    else renderer.render(scene, camera);
+    // Ljusstyrka: a gamma in the post pass; without the pass (very slow or old devices) a CSS brightness on the canvas
+    const bright = settings.brightness;
+    if (post && postOn) {
+      post.setBrightness(bright);
+      if (cssBright !== 1) {
+        canvas.style.filter = '';
+        cssBright = 1;
+      }
+      post.render(scene, camera, timeU.value);
+    } else {
+      if (cssBright !== bright) {
+        canvas.style.filter = bright === 1 ? '' : `brightness(${bright})`;
+        cssBright = bright;
+      }
+      renderer.render(scene, camera);
+    }
     if (carnage && phase !== 'intro') projectBars();
     if (DEBUG) {
       const me = player();

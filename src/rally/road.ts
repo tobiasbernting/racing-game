@@ -232,6 +232,10 @@ export interface RoadOpts {
   grid?: number;
   /** Free roam: only the real walls (stone walls, bridge rails) stand; the run-off fences are gone. */
   roam?: boolean;
+  /** Night: the edge lines glow, reflector posts line the road and the chevron boards light up. */
+  night?: boolean;
+  /** Hög kontrast-väg (settings): the same markings by day too, and bigger chevrons. */
+  hiRoad?: boolean;
 }
 
 export function buildRoad(track: Track, terrain: Terrain, quality: 'high' | 'low', aniso: number, course?: CourseDef, opts: RoadOpts = {}): Road {
@@ -296,6 +300,8 @@ export function buildRoad(track: Track, terrain: Terrain, quality: 'high' | 'low
       : new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     if (shiny && surf === Surf.Asphalt) material.color.set('#a2a2aa');
     if (course?.theme.roadTint && surf !== Surf.Ice) material.color.multiply(new THREE.Color(course.theme.roadTint));
+    // night: the road carries a little light of its own (the headlights hit it at a grazing angle), so it reads against the darker verge
+    if (opts.night && surf !== Surf.Ice && surf !== Surf.Snow) material.emissive.set('#2a2c34');
     const m = new THREE.Mesh(strip(surf), material);
     m.receiveShadow = shadows;
     group.add(m);
@@ -309,6 +315,11 @@ export function buildRoad(track: Track, terrain: Terrain, quality: 'high' | 'low
   const kp: number[] = [];
   const cDirt = new THREE.Color(course?.theme.verge ?? '#857a55');
   const cGrass = new THREE.Color(course?.theme.vergeGrass ?? '#6b9a45');
+  // night: the shoulder is left in the dark, which is what sets the lit road apart from it (SC 1.4.11)
+  if (opts.night) {
+    cDirt.multiplyScalar(0.5);
+    cGrass.multiplyScalar(0.5);
+  }
   const cRed = new THREE.Color('#d6352b');
   const cWhite = new THREE.Color('#f4f2ec');
   const quad = (arr: number[], carr: number[], a: number[], b: number[], c: number[], d: number[], ca: THREE.Color, cb: THREE.Color): void => {
@@ -548,14 +559,27 @@ export function buildRoad(track: Track, terrain: Terrain, quality: 'high' | 'low
   const signGeoR = new THREE.PlaneGeometry(1.8, 0.9);
   const uvR = signGeoR.getAttribute('uv') as THREE.BufferAttribute;
   for (let k = 0; k < uvR.count; k++) uvR.setX(k, 1 - uvR.getX(k));
+  // at night (or with Hög kontrast-väg) the boards are retro-reflective: they carry their own light, so the bend is announced in the dark
+  const markings = !!opts.night || !!opts.hiRoad;
   const signMat = new THREE.MeshLambertMaterial({ map: chevTex, side: THREE.DoubleSide });
+  if (opts.night) {
+    signMat.emissive.set('#ffffff');
+    signMat.emissiveMap = chevTex;
+    signMat.emissiveIntensity = 0.9;
+  } else if (opts.hiRoad) {
+    signMat.emissive.set('#ffffff');
+    signMat.emissiveMap = chevTex;
+    signMat.emissiveIntensity = 0.25;
+  }
+  const chevK = opts.hiRoad ? 1.45 : 1;
+  const chevMin = opts.hiRoad ? 1 / 52 : 1 / 34;
   const postG = new Geo();
   const signsL: THREE.Matrix4[] = [];
   const signsR: THREE.Matrix4[] = [];
   let lastSign = -999;
   for (let i = 0; i < n; i++) {
     const k = t.curv[i]!;
-    if (Math.abs(k) < 1 / 34 || i - lastSign < 5) continue;
+    if (Math.abs(k) < chevMin || i - lastSign < (opts.hiRoad ? 4 : 5)) continue;
     lastSign = i;
     // outside of the bend: right of the road when it turns left
     const sgn = k > 0 ? -1 : 1;
@@ -564,9 +588,9 @@ export function buildRoad(track: Track, terrain: Terrain, quality: 'high' | 'low
     const y = terrain.visual(p.x, p.z);
     const hd = t.heading(i * t.ds);
     // face the cars coming towards it, a bit turned in
-    const m = mat(p.x, y + 1.7, p.z, 0, hd + Math.PI - sgn * 0.5, 0);
+    const m = mat(p.x, y + 1.7 * chevK, p.z, 0, hd + Math.PI - sgn * 0.5, 0, chevK, chevK, 1);
     (k > 0 ? signsL : signsR).push(m);
-    postG.box(0.12, 1.7, 0.12, '#e8e8e8', p.x, y + 0.85, p.z);
+    postG.box(0.12, 1.7 * chevK, 0.12, '#e8e8e8', p.x, y + 0.85 * chevK, p.z);
   }
   for (const [geo, list] of [
     [signGeoL, signsL],
@@ -584,6 +608,103 @@ export function buildRoad(track: Track, terrain: Terrain, quality: 'high' | 'low
     const pm = new THREE.MeshLambertMaterial({ vertexColors: true });
     group.add(new THREE.Mesh(pg, pm));
     disposables.push(pg, pm);
+  }
+
+  // ---- road-edge markings: a glowing edge line and reflector posts (night, or Hög kontrast-väg) ----
+  // WCAG 2.2 SC 1.4.11: the edge of the road is a graphical object needed to drive, so it must stand out 3:1 from the road.
+  if (markings) {
+    const night = !!opts.night;
+    const lineW = opts.hiRoad ? 0.78 : 0.5;
+    /** A strip along both edges between `inner` and `outer` metres inside the road edge, lifted `lift` m. */
+    const edgeStrip = (inner: number, outer: number, lift: number, material: THREE.Material, geos: THREE.BufferGeometry[]): void => {
+      const lp: number[] = [];
+      const lidx: number[] = [];
+      for (const sgn of [1, -1]) {
+        let open = false;
+        for (let k = 0; k <= n; k++) {
+          const i = L(k);
+          if (t.bridge[i] || t.deck[i]) {
+            open = false;
+            continue;
+          }
+          const hw = t.hw[i]!;
+          const lx = t.tz[i]! * sgn;
+          const lz = -t.tx[i]! * sgn;
+          const d0 = hw - outer;
+          const d1 = hw - inner;
+          const o = lp.length / 3;
+          const y = t.py[i]! + lift;
+          lp.push(t.px[i]! + lx * d0, y, t.pz[i]! + lz * d0, t.px[i]! + lx * d1, y, t.pz[i]! + lz * d1);
+          if (open) {
+            if (sgn > 0) lidx.push(o - 2, o - 1, o, o - 1, o + 1, o);
+            else lidx.push(o - 2, o, o - 1, o - 1, o, o + 1);
+          }
+          open = true;
+        }
+      }
+      if (!lidx.length) return;
+      const lg = new THREE.BufferGeometry();
+      lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+      lg.setIndex(lidx);
+      lg.computeVertexNormals();
+      group.add(new THREE.Mesh(lg, material));
+      geos.push(lg);
+    };
+    const stripGeos: THREE.BufferGeometry[] = [];
+    // by day a dark casing round the line keeps it 3:1 even on pale gravel and snow
+    if (!night) {
+      const cm = new THREE.MeshBasicMaterial({ color: '#15151b', side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+      edgeStrip(0.02, 0.22 + lineW + 0.3, 0.02, cm, stripGeos);
+      disposables.push(cm);
+    }
+    const lm = night
+      ? new THREE.MeshBasicMaterial({ color: new THREE.Color(1.7, 1.7, 1.6), side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 })
+      : new THREE.MeshBasicMaterial({ color: '#ffffff', side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
+    edgeStrip(0.22, 0.22 + lineW, 0.025, lm, stripGeos);
+    disposables.push(lm, ...stripGeos);
+    // reflector posts every ~14 m on the outside of the verge: a pale post with a panel that shines back
+    const step = Math.max(1, Math.round(14 / t.ds));
+    const postM: THREE.Matrix4[] = [];
+    const panelM: THREE.Matrix4[] = [];
+    const panelL: THREE.Matrix4[] = [];
+    for (let i = 0; i < n; i += step) {
+      if (t.bridge[i] || t.deck[i]) continue;
+      for (const sgn of [1, -1]) {
+        const wall = sgn > 0 ? t.wallL[i]! : t.wallR[i]!;
+        const d = Math.min(t.hw[i]! + 1.15, wall - 0.5);
+        if (d < t.hw[i]! + 0.4) continue;
+        const p = t.point(i * t.ds, sgn * d);
+        const y = terrain.visual(p.x, p.z);
+        const hd = t.heading(i * t.ds);
+        postM.push(mat(p.x, y + 0.5, p.z, 0, hd, 0));
+        (sgn > 0 ? panelL : panelM).push(mat(p.x, y + 0.88, p.z, 0, hd, 0));
+      }
+    }
+    if (postM.length) {
+      const pgeo = new THREE.BoxGeometry(0.14, 1.0, 0.14);
+      const pmat = new THREE.MeshLambertMaterial({ color: night ? '#d8dde6' : '#eeeeee' });
+      const pim = new THREE.InstancedMesh(pgeo, pmat, postM.length);
+      postM.forEach((m, k) => pim.setMatrixAt(k, m));
+      pim.computeBoundingSphere();
+      pim.castShadow = false;
+      group.add(pim);
+      disposables.push(pgeo, pmat);
+      // the panels: white on the right, amber on the left (as on a real road); they light up at night
+      const panelGeo = new THREE.PlaneGeometry(0.36, 0.26);
+      for (const [list, col] of [
+        [panelM, night ? new THREE.Color(2.4, 2.4, 2.3) : new THREE.Color(0.95, 0.95, 0.92)],
+        [panelL, night ? new THREE.Color(2.6, 1.7, 0.4) : new THREE.Color(0.95, 0.7, 0.2)],
+      ] as const) {
+        if (!list.length) continue;
+        const pm = new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide });
+        const im = new THREE.InstancedMesh(panelGeo, pm, list.length);
+        list.forEach((m, k) => im.setMatrixAt(k, m));
+        im.computeBoundingSphere();
+        group.add(im);
+        disposables.push(pm);
+      }
+      disposables.push(panelGeo);
+    }
   }
 
   // ---- the tunnel (the city) ----

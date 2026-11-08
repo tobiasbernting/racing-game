@@ -515,7 +515,7 @@ export function buildArenaWorld(ac: ArenaCourse, track: Track, quality: 'high' |
       uCheer.value = Math.min(1, 0.25 + cheer * 0.75);
       void focus;
       ramps.update(time);
-      lampMat.color.setScalar((night ? 3.2 : 2) * (0.96 + 0.04 * Math.sin(time * 23)));
+      lampMat.color.setScalar((night ? 3.2 : 2) * (0.96 + 0.04 * Math.sin(time * 9)));
       for (const b of beams) void b;
     },
     dispose() {
