@@ -20,7 +20,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
   Tolv rivaler med eget skryt och eget hån när de kör om dig (`src/shared/rivals.ts`).
 - **Hjärtan och kronor**: kommer man sist (nedersta tredjedelen) eller bryter förlorar man ett hjärta; vid 0 är rundan slut.
   Loppen ger kronor (pris + mynt på banan + prylbonus, skalat per akt) som går till kiosken (prylar, laga bilen, läka
-  hjärta, nya varor) och verkstaden (en gratis uppgradering av en del, eller måla om).
+  hjärta, nya varor) och verkstaden Skruvhörnan (en gratis uppgradering på nivå I eller II, resten för kronor, eller måla om).
 - **Prylar** (`src/run/trinkets.ts`, 52 st): vanlig/ovanlig/legendarisk, samma pryl två gånger gör den starkare. Varje pryl är
   data: `tune` ändrar siffror när loppet startar, `hooks` reagerar på tick/boost/sladd/stöt/varv/pickup/mål, `perk` ändrar
   rundan (rabatt, hjärtan, fler val). Loppet får dem som `RallyOptions.mods` (`src/rally/mods.ts`); bossarnas trick går via
@@ -99,7 +99,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 - **Tak mot skenande staplar** (`capTune` i `src/rally/mods.ts`, `maxStack` på prylarna): kraft, grepp, nitrolängd och antal, sladdturbo,
   knuff, tålighet, mynt, kronor och bilens totala kraft och grepp har mjuka tak (linjärt till ett knä, sedan mot ett max). Nitro
   räcker högst 12 sekunder per lopp. Prylar som skenar (Pruttboost, Chilikorven, Dino-Dieseln …) slutar ge mer efter 2-3 exemplar.
-- **Byte efter varje vinst**: vinner du (i Blodbad: mest poäng) väljer du 1 av 3 (prylar, ibland en uppgradering), lutat mot sorten
+- **Byte efter varje vinst**: vinner du (i Blodbad: mest poäng) väljer du 1 av 6: tre prylar eller tre uppgraderingskort (se "Bilen som växer" nedan), lutat mot sorten
   (efter Blodbad fler rammar-prylar, efter Rally fler fart-prylar). Tvåan får ett tröstpris: 1 av 2 skräp-prylar. Dödslopp och bossar ger
   fortfarande alltid ett val, med bättre odds.
 - **Humor**: kaos, inte toalett. Högst tre prylar handlar om prutt och bajs (Pruttboost är sällsynt, Bajsraketen legendarisk); bara de pruttar och lämnar det gröna molnet. Resten har egna effekter (konfetti, gnistor, glitter, studsar). Nya slumpprylar: Platsbytar-Pelle, Kon från ovan, Slumpväxeln och Tombolan. Inga svordomar: `src/language.test.ts` skannar alla texter.
@@ -120,7 +120,7 @@ Efter en seger, efter sista hjärtat och efter en omladdning på sista kortet vi
   kronor spenderade och åktid. Gamla sparningar laddas med nollor.
 - **Tidslinje**: varje besökt plats i ordning (`RunState.log`) med typ, sort (Rally/Blandat/Blodbad), bana, placering eller poäng, belöning och
   förlorade hjärtan, med aktavskiljare. En horisontell remsa på dator och surfplatta, en lista på mobil.
-- **Bygget**: varje pryl med antal och varifrån den kom ("Vann Sura Bengt", "Köpt i kiosken", "Händelse: …", `RunState.got`), delar med nivå,
+- **Bygget**: varje pryl med antal och varifrån den kom ("Vann Sura Bengt", "Köpt i kiosken", "Händelse: …", `RunState.got`), uppgraderingsträden med taget nod för nod och kombona,
   byggets mix per väg som en stapel ("55 % Ram · 30 % Fuffens · 15 % Race") och fordonets förmåga (`abilityOf`: aktiv förmåga med hur många gånger du använde den, och passiven).
 - **Troféer och upplåst**: varför troféerna blev så många, nya bilar och prylar, hur långt det är till nästa pryl-upplåsning och de **utmaningar** rundan flyttade ("Takedowns i en runda: 6/10", eller "✅ Monstertruck upplåst!").
 - **Svårighet**: på pekskärmar får rivalerna inte längre någon extra lättnad i normalt läge, bara i Söndagsåkare.
@@ -301,3 +301,47 @@ Utmaningarna räknar sådant som rundan redan sparar (`RunStats`), så sparfilen
 - **Balans** (`src/shared/pace.ts`, `src/run/racesim.ts`, `src/rally/bodypace.test.ts`): varje nytt fordon har en uppmätt varvfaktor mot rallybilen (`BODY_LAP`, medelvärde över fyra banor med den riktiga fysiken och datorföraren;
   EPA-traktorn och raketvagnen mäts med sin fartstöt använd). Simuleringen räknar med den (uppgraderingar av grepp och kraft ovanpå) och `balance.test.ts` kör alla tjugo fordonen genom akt 3: inget nytt fordon vinner oftare än det bästa av de gamla,
   raketvagnen är aldrig bäst, och inget är sämre än moppen. De långsamma (EPA-traktor, golfbil, gräsklippare, raketvagn) är långsamma med flit, som moppen och traktorn: de är till för att skratta åt, och de är roligast i Söndagsåkare.
+
+## Bilen som växer (fas 11)
+
+Som i Tape to Tape blir det svårare genom rundan (rivalerna växer lite brantare än förut) medan din bil blir bättre, eller åtminstone annorlunda:
+vilka noder, prylar och förmågor du har bestämmer hur rundan känns. Allt ligger i `src/run/upgrades.ts` och är testat i `src/run/upgrades.test.ts`.
+
+**Fem träd, tre eller fler rader i varje, 2-3 nivåer per rad och en topp.** En rad är data: `tune` ändrar siffror när loppet startar, `hooks` reagerar på vad som händer (som en pryl), `perk` ändrar rundan. En nod är en nivå av en rad ("ram.plates2"); nivå 2 kräver nivå 1, toppen kräver 4 noder i trädet.
+
+| Träd | Rader (nivåer) och vad de gör |
+|---|---|
+| 🛡️ **Ram** | Pansarplåt (3): tål mer, mer hälsa i Blodbad. Ballast (2): tyngre, knuffar mer. Spikar (2): hårdare knuff. Slägga (2): 35 % mer skada på andra bilar. Stötvåg (2): en stötvåg efter en stor smäll. Rambooster (2): stötfångaren slår hårdare under nitron. **Skrotkungen**: vrak ger stötvåg och lagning. |
+| 🏎️ **Race** | Motor (3): +10 % effekt. Grepp (3): +6 %. Bromsar (2). Nitro (3): +1 laddning per nivå. Nitrolängd (2). Sladd (2): sladdturbon laddar fortare, en spark efter varje sladd. Aero (2): topphastighet. **Formelbilen**: en spark på varje boost. |
+| 🦨 **Fuffens** | Oljeläcka (2): olja bakom dig på boost. Minor (2): en mina under hård bromsning eller på handbromsen. Falska mynt (2): guldmynt som poppar och snurrar bilen. Rökgranat (2): nitron lämnar en blindande rökridå. Höbalskastaren (2): hö landar framför närmaste bil. **Fuffens-mästaren**: knepen 45 % oftare, en fälla gratis varje varv. |
+| 🤸 **Stunt** | Stötdämpare (3): mjukare landningar. Flygtid (2): långa hopp ger nitro och kronor. Volter (2): bilen tar en volt i luften. Två hjul (2): långa sladdar och wheelies fyller nitron. Nära ögat (2): omkörningar på en hårsmån ger nitro och kronor. **Stuntstjärnan**: 40 % mer från alla stunts. |
+| 🤑 **Girig** | Ränta (3): 5/10/15 % av kronorna efter varje plats (högst 60). Dusör på ledaren (2). Vrakförsäkring (2): kronor vid hård smäll och vrak. Rabattkort (2): 10 % per nivå i kiosken och Skruvhörnan. Guldkant (2): dyrare mynt, bilen får guldkant. **Kapitalisten**: 15 % mer kronor och ett extra kort. |
+| 🎲 **Kaos** | Inget träd: en smak på de legendariska prylarna (och en halva av Lotterivinsten). |
+
+**Fordonets egna uppgraderingar**: varje fordon har två, tagna i ordning (`car.<fordon>1` och `2`), som stretchar eller förgrenar dess aktiva förmåga: kortare nedkylning (`abilCd`), längre varaktighet (`abilDur`, stretchar alla timers som förmågan just startade) eller en extra
+effekt efter användning (`plus`: olja, höbalar, stötvåg, boost, rök, kronor, nitro, lockbil, lagning, mina). Traktorns Rammbock blir 50 % längre och släpper sedan också höbalar, moppens Väj! blir längre och lämnar en lockbil som bilarna bakom saktar in för, golfbilens Hole in one laddar fortare och slår en stötvåg där bollen landar.
+De visas bara för den som kör det fordonet.
+
+**Hur man får dem.** Efter en vinst (och efter dödslopp och bossar) visar belöningsskärmen två flikar: 🛠️ Uppgraderingar (tre kort) och 🎁 Prylar (tre kort); du tar EN av sex. Tvåan får fortfarande bara ett tröstpris med två skräp-prylar. Korten dras ur de öppna noderna (`drawUpgrades`
+i `economy.ts`) och lutas av sorten (`KIND_TREE_BIAS`): Blodbad ger Ram (×2,6) och Fuffens (×1,9), Rally ger Race (×2,6) och Stunt (×1,9), Blandat är öppet. Fordonets lutning (Ram/Race) ger en liten extra knuff, ett träd man redan går i kommer upp oftare (så ett bygge får en form), tre kort
+från minst två träd, bossar bjuder oftare på toppar och högre nivåer. Ett kort som väcker en kombo har en stjärna. I **Skruvhörnan** är första uppgraderingen på nivå I eller II gratis; alla noder går att köpa för kronor (`upgradePrice`: 90, 150, 240, topp 420, fordon 130, plus aktens påslag och rabatter), med en flik per träd. Händelser som "tunar bilen" ger en slumpad nod.
+
+**Kombos** (10 st, `COMBOS`): två saker du äger väcker en kombo, och den visas som en liten "KOMBO!"-lapp i hörnet (aldrig mitt på skärmen) och som en guldkantad ikon först i loppets pryl-remsa.
+Spikmattan (Spikar + Oljeläcka: smällar lämnar olja), Luftburen (Flygtid + Nitro: landningar fyller nitro), Lotterivinsten (Ränta + valfri Kaos-pryl: lott efter varje varv), Eldkastaren (Pruttboost + Chilikorven: en kort eldstråle bakåt, sällsynt),
+Pansarraketen (Stötvåg + Nitro), Sladdmolnet (Rökgranat + Sladd), Dödsföraktet (Nära ögat + Vrakförsäkring), Prisjakten (Dusör + Slägga: kronor och nitro för varje vrak), Minfältet (Minor + Flygtid) och Stålspargrisen (Pansarplåt + Ränta). Fliken Kombos i Bygget visar alla tio med receptet.
+
+**Bilen syns.** `src/rally/modlook.ts` bygger bult-on-delar för varje rad och nivå ovanpå trimgeometrin, från de mått varje kropp redan ger bygget (bredd, nos, akter, tröskel, bälte, tak, hjul), så alla tjugo fordon får dem och en ny kropp får dem gratis
+(fordon där föraren sitter ovanpå, som cyklarna, traktorn och soffan, får sakerna på bagagehyllan bakom föraren i stället för på taket). Ram: sidoplåtar, spikar, stötfångarstång och ramplatta, hästhorn, sandsäckar, boostertank. Race: dubbla avgasrör, breda skärmar, frontsplitter och jättevinge, nitroflaskor, hajfena.
+Fuffens: oljefat, rökgranat, minor på stötfångaren, ett falskt mynt i en tråd, hö på taket, trollkarlshatt. Stunt: ramp, rullbur, flaggor, stuntstänger, guldstjärna. Girig: guldlist, en pengasäck, en guldflagga, en guldprydnad. `bodySpecOf` i `models.ts` ger testerna alla kroppars mått:
+`upgrades.test.ts` ritar varje rad på alla tjugo kroppar och kollar att allt sitter nära bilen.
+
+**Bygget** (☰ Paus → 🧰 Bygget, och 🧰 i kartans övre list): bilen på skivspelare med sina mods, byggets mix per väg, och träden som flikar med tagna, öppna och låsta noder (tryck för att läsa; kombofliken visar alla recept). Samma panel är Skruvhörnans butik.
+Telefon på sidan: bilen till vänster, träden till höger, panelen scrollar inuti; surfplatta stående: bilen överst. Alla knappar är minst 44 px och sidan scrollar aldrig. Resultatskärmen visar träden nod för nod (med varifrån varje kom), fordonets uppgraderingar och de aktiva kombona.
+
+**Sparningar.** `RunState.up` är listan av noder. Äldre sparningar har sex delnivåer (`car.parts`) i stället: vid inläsning blir varje nivå den nod den blev (`PART_LINE`: motor → Motor, däck → Grepp, bromsar → Bromsar, turbo → Nitro, pansar → Pansarplåt, fjädring → Stötdämpare; `partsToNodes`),
+delarna nollas, gamla "del"-poster i byggloggen blir noder och ett gammalt belöningskort `part:armour` blir nästa nod i den raden. Testat i `upgrades.test.ts` och `save.test.ts`. Pausmenyns bygge och prylremsan i loppet läser samma data.
+
+**Balans.** Mjuka tak gäller som förut (`capTune`: byggets egna kraft och grepp tas nu med uppgraderingar och prylar tillsammans, kroppens total tas av `capPower`/`capGrip`; nitroladdningar 5 och 12 sekunder i högsta fall). Rivalernas kurva växer lite brantare
+(`partLevel` upp till 4,9, catch-up i akt 3 16 %) för att hänga med. Mätt i `balance.test.ts` med bottar som köper noder (ett kort av sex, den fria noden i verkstaden): en bra spelare vinner ungefär 58 / 28 / 47 % av normala rundor med Race / Ram / Blandat som strategi
+(Ram vinner mest via Blodbad: 0,54 mot 0,35 för en renodlad racer, medan racern tar Rally 0,88 mot 0,69), en stark spelare 77 / 72 / 90 %, Söndagsåkare är kvar över 90 % för en genomsnittlig spelare, och ingen färdig uppsättning (Ram, Race, Stunt, Fuffens, Girig) varvar fältet i akt 3,
+inte ens "alla noder + alla prylar" (bästa spelare vinner under 99 % av loppen).

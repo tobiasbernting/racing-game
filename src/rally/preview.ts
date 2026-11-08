@@ -11,7 +11,7 @@ import { carModel, type CarModel } from './models.ts';
 
 export interface CarPreview {
   /** Show another car (or the same one restyled); rebuilds only when the look changed. */
-  update(car: GarageCar): void;
+  update(car: GarageCar, look?: Record<string, number>): void;
   /** Night view (underglow, lights) on or off. */
   night(on: boolean): void;
   /** The car on the turntable right now (for the lab: nitro flames, damage by hand). */
@@ -27,6 +27,8 @@ export interface CarPreviewOpts {
   /** Starting angle (rad); 0 shows the car's left side, π the right. */
   yaw?: number;
   quality?: 'high' | 'low';
+  /** The upgrades on the car (run/upgrades.ts lookOf). */
+  look?: Record<string, number>;
 }
 
 const DAY_BG = 'radial-gradient(ellipse at 50% 38%, #fdfbf6 0%, #e9e4d8 55%, #c9c2b2 100%)';
@@ -152,12 +154,12 @@ export function mountCarPreview(root: HTMLElement, car: GarageCar, opts: CarPrev
     model = null;
   };
 
-  const show = (c: GarageCar): void => {
-    const k = JSON.stringify([c.body, c.style]);
+  const show = (c: GarageCar, look: Record<string, number> | undefined = opts.look): void => {
+    const k = JSON.stringify([c.body, c.style, look]);
     if (k !== lookKey || !model) {
       lookKey = k;
       clear();
-      model = carModel({ body: c.body, style: c.style, shadowTex, envMap: env, quality: opts.quality ?? 'high' });
+      model = carModel({ body: c.body, style: c.style, shadowTex, envMap: env, quality: opts.quality ?? 'high', look });
       model.root.traverse((o) => {
         if ((o as THREE.Mesh).isMesh && o.castShadow) o.receiveShadow = false;
       });

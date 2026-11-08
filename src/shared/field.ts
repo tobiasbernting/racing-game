@@ -151,11 +151,11 @@ export function modCount(act: number, row: number, role: RivalRole, calm: boolea
 /** Part level (0..3, fractional) rivals have by now: roughly what a good player has bought, all of it from act 3 row 2. */
 export function partLevel(t: number, role: RivalRole, calm: boolean): number {
   // 3 is a full set; the last stretch of the run goes a notch past it (a tuned car, no more than the player's caps allow)
-  let lv = 4.2 * Math.pow(clamp((t - 0.03) / 0.8, 0, 1), 1.8);
+  let lv = 4.7 * Math.pow(clamp((t - 0.03) / 0.8, 0, 1), 1.65);
   if (role === 'elite') lv += 0.35;
   if (role === 'boss') lv += 0;
   if (calm) lv *= 0.35;
-  return clamp(lv, 0, 4.4);
+  return clamp(lv, 0, 4.9);
 }
 
 /** Rivals' courage, as a share of the corner speed they dare (the driving ceiling is about 1.06). */
@@ -186,7 +186,7 @@ export interface CatchUp {
 }
 
 export function catchUpFor(act: number, calm: boolean): CatchUp {
-  const max = [0.05, 0.08, 0.14][Math.min(2, Math.max(0, act))]!;
+  const max = [0.05, 0.085, 0.16][Math.min(2, Math.max(0, act))]!;
   return calm ? { start: 40, ramp: 260, max: max * 0.45, easeMax: 0.2, easeRamp: 500 } : { start: 40, ramp: 260, max, easeMax: [0.12, 0.09, 0.04][Math.min(2, Math.max(0, act))]!, easeRamp: 800 };
 }
 

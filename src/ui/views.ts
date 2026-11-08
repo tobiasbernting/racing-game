@@ -1,24 +1,24 @@
 // The run screens, as plain DOM builders: each takes the data and callbacks it needs and returns the
 // element for the card. No state lives here; the App decides what happens on each press.
-import { CAR_BODIES, CAR_DRIVERS, CAR_PAINTS, PART_MAX_LEVEL, CAR_PARTS, carStars, newCar, type CarBody, type CarDriver, type CarPart } from '../shared/rally.ts';
-import { CAR_BODY_NAMES, CAR_BODY_TEXT, CAR_DRIVER_EMOJI, CAR_DRIVER_NAMES, CAR_PART_EMOJI, CAR_PART_NAMES, CAR_PART_TEXT, RALLY_COURSE_NAMES } from '../shared/names.ts';
+import { CAR_BODIES, CAR_DRIVERS, CAR_PAINTS, carStars, newCar, type CarBody, type CarDriver } from '../shared/rally.ts';
+import { CAR_BODY_NAMES, CAR_BODY_TEXT, CAR_DRIVER_EMOJI, CAR_DRIVER_NAMES, RALLY_COURSE_NAMES } from '../shared/names.ts';
 import { ARCHETYPE_EMOJI, ARCHETYPE_NAMES, ARCHETYPE_TEXT } from '../shared/rivals.ts';
 import { BOSS_RULES, archetypeCounts, rivalModById } from '../shared/field.ts';
 import { rivalById } from '../shared/rivals.ts';
 import { KIND_EMOJI, KIND_NAMES, KIND_TEXT, PLACE_POINTS, RACE_KINDS, TAKEDOWN_POINTS } from '../shared/kinds.ts';
-import { partOfChoice } from '../run/economy.ts';
 import { RALLY_COURSE_DEFS } from '../shared/rally.ts';
 import { fmtTime } from '../rally/util.ts';
 import { ACTS, NODE_EMOJI, NODE_NAMES, allNodes, type MapNode, type NodeType } from '../run/map.ts';
 import { isUnlocked, unlockedTrinkets, type Meta } from '../run/meta.ts';
 import { challengeFor, progressText } from '../run/unlocks.ts';
 import { LEANS, LEAN_EMOJI, LEAN_NAMES, LEAN_TEXT, kitOf, type Lean } from '../shared/abilities.ts';
-import { canUpgrade, healPrice, repairPrice, rerollPrice, trinketPrice } from '../run/economy.ts';
+import { healPrice, repairPrice, rerollPrice, trinketPrice } from '../run/economy.ts';
 import { EVENTS, choiceAllowed, eventById } from '../run/events.ts';
 import { currentNode, currentPlan } from '../run/flow.ts';
 import { mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
 import { TRINKETS, trinketById } from '../run/trinkets.ts';
 import { btn, el, plural } from './dom.ts';
+import { upgradeCard, workshopPanel } from './upgrades.ts';
 import { ACT_NAMES, arrowSvg, chip, seedLabel, statusBar, trinketCard, trinketIcons } from './parts.ts';
 import { countUp } from './juice.ts';
 import type { Settings } from '../settings.ts';
@@ -222,6 +222,7 @@ export interface MapOpts {
   run: RunState;
   onEnter(id: string): void;
   onBag(): void;
+  onBuild(): void;
   onMenu(): void;
 }
 
@@ -231,6 +232,14 @@ const nodeLabel = (n: MapNode): string => {
   if (n.course && n.type !== 'shop') return `${NODE_NAMES[n.type]} · ${RALLY_COURSE_NAMES[n.course]}${kind}`;
   return NODE_NAMES[n.type];
 };
+
+/** A button for the map's top bar: a picture and a word; on a narrow screen only the picture (the word stays as its name). */
+function iconBtn(emoji: string, label: string, onClick: () => void): HTMLButtonElement {
+  const b = btn('rg-icon wide', [el('span', null, emoji), el('span', 'rg-bt', ` ${label}`)], onClick);
+  b.setAttribute('aria-label', label);
+  b.title = label;
+  return b;
+}
 
 export function mapView(o: MapOpts): HTMLElement {
   const run = o.run;
@@ -300,7 +309,13 @@ export function mapView(o: MapOpts): HTMLElement {
   menu.setAttribute('aria-label', 'Meny');
   return screen(
     'rg-mapscreen',
-    statusBar(run, btn('rg-icon wide', '🎒 Skräpet', o.onBag), menu),
+    statusBar(
+      run,
+      run.interest ? el('span', 'rg-interest', `🏦 +${run.interest}`, el('span', 'rg-bt', ' kr ränta')) : null,
+      iconBtn('🧰', 'Bygget', o.onBuild),
+      iconBtn('🎒', 'Skräpet', o.onBag),
+      menu,
+    ),
     field,
     legend,
     kinds,
@@ -439,16 +454,39 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
 export function rewardView(run: RunState, scr: Extract<Screen, { kind: 'reward' }>, o: { onPick(i: number): void }): HTMLElement {
   const title =
     scr.source === 'boss' ? 'Bossen ligger i diket! Ta ett byte' : scr.source === 'elite' ? 'Du överlevde dödsloppet! Ta ett byte' : scr.source === 'consolation' ? 'Tvåa. Ta ett tröstpris' : 'Vinst! Välj ditt byte';
-  const cards = scr.choices.map((id, i) => {
-    const part = partOfChoice(id);
-    if (part) {
-      const lvl = run.car.parts[part] ?? 0;
-      return btn('rg-tcard r-rare rg-partcard', [el('span', 'rg-tem', CAR_PART_EMOJI[part]), el('span', 'rg-tname', `${CAR_PART_NAMES[part]} nivå ${lvl + 1}`), el('span', 'rg-ttext', CAR_PART_TEXT[part]), el('span', 'rg-tfoot', el('span', 'rg-rar r-rare', 'Uppgradering'))], () => o.onPick(i));
-    }
+  const ups = scr.ups ?? [];
+  const trinkets = scr.choices.map((id, i) => {
     const d = trinketById(id)!;
     return trinketCard(d, { n: run.trinkets.find((t) => t.id === id)?.n, onClick: () => o.onPick(i), tag: run.trinkets.some((t) => t.id === id) ? 'Staplas! Stinkigare!' : undefined });
   });
-  return screen('rg-reward', statusBar(run), el('h2', 'rg-h', title), el('div', 'rg-cards', ...cards), foot(ghost('Nej tack (+30 kr)', () => o.onPick(-1))));
+  const upCards = ups.map((id, j) => upgradeCard(run, id, { onClick: () => o.onPick(scr.choices.length + j) }));
+  const trinketGrid = el('div', 'rg-cards', ...trinkets);
+  const upGrid = el('div', 'rg-cards up-cards', ...upCards);
+  const both = trinkets.length > 0 && upCards.length > 0;
+  let show: 'ups' | 'trinkets' = upCards.length ? 'ups' : 'trinkets';
+  const tabs = el('div', 'rg-rtabs');
+  const draw = (): void => {
+    trinketGrid.hidden = show !== 'trinkets';
+    upGrid.hidden = show !== 'ups';
+    tabs.replaceChildren(
+      ...(
+        [
+          ['ups', `🛠️ Uppgraderingar (${upCards.length})`],
+          ['trinkets', `🎁 Prylar (${trinkets.length})`],
+        ] as const
+      ).map(([k, label]) => {
+        const b = btn('rg-chipbtn rg-rtab', label, () => {
+          show = k;
+          draw();
+        });
+        b.setAttribute('aria-pressed', String(show === k));
+        return b;
+      }),
+    );
+  };
+  draw();
+  const hint = both ? el('small', 'rg-rhint', 'Du får EN av dem. Bilen växer av uppgraderingar, prylar ändrar reglerna.') : null;
+  return screen('rg-reward', statusBar(run), el('div', 'rg-rhead', el('h2', 'rg-h', title), both ? tabs : null), hint, upGrid, trinketGrid, foot(ghost('Nej tack (+30 kr)', () => o.onPick(-1))));
 }
 
 // ---- shop ----
@@ -484,15 +522,7 @@ export function shopView(run: RunState, scr: Extract<Screen, { kind: 'shop' }>, 
 
 // ---- workshop ----
 
-export function workshopView(run: RunState, scr: Extract<Screen, { kind: 'workshop' }>, o: { onUpgrade(p: CarPart): void; onRepair(): void; onPaint(c: string): void; onLeave(): void }): HTMLElement {
-  const parts = CAR_PARTS.map((p) => {
-    const lvl = run.car.parts[p] ?? 0;
-    const pips = el('span', 'rg-pips', ...Array.from({ length: PART_MAX_LEVEL }, (_, i) => el('i', i < lvl ? 'on' : '', i < lvl ? '●' : '○')));
-    const can = !scr.used && canUpgrade(run, p);
-    const b = btn('rg-part', [el('span', 'rg-pe', CAR_PART_EMOJI[p]), el('span', 'rg-pn', CAR_PART_NAMES[p]), pips, el('small', null, lvl >= PART_MAX_LEVEL ? 'Maxat' : CAR_PART_TEXT[p])], () => o.onUpgrade(p));
-    b.disabled = !can;
-    return b;
-  });
+export function workshopView(run: RunState, scr: Extract<Screen, { kind: 'workshop' }>, o: { onBuy(id: string): void; onRepair(): void; onPaint(c: string): void; onLeave(): void }): HTMLElement {
   const paints = el('div', 'rg-row');
   for (const c of CAR_PAINTS.slice(0, 12)) {
     const x = btn('rg-swatch', '', () => o.onPaint(c));
@@ -505,12 +535,12 @@ export function workshopView(run: RunState, scr: Extract<Screen, { kind: 'worksh
   repair.disabled = scr.used || run.car.damage <= 0;
   return screen(
     'rg-work',
-    statusBar(run),
+    statusBar(run, btn('rg-icon wide up-leave', scr.used ? 'Klar → karta' : 'Strunt i det', o.onLeave)),
     el(
       'div',
       'rg-workbody',
-      el('div', 'rg-shophead', el('h2', 'rg-h', '🔧 Skruvhörnan'), el('span', 'rg-note', scr.used ? 'Klart! Bilen är mer rätt nu.' : 'Välj EN sak. Gratis. Skruva!')),
-      el('div', 'rg-parts', ...parts),
+      el('div', 'rg-shophead', el('h2', 'rg-h', '🔧 Skruvhörnan'), el('span', 'rg-note', scr.used ? 'Det gratis är taget. Resten kostar kronor.' : 'En billig uppgradering (nivå I eller II) är gratis. Resten kostar.')),
+      workshopPanel(run, o.onBuy),
       el('div', 'rg-workrow', repair, el('div', 'rg-paintbox', el('span', 'arc-h', '🎨 Måla om (gratis)'), paints)),
     ),
     foot(go(scr.used ? 'Klar – till kartan' : 'Strunt i det', o.onLeave)),
@@ -550,11 +580,11 @@ export function bagView(run: RunState, o: { onClose(): void }): HTMLElement {
   return screen('rg-bag', statusBar(run), el('h2', 'rg-h', '🎒 Ditt skräp'), el('div', 'rg-cards bag', ...rows), foot(go('Stäng', o.onClose)));
 }
 
-export function menuView(run: RunState, o: { onClose(): void; onTitle(): void; onSettings(): void }): HTMLElement {
+export function menuView(run: RunState, o: { onClose(): void; onTitle(): void; onSettings(): void; onBuild(): void }): HTMLElement {
   return screen(
     'rg-menu',
     statusBar(run),
-    el('div', 'rg-menubody', el('h2', 'rg-h', 'Paus'), go('Fortsätt köra', o.onClose), ghost('⚙️ Inställningar', o.onSettings), ghost('💾 Spara och sticka', o.onTitle), el('small', null, `Rundan sparas av sig själv efter varje plats. ${seedLabel(run.seed)}`)),
+    el('div', 'rg-menubody', el('h2', 'rg-h', 'Paus'), go('Fortsätt köra', o.onClose), ghost('🧰 Bygget', o.onBuild), ghost('⚙️ Inställningar', o.onSettings), ghost('💾 Spara och sticka', o.onTitle), el('small', null, `Rundan sparas av sig själv efter varje plats. ${seedLabel(run.seed)}`)),
   );
 }
 

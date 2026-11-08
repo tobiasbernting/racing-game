@@ -218,7 +218,7 @@ const rally = (ctx: GameContext): GameInstance => {
   const abilityOn = !!opts && !rules?.sameCars;
   const kit = abilityOn ? kitOf(myCar.body) : null;
   /** The hatchback's passive gives a nitro slot of its own (a perfect drift fills it). */
-  const nitroSlots = (): number => myTune.charges + (kit?.passive.id === 'nitroTopUp' || kit?.active.id === 'kartSlide' ? 1 : 0);
+  const nitroSlots = (): number => myTune.charges + (kit?.passive.id === 'nitroTopUp' || kit?.active.id === 'kartSlide' ? 1 : 0) + (mt.fill && myTune.charges < 1 ? 1 : 0);
   /** The handling a body gets from the player's parts and trinkets (the body can change mid-race with a trinket). */
   const tuneForBody = (body: CarBody): Tune => {
     const t = tuneFor({ ...myCar, body }, !!rules?.sameCars, !!rules?.nitro);
@@ -226,6 +226,8 @@ const rally = (ctx: GameContext): GameInstance => {
     t.grip = capGrip(t.grip * mt.grip);
     t.size *= mt.size * (kit?.passive.id === 'slim' ? 0.85 : 1);
     t.dmgMul *= mt.tough;
+    t.brakeMul *= mt.brakes;
+    t.assist += mt.assist;
     if (rules?.nitro) t.charges = Math.min(MAX_CHARGES, Math.round(t.charges + mt.charges));
     return t;
   };
@@ -236,7 +238,8 @@ const rally = (ctx: GameContext): GameInstance => {
       const f = rivalFeel(body);
       return spec ? { ...f, mass: f.mass * spec.mass, slip: f.slip * spec.slip } : f;
     }
-    const f = (rules?.sameCars ? CAR_BODY_DEFS.hatch : CAR_BODY_DEFS[body]).feel;
+    const f0 = (rules?.sameCars ? CAR_BODY_DEFS.hatch : CAR_BODY_DEFS[body]).feel;
+    const f = mt.mass === 1 ? f0 : { ...f0, mass: f0.mass * mt.mass };
     if (mt.sidecar && body === 'moto') return { ...f, two: false, lean: 0.2, mass: f.mass * 1.7, steer: 0.95, yaw: 1.05, halfW: 0.95, bumpR: 0.8, bumpAt: 0.85 };
     return f;
   };
@@ -257,6 +260,9 @@ const rally = (ctx: GameContext): GameInstance => {
   };
   placeCamBtn(!!ctx.controls?.pedals);
   hud.setTrinkets(mods.items);
+  // the combos that are on, as a small line under the position box a moment after the start
+  const comboNames = mods.items.filter((i) => i.id.startsWith('combo.')).map((i) => `${i.emoji} ${i.name}`);
+  if (comboNames.length) setTimeout(() => !destroyed && hud.toast(`⭐ Kombo: ${comboNames.slice(0, 3).join(', ')}`), 1500);
   hud.disco(mt.disco);
   const audio = new RallyAudio(ctx.audio, ctx.out);
   const skyPreset = rain ? rainy(course.theme.sky[timeOfDay]) : course.theme.sky[timeOfDay];
@@ -349,8 +355,8 @@ const rally = (ctx: GameContext): GameInstance => {
     return null;
   };
 
-  const modelFor = (car: GarageCar, driver?: Face, sidecar = false): CarModel => {
-    const m = carModel({ body: car.body, style: car.style, driver, shadowTex, envMap: sky.env, quality: ctx.quality, sidecar });
+  const modelFor = (car: GarageCar, driver?: Face, sidecar = false, look?: Record<string, number>): CarModel => {
+    const m = carModel({ body: car.body, style: car.style, driver, shadowTex, envMap: sky.env, quality: ctx.quality, sidecar, look });
     m.setDamage(car.damage ?? 0);
     m.setNight(night);
     scene.add(m.root, m.shadow);
@@ -505,6 +511,10 @@ const rally = (ctx: GameContext): GameInstance => {
         return s;
       };
       (window as unknown as { __rallyDebug: unknown }).__rallyDebug = {
+        /** The race api and the hook bus: a test fires a trick, a mine or a shockwave by hand. */
+        api,
+        bus: mods.bus,
+        look: () => ({ ramUpT, flameT, decoyT, airT, flipA, nearOn }),
         tumble: () => knock(player(), 99, 1),
         honk: () => honk(player()),
         swap: (b: CarBody) => swapPlayerBody(b),
@@ -616,7 +626,7 @@ const rally = (ctx: GameContext): GameInstance => {
       const gcar = isMe ? myCar : opts ? aiCar(k, color, r!.face, body) : arcadeCar(color);
       if (boss) gcar.style.number = 1;
       if (!isMe && !opts) gcar.style.number = k + 2;
-      const model = modelFor(isMe || opts ? gcar : { ...gcar, body: 'hatch' }, isMe ? undefined : r!.face, isMe && mt.sidecar && body === 'moto');
+      const model = modelFor(isMe || opts ? gcar : { ...gcar, body: 'hatch' }, isMe ? undefined : r!.face, isMe && mt.sidecar && body === 'moto', isMe ? opts?.look : undefined);
       disposers.push(() => model.dispose());
       const car = new Car(track);
       car.setBody(body, feelOf(body, isMe, spec));
@@ -707,7 +717,7 @@ const rally = (ctx: GameContext): GameInstance => {
         wheelie: 0,
         blindT: 0,
       };
-      e.maxHp = maxHpOf(car.feel.mass, spec?.hp ?? 1) * (isMe ? 1 + 0.08 * (myCar.parts.armour ?? 0) : 1);
+      e.maxHp = maxHpOf(car.feel.mass, spec?.hp ?? 1) * (isMe ? mt.hp * (1 + 0.08 * (myCar.parts.armour ?? 0)) : 1);
       e.hp = e.maxHp;
       if (isMe) meE = e;
       entrants.push(e);
@@ -761,6 +771,17 @@ const rally = (ctx: GameContext): GameInstance => {
   // nitro, drift boost and style points (the player only)
   let nitroLeft = myTune.charges;
   let nitroBank = 0;
+  // the upgrades (run/upgrades.ts): the bumper's boost, the flip clock, the decoy, the fire behind, the near-miss clock per car
+  let ramUpT = 0;
+  let ramUpK = 1;
+  let airT = 0;
+  let flipA = 0;
+  let flipShow = 0;
+  let decoyT = 0;
+  let flameT = 0;
+  const decoyAt = { x: 0, z: 0 };
+  const nearAt = new Map<string, number>();
+  const nearOn = mods.items.some((i) => i.id === 'stunt.near');
   // the vehicle's active ability (abilities.ts): seconds until it is ready, and what is running
   let abilCd = 0;
   let kickT = 0;
@@ -1209,7 +1230,7 @@ const rally = (ctx: GameContext): GameInstance => {
 
   // ---- trinkets: what a hook can do to the race ----
   const tmpCol = new THREE.Color();
-  const tickState: TickState = { speed: 0, steer: 0, handbrake: false, handbrakePressed: false, straight: false, air: false, drifting: false, boosting: false, lap: 1, place: 1, racing: false, time: 0 };
+  const tickState: TickState = { speed: 0, steer: 0, handbrake: false, handbrakePressed: false, straight: false, air: false, drifting: false, boosting: false, lap: 1, place: 1, racing: false, time: 0, braking: false, wheelie: false };
 
   function sparkleAt(x: number, y: number, z: number, n: number, spread: number): void {
     for (let k = 0; k < (high ? n : Math.ceil(n / 2)); k++) {
@@ -1242,6 +1263,7 @@ const rally = (ctx: GameContext): GameInstance => {
     if (mt.jump > 0 && straight && phase === 'race') me.ctl.handbrake = false;
     if (mt.wiggle > 0 && nitroT > 0) me.ctl.steer = clamp(me.ctl.steer + mt.wiggle * Math.sin(timeU.value * 9), -1, 1);
     extraBoostT = Math.max(0, extraBoostT - dt);
+    ramUpT = Math.max(0, ramUpT - dt);
     if (mods.bus.size) {
       const ts = tickState;
       ts.speed = c.speed;
@@ -1256,8 +1278,11 @@ const rally = (ctx: GameContext): GameInstance => {
       ts.place = place;
       ts.racing = phase === 'race' && !me.finished;
       ts.time = raceT;
+      ts.braking = me.ctl.brake > 0.6 && c.speed > 12;
+      ts.wheelie = me.wheelie > 0.2;
       mods.bus.tick(dt, ts);
     }
+    stuntStep(dt, me, racing);
     if (racing && phase === 'race') {
       if (mt.disco) {
         beatT += dt;
@@ -1271,9 +1296,189 @@ const rally = (ctx: GameContext): GameInstance => {
   }
 
 
+  // ---- the car that grows (run/upgrades.ts): stunts, fire behind, the decoy, the shockwave ----
+  /** Airtime, flips, near misses, the fire behind and the decoy. */
+  function stuntStep(dt: number, me: Entrant, racing: boolean): void {
+    const c = me.car;
+    const live = racing && phase === 'race' && !me.finished;
+    if (c.air && live) {
+      airT += dt;
+      if (mt.flip > 0 && airT > 0.3) flipA += dt * (5.4 + mt.flip * 1.3);
+      flipShow = flipA;
+    } else {
+      if (airT > 0 && live) {
+        if (airT >= 0.7) mods.bus.trick('air', airT);
+        const flips = Math.floor(flipA / (Math.PI * 2) + 0.3);
+        if (flips >= 1) {
+          mods.bus.trick('flip', flips);
+          sparkleAt(c.x, c.y, c.z, 10, 1.2);
+        }
+        // down on the wheels again: whatever angle is left eases out
+        if (flipA > 0) {
+          let r = flipA % (Math.PI * 2);
+          if (r > Math.PI) r -= Math.PI * 2;
+          flipShow = r;
+        }
+      }
+      airT = 0;
+      flipA = 0;
+      flipShow = damp(flipShow, 0, 16, dt);
+      if (Math.abs(flipShow) < 0.01) flipShow = 0;
+    }
+    if (nearOn && live && c.speed > 18) {
+      const sinH = Math.sin(c.heading);
+      const cosH = Math.cos(c.heading);
+      for (const o of entrants) {
+        if (o === me || o.finished || o.wreckT > 0 || o.car.ghost > 0) continue;
+        const dx = o.car.x - c.x;
+        const dz = o.car.z - c.z;
+        const fwd = dx * sinH + dz * cosH;
+        if (Math.abs(fwd) > 2.2) continue;
+        const lat = Math.abs(dx * cosH - dz * sinH);
+        const hw = c.feel.halfW + o.car.feel.halfW;
+        if (lat < hw * 1.03 || lat > hw + 1.1) continue;
+        if (Math.hypot(c.vx - o.car.vx, c.vz - o.car.vz) < 8 || raceT - (nearAt.get(o.id) ?? -9) < 2.5) continue;
+        nearAt.set(o.id, raceT);
+        mods.bus.trick('near', 1 - (lat - hw) / 1.1);
+      }
+    }
+    if (flameT > 0) {
+      flameT -= dt;
+      const sinH = Math.sin(c.heading);
+      const cosH = Math.cos(c.heading);
+      for (let k = 0; k < (high ? 5 : 3); k++) {
+        const back = 1.8 + Math.random() * 1.2;
+        glow.emit({ x: c.x - sinH * back + cosH * (Math.random() - 0.5) * 0.8, y: c.y + 0.5 + Math.random() * 0.4, z: c.z - cosH * back - sinH * (Math.random() - 0.5) * 0.8, vx: -sinH * (11 + Math.random() * 5) + (Math.random() - 0.5) * 2, vy: 0.3 + Math.random(), vz: -cosH * (11 + Math.random() * 5) + (Math.random() - 0.5) * 2, life: 0.4 + Math.random() * 0.25, size0: 0.7, size1: 2.4, color: colFireball, alpha: 0.85, drag: 1.4, gravity: -0.5 });
+      }
+      for (const o of around()) {
+        if (o.fwd > 0 || o.fwd < -17 || Math.abs(o.lat) > 3.8) continue;
+        const f = Math.exp(-dt * 2.4);
+        o.e.car.vx *= f;
+        o.e.car.vz *= f;
+        if (carnage) {
+          o.e.calmT = 0;
+          if (Math.random() < dt * 2) ledger.hit(o.e.id, me.id, 8, timeU.value);
+          damageHp(o.e, 13 * dt, me);
+        }
+      }
+    }
+    if (decoyT > 0) {
+      decoyT -= dt;
+      api.slowBehind(34, 1.3, dt);
+      if (Math.random() < 0.6) sparkleAt(decoyAt.x, c.y, decoyAt.z, 1, 0.8);
+    }
+  }
+
+  /** A pulse of force from the car: cars within `radius` m are thrown out, and in Blodbad lose some health. */
+  function shockwave(radius: number, push: number, dmg: number): void {
+    const me = player();
+    const c = me.car;
+    let hit = 0;
+    for (const o of around()) {
+      if (o.d > radius || o.d < 0.1) continue;
+      const f = 1 - 0.55 * (o.d / radius);
+      o.e.car.vx += ((o.e.car.x - c.x) / o.d) * push * f;
+      o.e.car.vz += ((o.e.car.z - c.z) / o.d) * push * f;
+      o.e.car.vy += 3.2 * f;
+      o.e.car.yawRate += (Math.random() - 0.5) * 5;
+      o.e.squashT = Math.max(o.e.squashT, 0.5 * f);
+      if (carnage && dmg > 0) {
+        ledger.hit(o.e.id, me.id, dmg, timeU.value);
+        damageHp(o.e, dmg * f, me);
+      }
+      hit++;
+    }
+    shake = Math.max(shake, hit ? 0.4 : 0.2);
+    ring(c, 28, 11, colHot);
+    sparks(c.x, c.y, c.z, high ? 12 : 6);
+    if (hit) audio.boom();
+  }
+
+  /** A blinding cloud hanging behind the car for `sec` seconds (the snowmobile's powder, as a dirty trick). */
+  function blindCloud(sec: number): void {
+    const c = player().car;
+    const sinH = Math.sin(c.heading);
+    const cosH = Math.cos(c.heading);
+    clouds.push({ x: c.x - sinH * (POWDER.reach * 0.5), z: c.z - cosH * (POWDER.reach * 0.5), h: c.heading, t: sec });
+    while (clouds.length > 3) clouds.shift();
+    for (let k = 0; k < (high ? 30 : 14); k++) {
+      const back = 2 + Math.random() * POWDER.reach * 0.5;
+      const side = (Math.random() - 0.5) * POWDER.width;
+      particles.emit({ x: c.x - sinH * back + cosH * side, y: c.y + 0.6 + Math.random() * 1.4, z: c.z - cosH * back - sinH * side, vx: (Math.random() - 0.5) * 1.5, vy: 0.2 + Math.random() * 0.6, vz: (Math.random() - 0.5) * 1.5, life: 1.8 + Math.random() * 1.2, size0: 1.6, size1: 5.5, color: colSmoke, alpha: 0.6, drag: 1.2, gravity: -0.05 });
+    }
+    audio.poof();
+  }
+
+  /** The extras a vehicle's second ability upgrade adds to its active. */
+  function abilityPlus(id: string, me: Entrant): void {
+    const c = me.car;
+    const sinH = Math.sin(c.heading);
+    const cosH = Math.cos(c.heading);
+    switch (id) {
+      case 'oil':
+        api.oil();
+        break;
+      case 'hay':
+        for (const sx of [-1, 1]) obstacles.add('hay', c.x - sinH * 6.2 + cosH * sx * 1.4, c.y, c.z - cosH * 6.2 - sinH * sx * 1.4, c);
+        stats.hazards += 2;
+        audio.hay(8);
+        break;
+      case 'shock':
+        shockwave(11, 7, 10);
+        break;
+      case 'boost':
+        api.boost(0.9, 1.25);
+        break;
+      case 'smoke':
+        blindCloud(2.8);
+        break;
+      case 'coins':
+        api.kronor(14);
+        break;
+      case 'nitro':
+        api.nitro(0.35);
+        break;
+      case 'decoy':
+        decoyT = 2.4;
+        decoyAt.x = c.x;
+        decoyAt.z = c.z;
+        poof(c.x, c.y, c.z);
+        hud.toast('🎭 Lockbilen står kvar och lurar alla');
+        break;
+      case 'heal':
+        api.heal(0.2);
+        break;
+      case 'mine':
+        api.mine();
+        break;
+    }
+  }
+
+  /** The active, stretched by the upgrades: a longer run for the timers that were just set, and the extra effects. */
+  function useAbilityBoosted(me: Entrant): boolean {
+    const c = me.car;
+    const b = { kick: kickT, dodge: dodgeT, charge: chargeT, rocket: rocketT, burst: burstT, vip: vipT, mow: mowT, extra: extraBoostT, ghost: c.ghost, vy: c.vy };
+    if (!useAbility(me)) return false;
+    const k = mt.abilDur - 1;
+    if (k > 0.001) {
+      kickT += (kickT - b.kick) * k;
+      dodgeT += (dodgeT - b.dodge) * k;
+      chargeT += (chargeT - b.charge) * k;
+      rocketT += (rocketT - b.rocket) * k;
+      burstT += (burstT - b.burst) * k;
+      vipT += (vipT - b.vip) * k;
+      mowT += (mowT - b.mow) * k;
+      extraBoostT += (extraBoostT - b.extra) * k;
+      c.ghost += (c.ghost - b.ghost) * k;
+      if (kit?.active.id === 'hop') c.vy += (c.vy - b.vy) * k;
+    }
+    for (const id of mt.plus) abilityPlus(id, me);
+    return true;
+  }
+
   // ---- the vehicle's ability: passives and the active on its own button ----
   /** The ram power of the player's bumper: the trinkets', the vehicle's own, and the tractor's charge. */
-  const ramNow = (): number => Math.min(RAMMER.maxRam, Math.max(ramPowerOf(mt.shove), kit ? PASSIVE_RAM[myCar.body] ?? 1 : 1) * (chargeT > 0 ? RAMMER.ram : 1));
+  const ramNow = (): number => Math.min(RAMMER.maxRam, Math.max(ramPowerOf(mt.shove), kit ? PASSIVE_RAM[myCar.body] ?? 1 : 1) * (chargeT > 0 ? RAMMER.ram : 1) * (ramUpT > 0 ? ramUpK : 1));
 
   /** Cars around the player: ahead (fwd > 0) and beside (lat), in the player's frame. */
   function around(): { e: Entrant; fwd: number; lat: number; d: number }[] {
@@ -1651,8 +1856,8 @@ const rally = (ctx: GameContext): GameInstance => {
     if (inp.pressed('x') && live) {
       if (abilCd > 0) {
         if (abilCd > 0.3) hud.toast(`${kit.active.emoji} ${kit.active.name} laddar… ${Math.ceil(abilCd)} s`);
-      } else if (useAbility(me)) {
-        abilCd = kit.active.cooldown;
+      } else if (useAbilityBoosted(me)) {
+        abilCd = kit.active.cooldown * mt.abilCd;
         stats.abilityUses++;
         hud.popup(`${kit.active.emoji} ${kit.active.name}`, 'abil');
       }
@@ -1662,7 +1867,7 @@ const rally = (ctx: GameContext): GameInstance => {
     phase10(dt, me, racing);
     // a vehicle with a stomp or a charge gets a dust trail while it lasts
     if (chargeT > 0 && Math.random() < (high ? 0.7 : 0.35)) sparks(me.car.x - Math.sin(me.car.heading) * 2.6, me.car.y, me.car.z - Math.cos(me.car.heading) * 2.6, 2);
-    const k = chargeOf(abilCd, kit.active.cooldown);
+    const k = chargeOf(abilCd, kit.active.cooldown * mt.abilCd);
     const key = `${Math.round(k * 40)}/${abilCd <= 0}`;
     if (key !== abilKey) {
       abilKey = key;
@@ -1931,7 +2136,7 @@ const rally = (ctx: GameContext): GameInstance => {
     c.brakeMul = myTune.brakeMul;
     c.grip = myTune.grip;
     e.basePower = BASE_POWER * myTune.power;
-    const m = modelFor({ ...myCar, body: next }, undefined, mt.sidecar && next === 'moto');
+    const m = modelFor({ ...myCar, body: next }, undefined, mt.sidecar && next === 'moto', opts?.look);
     m.root.scale.setScalar(mt.size);
     disposers.push(() => m.dispose());
     e.model = m;
@@ -1978,6 +2183,41 @@ const rally = (ctx: GameContext): GameInstance => {
         if (damageK > 0) hurt(e, 4);
         else damageHp(e, 3, null);
         for (let k = 0; k < (high ? 8 : 4); k++) particles.emit({ x: c.x, y: c.y + 0.3, z: c.z, vx: (Math.random() - 0.5) * 5, vy: 2 + Math.random() * 2, vz: (Math.random() - 0.5) * 5, life: 0.7, size0: 0.3, size1: 0.2, color: colDirt, alpha: 1, drag: 1, gravity: 9 });
+        continue;
+      }
+      if (o.kind === 'mine') {
+        // a mine: a bang, the car thrown up and round, and in Blodbad some health
+        c.vy = Math.max(c.vy, 0) + 5.5;
+        c.y += 0.08;
+        c.yawRate += (Math.random() < 0.5 ? -1 : 1) * 10;
+        c.vx *= 0.55;
+        c.vz *= 0.55;
+        e.squashT = Math.max(e.squashT, 0.5);
+        if (carnage) {
+          ledger.hit(e.id, me.id, 14, timeU.value);
+          damageHp(e, 14, me);
+        } else hurt(e, 6);
+        sparks(c.x, c.y, c.z, high ? 18 : 8);
+        ring(c, 24, 9, colHot);
+        if (Math.hypot(c.x - me.car.x, c.z - me.car.z) < 60) {
+          audio.boom();
+          shake = Math.max(shake, e === me ? 0.4 : 0.25);
+        }
+        if (e !== me) {
+          stats.squashed++;
+          stats.bananaHits++;
+        }
+        continue;
+      }
+      if (o.kind === 'coin') {
+        // a coin that is not a coin: it pops in a puff of confetti and the car that went for it spins
+        c.yawRate += (Math.random() < 0.5 ? -1 : 1) * 8 * c.feel.slip;
+        c.vx *= 0.7;
+        c.vz *= 0.7;
+        e.squashT = Math.max(e.squashT, 0.4);
+        confetti.burst(c.x, c.y + 1.6, c.z, high ? 40 : 20, 6);
+        if (Math.hypot(c.x - me.car.x, c.z - me.car.z) < 60) audio.boing();
+        if (e !== me) stats.bananaHits++;
         continue;
       }
       // a tractor hardly notices a banana peel, a hay bale or an oil slick; oil spins harder and takes the grip for a moment
@@ -2221,6 +2461,63 @@ const rally = (ctx: GameContext): GameInstance => {
       stats.hazards++;
       return true;
     },
+    oil() {
+      const c = player().car;
+      obstacles.add('oil', c.x - Math.sin(c.heading) * 3.8, c.y, c.z - Math.cos(c.heading) * 3.8, c);
+      stats.hazards++;
+    },
+    mine() {
+      const c = player().car;
+      obstacles.add('mine', c.x - Math.sin(c.heading) * 4.2, c.y, c.z - Math.cos(c.heading) * 4.2, c);
+      stats.hazards++;
+      audio.thud(3);
+    },
+    fakeCoin() {
+      const c = player().car;
+      obstacles.add('coin', c.x - Math.sin(c.heading) * 5 + (Math.random() - 0.5) * 3, c.y, c.z - Math.cos(c.heading) * 5, c);
+      stats.hazards++;
+    },
+    smoke(sec) {
+      blindCloud(sec);
+    },
+    shock(radius, push, dmg) {
+      shockwave(radius, push, dmg);
+    },
+    ramUp(sec, k) {
+      ramUpT = Math.max(ramUpT, sec);
+      ramUpK = Math.max(1, k);
+    },
+    nitro(frac) {
+      if (nitroSlots() <= 0) return;
+      nitroBank += frac;
+      let got = false;
+      while (nitroBank >= 1 && nitroLeft < nitroSlots()) {
+        nitroBank -= 1;
+        nitroLeft = Math.min(nitroSlots(), Math.floor(nitroLeft) + 1);
+        got = true;
+      }
+      if (nitroLeft >= nitroSlots()) nitroBank = 0;
+      else nitroBank = Math.min(nitroBank, 0.99);
+      if (got) {
+        hud.popup('🔥 Nitro +1', 'abil');
+        audio.chime();
+      }
+    },
+    flame() {
+      flameT = 0.8;
+      audio.boom();
+      shake = Math.max(shake, 0.2);
+    },
+    heal(frac) {
+      const me = player();
+      me.damage = Math.max(0, me.damage - frac * 100);
+      me.model.setWear(me.dirt, wearOf(me));
+      if (carnage) {
+        me.hp = Math.min(me.maxHp, me.hp + frac * me.maxHp);
+        me.model.setDamage(100 * (1 - me.hp / me.maxHp) * 0.9);
+      } else me.model.setDamage(me.damage);
+      sparkleAt(me.car.x, me.car.y, me.car.z, 8, 1);
+    },
     swapVehicle() {
       const e = player();
       const pool = CAR_BODIES.filter((b) => b !== e.body);
@@ -2328,7 +2625,7 @@ const rally = (ctx: GameContext): GameInstance => {
       let any = false;
       for (const [x, o, closeO] of [[ea, eb, info.closeB], [eb, ea, info.closeA]] as const) {
         if (x.finished || x.wreckT > 0) continue;
-        const dmg = impactDamage({ dv: info.j / x.car.feel.mass, blame: closeO / tot, ram: o.car.ram, dmgTaken: x.tune.dmgMul });
+        const dmg = impactDamage({ dv: info.j / x.car.feel.mass, blame: closeO / tot, ram: o.car.ram * (o === me ? mt.spike : 1), dmgTaken: x.tune.dmgMul });
         if (dmg > 0) {
           damageHp(x, dmg, o);
           any = true;
@@ -2399,6 +2696,8 @@ const rally = (ctx: GameContext): GameInstance => {
     const attacker = by ? entrants.find((e) => e.id === by) ?? null : null;
     dbg.wrecks++;
     if (attacker) attacker.takedowns++;
+    if (attacker === me) mods.bus.takedown();
+    if (x === me) mods.bus.wreck();
     if (attacker && attacker !== me) dbg.rivalTake++;
     const near = Math.hypot(c.x - me.car.x, c.z - me.car.z) < 70;
     if (near || x === me || attacker === me) audio.boom();
@@ -2709,6 +3008,11 @@ const rally = (ctx: GameContext): GameInstance => {
         else if (!was && e.u < me.u - 4) {
           passed.set(e.id, true);
           stats.overtakes++;
+          if (mods.bus.size) {
+            let top = -Infinity;
+            for (const o of entrants) if (o !== me && o.u > top) top = o.u;
+            mods.bus.overtake(e.u >= top - 0.5);
+          }
         } else if (was && e.u > me.u + 4) passed.set(e.id, false);
       }
       // a rival that has just got past the player shouts something (not too often)
@@ -3073,8 +3377,9 @@ const rally = (ctx: GameContext): GameInstance => {
       flip = smooth(0, 0.6, WRECK_SECONDS - e.wreckT);
       roll += Math.PI * flip;
     }
-    m.root.position.set(c.x, c.y + 1.4 * flip, c.z);
-    euler.set(-c.slopePitch - (e?.wheelie ?? 0), c.heading, c.slopeRoll + roll, 'YXZ');
+    m.root.position.set(c.x, c.y + 1.4 * flip + (e && e === meE && flipShow !== 0 ? 0.9 * Math.abs(Math.sin(flipShow * 0.5)) : 0), c.z);
+    const spin = e && e === meE ? flipShow : 0;
+    euler.set(-c.slopePitch - (e?.wheelie ?? 0) - spin, c.heading, c.slopeRoll + roll, 'YXZ');
     m.root.quaternion.setFromEuler(euler);
     m.body.position.y = c.susp + (wk - 1) * m.wheelR;
     m.body.rotation.x = clamp(-c.accLong * 0.009, -0.09, 0.07);

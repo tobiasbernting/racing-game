@@ -54,6 +54,8 @@ export interface RallyOptions {
   best?: number;
   /** The player's trinkets turned into numbers and hooks (see mods.ts). Without them the race is plain. */
   mods?: RaceMods;
+  /** How the player's car looks with its upgrades: the highest tier taken of every upgrade line (see run/upgrades.ts lookOf). */
+  look?: Record<string, number>;
   /** A twist on the race: a boss, an icy road, hay bales. */
   twist?: RaceTwist;
   /** The rivals' kit (archetypes, upgrades, modifiers), the catch-up and the hazards. Without it the old plain grid races. */

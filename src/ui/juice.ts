@@ -116,6 +116,15 @@ export function pryl(host: HTMLElement, emoji: string, name: string): void {
   setTimeout(() => b.remove(), 2200);
 }
 
+/** A small "KOMBO!" ribbon in the corner: two things you own just woke a combo. Like UPPLÅST!, it never blocks anything and goes by itself. */
+export function kombo(host: HTMLElement, emoji: string, name: string, text: string): void {
+  host.querySelectorAll('.arc-unl.kombo').forEach((n) => n.remove());
+  const b = el('div', 'arc-unl kombo', el('span', 'arc-unl-i', emoji), el('div', 'arc-unl-t', el('b', null, 'KOMBO!'), el('span', null, name), el('small', null, text)));
+  b.setAttribute('role', 'status');
+  host.append(b);
+  setTimeout(() => b.remove(), 5200);
+}
+
 /** A small "UPPLÅST!" ribbon in the corner of whatever screen is up: a new vehicle is open. It never blocks anything and goes by itself. */
 export function upplast(host: HTMLElement, emoji: string, name: string, why: string): void {
   host.querySelectorAll('.arc-unl').forEach((n) => n.remove());

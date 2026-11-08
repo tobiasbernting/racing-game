@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RallyResult } from '../rally/options.ts';
-import { buyHeart, buyRepair, buyTrinket, healPrice, makeStock, reroll, rerollPrice, trinketPrice, workshopRepair, workshopUpgrade } from './economy.ts';
+import { buyHeart, buyRepair, buyTrinket, healPrice, makeStock, reroll, rerollPrice, trinketPrice, upgradePrice, workshopBuy, workshopFree, workshopRepair } from './economy.ts';
 import { EVENTS, resolveChoice } from './events.ts';
 import { backToMap, chooseEvent, continueAfterRace, enterNode, finishNode, pickReward, submitRace } from './flow.ts';
 import { ACTS, type MapNode } from './map.ts';
@@ -301,16 +301,28 @@ describe('the shop', () => {
 });
 
 describe('the workshop', () => {
-  it('upgrades one part for free, once, up to level 3', () => {
+  it('one cheap upgrade (tier I or II) is free, once; the rest cost kronor and need their earlier tiers', () => {
     const run = fresh();
+    run.kronor = 0;
     run.screen = { kind: 'workshop', nodeId: 'x', used: false, note: '' };
-    expect(workshopUpgrade(run, 'engine')).toBe(true);
-    expect(run.car.parts.engine).toBe(1);
-    expect(workshopUpgrade(run, 'tyres')).toBe(false);
+    expect(workshopFree(run, 'race.engine1')).toBe(true);
+    expect(workshopFree(run, 'race.cap1')).toBe(false);
+    expect(workshopBuy(run, 'race.engine2')).toBe('nothing');
+    expect(workshopBuy(run, 'race.engine1')).toBe('ok');
+    expect(run.up).toEqual(['race.engine1']);
+    expect(run.kronor).toBe(0);
+    // the free pick is gone: the next one costs, and a poor player cannot
     expect(workshopRepair(run)).toBe(false);
-    run.screen = { kind: 'workshop', nodeId: 'x', used: false, note: '' };
-    run.car.parts.engine = 3;
-    expect(workshopUpgrade(run, 'engine')).toBe(false);
+    expect(workshopBuy(run, 'race.engine2')).toBe('poor');
+    run.kronor = 500;
+    const price = upgradePrice(run, 'race.engine2');
+    expect(price).toBeGreaterThan(0);
+    expect(workshopBuy(run, 'race.engine2')).toBe('ok');
+    expect(run.kronor).toBe(500 - price);
+    expect(run.up).toEqual(['race.engine1', 'race.engine2']);
+    // a node already taken, or the other vehicle's, cannot be bought
+    expect(workshopBuy(run, 'race.engine2')).toBe('nothing');
+    expect(workshopBuy(run, 'car.tractor1')).toBe('nothing');
   });
 });
 

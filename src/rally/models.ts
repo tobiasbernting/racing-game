@@ -1,6 +1,7 @@
 // Low-poly models for the countryside round the circuit: red cottages, the barn, the windmill, trees,
 // animals, spectators, fences and the cars. Every model is one vertex-coloured geometry (or a few).
 import * as THREE from 'three';
+import { addUpgradeLook } from './modlook.ts';
 import { CAR_BODY_DEFS, defaultStyle, type CarBody, type CarDriver, type CarSpoiler, type CarStyle, type CarWheels, type DecalSlot } from '../shared/rally.ts';
 import { Geo, mat } from './geo.ts';
 import { hullGeometry, outlineMaterial, outlineMesh } from './look.ts';
@@ -654,6 +655,8 @@ export interface CarModelOpts {
   quality?: 'high' | 'low';
   /** A sidecar on the motorbike. */
   sidecar?: boolean;
+  /** The upgrades on the car: the highest tier taken of every upgrade line (run/upgrades.ts lookOf). */
+  look?: Record<string, number>;
 }
 
 /** Wheel positions (x, z) of the hatchback in the car's frame: front axle at +1.15, rear at −1.35. */
@@ -1591,6 +1594,12 @@ function hash3(x: number, y: number, z: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+/** The measurements and the (not yet built) geometry of a body, without any drawing: what the shared builder gets from each body (tests and the upgrade looks use it). */
+export function bodySpecOf(body: CarBody, style: CarStyle = defaultStyle(), hi = true): { spec: BodySpec; P: Parts } {
+  const P: Parts = { pg: new PaintGeo(), tg: new Geo(), glass: new Geo(), lamp: new Geo(), brake: new Geo(), style, hi };
+  return { spec: BODIES[BODIES[body] ? body : 'hatch'](P), P };
+}
+
 /** A car for a body and a style, front along +z. The arcade default is the red hatchback. */
 export function carModel(opts: CarModelOpts): CarModel {
   const style = opts.style ?? defaultStyle();
@@ -1610,6 +1619,7 @@ export function carModel(opts: CarModelOpts): CarModel {
   const P: Parts = { pg: new PaintGeo(), tg: new Geo(), glass: new Geo(), lamp: new Geo(), brake: new Geo(), style, hi, sidecar: opts.sidecar };
   const spec = BODIES[bodyKind](P);
   addExtras(P, spec);
+  addUpgradeLook(P, spec, opts.look);
   const seed = (style.number * 131 + bodyKind.length * 17 + style.paint.charCodeAt(2)) >>> 0;
 
   // exhausts: one pipe, or two big chrome ones

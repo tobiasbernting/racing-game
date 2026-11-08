@@ -67,11 +67,27 @@ function buildSection(run: RunState): HTMLElement {
       el('div', null, el('small', 'rs-ab-k', `Fordonets förmåga · ${ab.vehicle} · ${ab.lean}`), el('b', null, ab.name), el('small', null, `${ab.text} ${uses}`), el('small', 'rs-ab-pass', `Passiv, ${ab.passive.name}: ${ab.passive.text}`)),
     ),
   );
-  if (b.parts.length) {
-    box.append(el('div', 'rs-parts', ...b.parts.map((p) => {
-      const pips = el('span', 'rs-pips', ...Array.from({ length: 3 }, (_v, i) => el('i', i < p.level ? 'on' : null)));
-      return el('div', 'rs-part', el('span', 'rs-pi', p.emoji), el('div', null, el('b', null, `${p.name} nivå ${p.level}`), el('small', null, p.from.join(' · '))), pips);
-    })));
+  if (ab.ups.length) box.append(el('ul', 'rs-abups', ...ab.ups.map((u) => el('li', null, el('b', null, `${ab.emoji} ${u.name}`), el('small', null, ` ${u.text}`)))));
+  if (b.trees.length) {
+    // the upgrade trees: the nodes taken in each, in the order of the tree's lines, and where each came from
+    box.append(
+      el('div', 'rs-subh', '🌳 Uppgraderingsträd'),
+      el('div', 'rs-trees', ...b.trees.map((t) => {
+        const chips = t.nodes.map((n) => {
+          const chip = el('li', `rs-node${n.cap ? ' cap' : ''}`, el('span', 'rs-ni', n.emoji), el('span', null, n.name, n.tier > 1 ? el('em', null, ` ${'I'.repeat(n.tier)}`) : null));
+          chip.title = n.from.join(' · ');
+          return chip;
+        });
+        const tree = el('div', `rs-tree p-${t.tree}`, el('div', 'rs-treeh', el('b', null, `${t.emoji} ${t.name}`), el('small', null, `${t.nodes.length} av ${t.total}`)), el('ul', 'rs-nodes', ...chips));
+        return tree;
+      })),
+    );
+  }
+  if (b.combos.length) {
+    box.append(
+      el('div', 'rs-subh', '⭐ Kombos'),
+      el('ul', 'rs-combos', ...b.combos.map((c) => el('li', null, el('span', 'rs-ci', c.emoji), el('div', null, el('b', null, c.name), el('small', null, ` ${c.text}`), el('small', 'rs-cn', c.needs.join(' + ')))))),
+    );
   }
   if (b.trinkets.length) {
     box.append(el('ul', 'rs-trinkets', ...b.trinkets.map((t) => {
