@@ -164,6 +164,8 @@ export interface RunEnd {
   unlockedTrinkets: string[];
   /** The challenge progress when the run ended (the result screen compares it with `RunState.chal0`). */
   progress?: Record<string, number>;
+  /** The run was given up ("Ge upp rundan"): it counts as a run but paid no trophies. */
+  gaveUp?: boolean;
 }
 
 export interface RunState {

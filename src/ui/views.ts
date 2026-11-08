@@ -631,12 +631,22 @@ export function bagView(run: RunState, o: { onClose(): void }): HTMLElement {
   return screen('rg-bag', statusBar(run), el('h2', 'rg-h', '🎒 Ditt skräp'), el('div', 'rg-cards bag', ...rows), foot(go('Stäng', o.onClose)));
 }
 
-export function menuView(run: RunState, o: { onClose(): void; onTitle(): void; onSettings(): void; onBuild(): void }): HTMLElement {
+export function menuView(run: RunState, o: { onClose(): void; onTitle(): void; onSettings(): void; onBuild(): void; onRestart(): void }): HTMLElement {
   return screen(
     'rg-menu',
     statusBar(run),
-    el('div', 'rg-menubody', el('h2', 'rg-h', 'Paus'), go('Fortsätt köra', o.onClose), ghost('🧰 Bygget', o.onBuild), ghost('⚙️ Inställningar', o.onSettings), ghost('💾 Spara och sticka', o.onTitle), el('small', null, `Rundan sparas av sig själv efter varje plats. ${seedLabel(run.seed)}`)),
+    el('div', 'rg-menubody', el('h2', 'rg-h', 'Paus'), go('Fortsätt köra', o.onClose), ghost('🧰 Bygget', o.onBuild), ghost('⚙️ Inställningar', o.onSettings), ghost('💾 Spara och sticka', o.onTitle), ghost('🏳️ Ge upp rundan', o.onRestart), el('small', null, `Rundan sparas av sig själv efter varje plats. ${seedLabel(run.seed)}`)),
   );
+}
+
+/** Are you sure? "Nej" is the main button (Enter lands on it); "Ja, börja om" is the red one. Escape also means no (see App). */
+export function restartConfirmView(run: RunState, o: { onYes(): void; onNo(): void; onResult(): void }): HTMLElement {
+  const yes = btn('rg-btn warn', 'Ja, börja om', o.onYes);
+  const more = btn('rg-link', 'Visa rundans resultat först', o.onResult);
+  const dlg = el('div', 'rg-menubody rg-confirm', el('h2', 'rg-h', 'Börja om?'), el('p', 'rg-note', 'Den här rundan är förlorad.'), go('Nej', o.onNo), yes, more, el('small', null, 'Inga troféer för en uppgiven runda. Det du redan klarat av i utmaningarna sparas.'));
+  dlg.setAttribute('role', 'alertdialog');
+  dlg.setAttribute('aria-label', 'Ge upp rundan?');
+  return screen('rg-menu', statusBar(run), dlg);
 }
 
 // ---- settings ----

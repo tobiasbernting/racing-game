@@ -868,6 +868,10 @@ div.rg-tcard { cursor: default; }
 .rg-menubody { gap: 14px; }
 .rg-menubody .rg-go,
 .rg-menubody .rg-btn { width: min(420px, 100%); flex: none; }
+.rg-confirm .rg-note { margin: 0; font-size: clamp(18px, 3vw, 24px); font-weight: 800; text-align: center; }
+.rg-link { flex: none; min-height: 44px; padding: 8px 14px; background: none; border: 0; color: #ffe27a; font: inherit; font-size: 16px; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.rg-link:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; border-radius: 6px; }
+.rg-confirm small { text-align: center; max-width: 420px; }
 
 /* the end of a run, the collection */
 .rg-overbody { flex: 1 1 auto; min-height: 0; display: flex; gap: 18px; align-items: stretch; }

@@ -32,6 +32,7 @@ export function verdictOf(run: RunState): Verdict {
   const last = run.log[run.log.length - 1];
   const act = `Akt ${Math.min(ACTS, run.act + 1)} · ${ACT_NAMES[Math.min(run.act, ACTS - 1)]}`;
   if (run.status === 'won') return { won: true, title: 'DU KROSSADE ALLA!', sub: 'Alla tre bossarna ligger i diket. Du är kung.', where: `Alla ${ACTS} akter avklarade` };
+  if (run.end?.gaveUp) return { won: false, title: 'DU GAV UPP', sub: 'Rundan lades ner, inga troféer den här gången. Bra att du ser resultatet först.', where: `Gav upp i ${act}` };
   const at = last ? `${last.title}${last.kind ? ` (${KIND_NAMES[last.kind]})` : ''}` : 'startlinjen';
   return { won: false, title: 'RUNDAN ÄR SLUT', sub: 'Sista hjärtat lämnade bilen. Inte illa. Inte bra.', where: `Föll i ${act}, på ${at}` };
 }
@@ -195,7 +196,7 @@ const GOT_NAME = (what: 'trinket' | 'part' | 'up', id: string): string => {
 /** Every node walked, act by act, with what was picked up there. */
 export function buildTimeline(run: RunState): TimelineAct[] {
   const acts: TimelineAct[] = [];
-  const lastId = run.status === 'dead' ? run.log[run.log.length - 1]?.nodeId : undefined;
+  const lastId = run.status === 'dead' && !run.end?.gaveUp ? run.log[run.log.length - 1]?.nodeId : undefined;
   for (const l of run.log) {
     let a = acts.find((x) => x.act === l.act);
     if (!a) {
