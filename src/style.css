@@ -1496,3 +1496,31 @@ body { font-family: var(--body); background: var(--asphalt); }
   z-index: 1;
   background: radial-gradient(ellipse at 50% 48%, transparent 52%, rgba(0, 0, 0, 0.42) 100%);
 }
+
+/* difficulty: the selector on the pick screen, the badge on the status bar, the chips and the best runs */
+.rg-diffbox { display: flex; flex-direction: column; gap: 4px; }
+.rg-diffs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.rg-diffbtn { min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 6px; line-height: 1.15; }
+.rg-diffbtn .rg-dn { font-size: 16px; font-weight: 900; white-space: nowrap; }
+.rg-diffbtn small { font-size: 12px; font-weight: 800; }
+.rg-diffline { margin: 0; font-size: 14px; font-weight: 800; text-align: center; min-height: 18px; }
+.rg-diffline.d-calm { color: #9be37f; } .rg-diffline.d-hard { color: #ffb347; } .rg-diffline.d-one { color: #ff6b6b; }
+.rg-diffbadge, .rs-chip.diff { padding: 2px 10px; border-radius: 999px; font-weight: 900; font-size: 14px; border: 2px solid var(--dc, #fff); background: rgba(0, 0, 0, 0.35); white-space: nowrap; }
+.d-calm { --dc: #9be37f; } .d-hard { --dc: #ffb347; } .d-one { --dc: #ff6b6b; }
+.rg-diffnote { font-weight: 800; font-size: 15px; }
+.rg-diffnote small { opacity: 0.75; font-weight: 700; }
+.rg-bests { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.rg-best { display: flex; flex-direction: column; padding: 6px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.1); border: 2px solid var(--dc, rgba(255, 255, 255, 0.3)); }
+.rg-best small { opacity: 0.85; font-weight: 700; }
+@media (max-width: 560px) {
+  .rg-diffs { gap: 5px; }
+  .rg-diffbtn .rg-dn { font-size: 13px; }
+  .rg-diffbtn small { font-size: 11px; }
+}
+@media (max-height: 420px) {
+  .rg-diffbtn { min-height: 44px; padding: 2px 4px; }
+  .rg-diffbtn .rg-dn { font-size: 13px; }
+  .rg-diffbtn small { display: none; }
+  .rg-diffline { font-size: 12px; min-height: 0; }
+  .rg-diffbadge { font-size: 12px; padding: 1px 6px; }
+}

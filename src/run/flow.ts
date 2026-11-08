@@ -10,7 +10,8 @@ import { addRaceStats } from './stats.ts';
 import { RALLY_COURSE_NAMES } from '../shared/names.ts';
 import { ARENAS } from '../shared/derby.ts';
 import { Rng } from './rng.ts';
-import { SCRAP_PER_HEART, actScale, addKronor, addTrinket, addUp, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, scrapHearts, type NodeLog, type RaceSummary, type RunState } from './state.ts';
+import { DIFFS } from './difficulty.ts';
+import { actScale, addKronor, addTrinket, addUp, copyRun, heartsLost, healHeart, loseHeart, nodeOf, reachable, scrapHearts, type NodeLog, type RaceSummary, type RunState } from './state.ts';
 import { interestOn, isUpgrade, runPerks } from './upgrades.ts';
 
 /** Trophies and the end screen come from here when status is not 'running'. */
@@ -68,15 +69,15 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
   const r = copyRun(run);
   const node = nodeOf(r, run.screen.nodeId)!;
   const plan = planRace(node, r.calm);
-  const lost = heartsLost(res.place, res.n, res.finished, r.calm, node.type === 'boss');
+  const lost = heartsLost(res.place, res.n, res.finished, r.diff, node.type === 'boss');
   const heartLost = lost > 0;
   const met = plan.goal ? goalMet(plan.goal, res) : null;
   const raw = res.kronor + res.coins + (res.bonus ?? 0);
   const total = scaleKronor(r, raw, plan.prize * (met ? 1.5 : 1));
   addKronor(r, total);
   for (let k = 0; k < lost; k++) loseHeart(r);
-  // winning a boss race gives a heart back (in lugnt läge finishNode pays two whatever the placing)
-  if (!r.calm && node.type === 'boss' && res.finished && res.place === 1 && r.status === 'running') healHeart(r, 1);
+  // winning a boss race gives a heart back in Normal (Söndagsåkare: finishNode pays two whatever the placing; Hård and Ett liv: nothing)
+  if (DIFFS[r.diff].bossHealWin > 0 && node.type === 'boss' && res.finished && res.place === 1 && r.status === 'running') healHeart(r, DIFFS[r.diff].bossHealWin);
   r.car.damage = Math.max(0, Math.round(res.damage * 0.85));
   const st = r.stats;
   st.races++;
@@ -100,9 +101,10 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
   }
   // Skrotpant: the wrecks of a rammer buy hearts back (not on the run's last breath)
   let scrapBack = 0;
+  const scrapEvery = DIFFS[r.diff].scrapEvery;
   const hurtNow = r.hearts < r.maxHearts;
   if (r.status === 'running' && hurtNow) {
-    const want = scrapHearts(tdBefore, st.takedowns);
+    const want = scrapHearts(tdBefore, st.takedowns, scrapEvery);
     if (want > 0 && healHeart(r, want)) scrapBack = want;
   }
   const summary: RaceSummary = {
@@ -127,7 +129,7 @@ export function submitRace(run: RunState, res: RallyResult): RunState {
     wrecked: res.wrecked,
     derby: plan.arena ? res.derby : undefined,
     scrapHearts: scrapBack || undefined,
-    scrapCount: st.takedowns % SCRAP_PER_HEART,
+    scrapCount: scrapEvery > 0 ? st.takedowns % scrapEvery : undefined,
   };
   r.screen = { kind: 'postrace', nodeId: node.id, summary };
   r.log.push({
@@ -221,8 +223,8 @@ export function finishNode(run: RunState): RunState {
   if (node && !r.log.some((l) => l.nodeId === node.id)) r.log.push(visitLog(r, node, scr));
   if (node?.type === 'boss') {
     r.stats.bossesBeaten++;
-    // a boss pays one heart back (two in lugnt läge)
-    if (r.calm) healHeart(r, 2);
+    // Söndagsåkare: a boss pays two hearts back, whatever the placing
+    if (DIFFS[r.diff].bossHealAny > 0) healHeart(r, DIFFS[r.diff].bossHealAny);
     r.act++;
     r.at = null;
     r.path = [];

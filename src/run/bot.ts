@@ -6,6 +6,7 @@ import { buyHeart, buyTrinket, trinketPrice, upgradePrice, workshopBuy } from '.
 import { choiceAllowed, EVENTS } from './events.ts';
 import { chooseEvent, continueAfterRace, currentPlan, enterNode, finishNode, pickReward, submitRace } from './flow.ts';
 import { asRallyResult, simulateRace, type PlayerModel } from './racesim.ts';
+import { asDifficulty, type Difficulty } from './difficulty.ts';
 import { Rng } from './rng.ts';
 import { newRun, reachable, type RunState } from './state.ts';
 import { trinketById } from './trinkets.ts';
@@ -64,9 +65,9 @@ export interface RaceLog {
   hearts: number;
 }
 
-export function playRun(seed: number, p: Profile, calm: boolean): { run: RunState; races: RaceLog[] } {
+export function playRun(seed: number, p: Profile, mode: Difficulty | boolean): { run: RunState; races: RaceLog[] } {
   const rng = new Rng(seed * 7919 + 13);
-  let run = newRun({ seed, calm, body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
+  let run = newRun({ seed, diff: asDifficulty(mode), body: 'hatch', driver: 'human', paint: '#e8412c', trophies: 0 });
   const races: RaceLog[] = [];
   for (let guard = 0; guard < 600 && run.status === 'running'; guard++) {
     if (!run.screen) {

@@ -6,6 +6,7 @@ import { fmtTime, ordinal } from '../rally/util.ts';
 import { ACTS, NODE_EMOJI, NODE_NAMES } from './map.ts';
 import { DERBY_EMOJI, DERBY_NAME } from '../shared/derby.ts';
 import { kitOf, LEAN_EMOJI, LEAN_NAMES } from '../shared/abilities.ts';
+import { diffLabel, diffOf, trophyScale } from './difficulty.ts';
 import { challengeReport, type ChallengeLine } from './unlocks.ts';
 import type { NodeLog, RunState, RunStats } from './state.ts';
 import { TRINKETS, trinketById, type TrinketPath } from './trinkets.ts';
@@ -383,6 +384,10 @@ export function trophyReasons(run: RunState, won: boolean): TrophyReason[] {
   if (run.stats.bossesBeaten) out.push({ text: `${run.stats.bossesBeaten === 1 ? 'En boss' : `${run.stats.bossesBeaten} bossar`} slagna`, n: run.stats.bossesBeaten * 2 });
   if (won) out.push({ text: 'Vann hela rundan', n: 3 });
   if (run.stats.races >= 3) out.push({ text: 'Körde minst tre lopp', n: 1 });
+  // the difficulty's bonus, so the lines add up to what was paid
+  const base = out.reduce((a, x) => a + x.n, 0);
+  const extra = trophyScale(run.diff, base) - base;
+  if (extra > 0) out.push({ text: `${diffLabel(run.diff)}: ${String(diffOf(run.diff).trophyMul).replace('.', ',')}× troféer`, n: extra });
   return out;
 }
 

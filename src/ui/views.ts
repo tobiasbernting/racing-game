@@ -16,7 +16,8 @@ import { LEANS, LEAN_EMOJI, LEAN_NAMES, LEAN_TEXT, kitOf, type Lean } from '../s
 import { healPrice, repairPrice, rerollPrice, trinketPrice } from '../run/economy.ts';
 import { EVENTS, choiceAllowed, eventById } from '../run/events.ts';
 import { currentNode, currentPlan } from '../run/flow.ts';
-import { SCRAP_PER_HEART, mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
+import { DIFFICULTIES, DIFFS, diffOf, heartRuleText, type Difficulty } from '../run/difficulty.ts';
+import { mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
 import { TRINKETS, trinketById } from '../run/trinkets.ts';
 import { btn, el, plural } from './dom.ts';
 import { upgradeCard, workshopPanel } from './upgrades.ts';
@@ -40,7 +41,6 @@ export interface TitleOpts {
   onContinue(): void;
   onQuick(): void;
   onCollection(): void;
-  onCalm(on: boolean): void;
   onSettings(): void;
   /** A line of help for phones that cannot go fullscreen by themselves (iPhone in Safari). */
   homeHint?: boolean;
@@ -63,17 +63,13 @@ export function titleView(o: TitleOpts): HTMLElement {
       newBtn.classList.remove('warn');
     }, 3500);
   });
-  const calm = btn('rg-btn rg-toggle', '', () => {
-    o.onCalm(!o.meta.calm);
-  });
-  calm.setAttribute('aria-pressed', String(o.meta.calm));
-  calm.append(el('span', null, '🛋️ Söndagsåkare'), el('small', null, o.meta.calm ? 'På: 5 hjärtan, snällare rivaler' : 'Av: 3 hjärtan, ingen nåd'));
   const left = el(
     'div',
     'rg-title-left',
     el('h1', 'arc-title', 'Galna Rallyt'),
     el('p', 'arc-sub', 'Ingen runda blir den andra lik. Samla galna prylar. Krossa bossarna.'),
     el('div', 'rg-deco', ...['🏎️', '🎲', '🌭', '🪩', '🐄'].map((e) => el('span', null, e))),
+    el('div', 'rg-diffnote', `${diffOf(o.meta.diff).emoji} Svårighet: `, el('b', null, diffOf(o.meta.diff).name), el('small', null, ' (välj när du startar en runda)')),
     el('div', 'rg-trophy', `🏆 ${o.meta.trophies}`, el('small', null, o.meta.runs ? ` · ${plural(o.meta.runs, 'runda', 'rundor')} krossade` : ' · inga rundor än. Visa vad du går för.')),
   );
   const right = el('div', 'rg-title-right');
@@ -84,7 +80,7 @@ export function titleView(o: TitleOpts): HTMLElement {
       el('div', 'rg-saveinfo', `Akt ${s.act + 1}/${ACTS} · ${s.hearts}/${s.maxHearts} ❤️ · ${s.kronor} kr · ${s.trinkets.reduce((a, t) => a + t.n, 0)} prylar`),
     );
   }
-  right.append(el('div', 'rg-newwrap', arrowSvg('rg-arrow'), newBtn), el('div', 'rg-pair', ghost('⚡ Snabbrace', o.onQuick), ghost('📖 Skrytlådan', o.onCollection)), el('div', 'rg-pair', calm, ghost('⚙️ Inställningar', o.onSettings)));
+  right.append(el('div', 'rg-newwrap', arrowSvg('rg-arrow'), newBtn), el('div', 'rg-pair', ghost('⚡ Snabbrace', o.onQuick), ghost('📖 Skrytlådan', o.onCollection)), ghost('⚙️ Inställningar', o.onSettings));
   if (o.homeHint) right.append(el('small', 'rg-homehint', 'Fusktips: Dela, sedan Lägg till på hemskärmen. Ingen webbläsarkant.'));
   return screen('rg-title', left, right);
 }
@@ -92,6 +88,7 @@ export function titleView(o: TitleOpts): HTMLElement {
 // ---- pick the car and the driver ----
 
 export interface PickSel {
+  diff: Difficulty;
   body: CarBody;
   driver: CarDriver;
   paint: string;
@@ -204,9 +201,32 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
     paints.append(x);
   }
   describe();
+  // the difficulty: four buttons and the one-line rule of the chosen one (remembered as the default for next time)
+  const diffRow = el('div', 'rg-diffs');
+  diffRow.setAttribute('role', 'group');
+  diffRow.setAttribute('aria-label', 'Svårighet');
+  const diffLine = el('p', 'rg-diffline');
+  const diffBtns: [HTMLElement, Difficulty][] = [];
+  const drawDiff = (): void => {
+    for (const [b, d] of diffBtns) b.setAttribute('aria-pressed', String(sel.diff === d));
+    diffLine.textContent = diffOf(sel.diff).blurb;
+    diffLine.className = `rg-diffline d-${sel.diff}`;
+  };
+  for (const d of DIFFICULTIES) {
+    const def = DIFFS[d];
+    const x = btn(`rg-chipbtn rg-diffbtn d-${d}`, [el('span', 'rg-dn', `${def.emoji} ${def.name}`), el('small', null, `${def.hearts} ❤️`)], () => {
+      sel.diff = d;
+      drawDiff();
+      o.onChange(sel);
+    });
+    diffBtns.push([x, d]);
+    diffRow.append(x);
+  }
+  drawDiff();
   return screen(
     'rg-pick',
-    el('h2', 'rg-h', 'Välj bil och förare'),
+    el('h2', 'rg-h', 'Välj svårighet, bil och förare'),
+    el('div', 'rg-diffbox', diffRow, diffLine),
     el(
       'div',
       'rg-pickbody',
@@ -399,13 +419,7 @@ export function preraceView(run: RunState, o: { onGo(): void; onBack(): void }):
     el(
       'div',
       'rg-heartrule',
-      run.calm
-        ? '❤️ Sist eller bryter: −❤️'
-        : plan.boss
-          ? `❤️ Bossen: ${arena ? 'vinner du inte derbyt' : `förlorar du${kind === 'carnage' ? ' på poäng' : ''}`} är det −❤️❤️. Vinn och få ❤️ tillbaka.`
-          : arena
-            ? '❤️ Åker du ut bland de första (nedre halvan): −❤️. Bryter du: −❤️❤️.'
-            : `❤️ Hamnar du på nedre halvan${kind === 'carnage' ? ' på poäng' : ''}: −❤️. Bryter du: −❤️❤️.`,
+      heartRuleText(run.diff, { boss: !!plan.boss, arena: !!arena, carnage: kind === 'carnage' }),
     ),
   );
   info.push(el('div', 'rg-winhint', '🎁 Vinn och du får välja ditt byte. Tvåan får ett litet tröstpris.'));
@@ -493,8 +507,8 @@ export function postraceView(run: RunState, scr: Extract<Screen, { kind: 'postra
       : el('div', 'rg-heartline', '❤️ Hjärtat klarade sig'),
   );
   // Skrotpant: wrecks buy hearts back
-  if (s.scrapHearts) lines.push(el('div', 'rg-heartline', '🔩 Skrotpant: ❤️ tillbaka för vraken', el('small', null, ` (${SCRAP_PER_HEART} vrak = ett hjärta)`)));
-  else if ((s.takedowns ?? 0) > 0 && s.scrapCount !== undefined) lines.push(el('div', 'rg-scrap', `🔩 Skrotpant: ${s.scrapCount} av ${SCRAP_PER_HEART} vrak till nästa ❤️`));
+  if (s.scrapHearts) lines.push(el('div', 'rg-heartline', '🔩 Skrotpant: ❤️ tillbaka för vraken', el('small', null, ` (${DIFFS[run.diff].scrapEvery} vrak = ett hjärta)`)));
+  else if ((s.takedowns ?? 0) > 0 && s.scrapCount !== undefined && DIFFS[run.diff].scrapEvery > 0) lines.push(el('div', 'rg-scrap', `🔩 Skrotpant: ${s.scrapCount} av ${DIFFS[run.diff].scrapEvery} vrak till nästa ❤️`));
   if (s.goal) lines.push(el('div', `rg-goal ${s.goal.met ? 'ok' : 'miss'}`, s.goal.met ? '✅ Utmaning krossad! ' : '❌ Misslyckades. Skärp dig. ', el('small', null, s.goal.text)));
   if (s.reward) lines.push(el('div', 'rg-goal ok', s.rewardKind === 'second' ? '🥈 Tröstpris: välj en av två.' : s.rewardKind === 'win' ? '🏆 Vinst! Välj ditt byte.' : '🎁 Du får välja en pryl.'));
   return screen('rg-post', statusBar(run), el('div', 'rg-postbody', el('h2', 'rg-bigh', head), ...lines), foot(go(run.status === 'dead' ? 'Fortsätt' : s.reward ? (s.rewardKind === 'second' ? 'Ta tröstpriset 🎁' : 'Välj ditt byte 🎁') : 'Till kartan', o.onNext)));
@@ -566,7 +580,7 @@ export function shopView(run: RunState, scr: Extract<Screen, { kind: 'shop' }>, 
   return screen(
     'rg-shop',
     statusBar(run),
-    el('div', 'rg-shopbody', el('div', 'rg-shophead', el('h2', 'rg-h', '🛒 Mackens kiosk'), el('div', 'rg-svcs', heal, repair, re)), el('span', 'rg-note', o.note || 'Köp skräp. Samma skräp två gånger gör det starkare. Och stinkigare.'), el('div', 'rg-cards shop', ...cards)),
+    el('div', 'rg-shopbody', el('div', 'rg-shophead', el('h2', 'rg-h', '🛒 Mackens kiosk'), el('div', 'rg-svcs', DIFFS[run.diff].shopHearts ? heal : null, repair, re)), el('span', 'rg-note', o.note || 'Köp skräp. Samma skräp två gånger gör det starkare. Och stinkigare.'), el('div', 'rg-cards shop', ...cards)),
     foot(go('Sticka', o.onLeave)),
   );
 }
@@ -653,7 +667,6 @@ export function restartConfirmView(run: RunState, o: { onYes(): void; onNo(): vo
 
 export interface SettingsOpts {
   settings: Settings;
-  calm: boolean;
   /** Can the page go fullscreen (and is it, now)? Null: not supported here. */
   fullscreen: boolean | null;
   /** How this player drives: the scheme, shifting, button size and so on (edited in place; `onControls` saves). */
@@ -665,7 +678,6 @@ export interface SettingsOpts {
   /** Opens the editor where the buttons are dragged to where the thumbs want them. */
   onEditLayout(): void;
   onChange(): void;
-  onCalm(on: boolean): void;
   onFullscreen(): void;
   onClose(): void;
 }
@@ -706,7 +718,6 @@ export function settingsView(o: SettingsOpts): HTMLElement {
     controlsSection(o),
     toggle('🎵', 'Musik', 'Soundtracket till kaoset', () => s.music, (v) => { s.music = v; o.onChange(); }),
     toggle('📳', 'Skakningar', 'Kameran vibrerar vid krascher och landningar', () => s.shake, (v) => { s.shake = v; o.onChange(); }),
-    toggle('🛋️', 'Söndagsåkare', '5 hjärtan och rivaler som tar det lugnt (gäller nästa runda)', () => o.calm, (v) => { o.calm = v; o.onCalm(v); }),
     toggle('📈', 'Visa FPS', 'Siffran som skvallrar när det laggar', () => s.fps, (v) => { s.fps = v; o.onChange(); }),
     o.fullscreen === null ? null : btn('rg-btn rg-set', '⛶ Helskärm på/av (ingen kant, ingen nåd)', o.onFullscreen),
   );
@@ -782,6 +793,13 @@ export { resultView as overView } from './result.ts';
 
 // ---- the collection ----
 
+/** The best act reached and the runs won on a difficulty (Skrytlådan). */
+function bestCard(meta: Meta, d: Difficulty): HTMLElement {
+  const b = meta.best[d];
+  const def = DIFFS[d];
+  return el('div', `rg-best d-${d}`, el('b', null, `${def.emoji} ${def.name}`), el('small', null, b.act ? `Längst: akt ${b.act}/${ACTS} · ${plural(b.wins, 'seger', 'segrar')}` : 'Inte försökt än'));
+}
+
 export function collectionView(meta: Meta, o: { onBack(): void }): HTMLElement {
   const bodies = CAR_BODIES.map((b) => {
     const open = isUnlocked(meta, b);
@@ -804,7 +822,7 @@ export function collectionView(meta: Meta, o: { onBack(): void }): HTMLElement {
   return screen(
     'rg-coll',
     el('div', 'rg-top', el('h2', 'rg-h tight', '📖 Skrytlådan'), el('span', 'rg-grow'), el('span', 'rg-kr', `🏆 ${meta.trophies}`), el('span', 'rg-kr', `${seen.size}/${TRINKETS.length} skräp`)),
-    el('div', 'rg-collbody', el('div', 'arc-h', 'Bilar'), el('div', 'rg-bodies', ...bodies), el('div', 'arc-h', 'Skräp'), el('div', 'rg-cards bag', ...cards)),
+    el('div', 'rg-collbody', el('div', 'arc-h', 'Bästa rundorna'), el('div', 'rg-bests', ...DIFFICULTIES.map((d) => bestCard(meta, d))), el('div', 'arc-h', 'Bilar'), el('div', 'rg-bodies', ...bodies), el('div', 'arc-h', 'Skräp'), el('div', 'rg-cards bag', ...cards)),
     foot(go('← Tillbaka', o.onBack)),
   );
 }

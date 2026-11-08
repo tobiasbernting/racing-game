@@ -2,6 +2,7 @@
 // winning pays trophies; a run given up ("Ge upp rundan") counts as a run but pays nothing, and the challenges that
 // add up over runs ("Vinn en runda", "Kör klart 5 rundor") do not count it, while "best in one run" progress that was
 // already earned stays. `RunState.end` guards it: a run is only ever settled once, so a reload cannot count it twice.
+import { diffOf, trophyScale, type Difficulty } from './difficulty.ts';
 import { trophiesFor, unlockedTrinkets, type Meta } from './meta.ts';
 import type { RunState } from './state.ts';
 import { checkChallenges } from './unlocks.ts';
@@ -16,7 +17,7 @@ export interface Settled {
 export function settleRun(meta: Meta, run: RunState, gaveUp = false): Settled {
   if (run.end) return { meta, run };
   const won = !gaveUp && run.status === 'won';
-  const gain = gaveUp ? 0 : trophiesFor({ bossesBeaten: run.stats.bossesBeaten, won, races: run.stats.races });
+  const gain = gaveUp ? 0 : trophyScale(run.diff, trophiesFor({ bossesBeaten: run.stats.bossesBeaten, won, races: run.stats.races }));
   const old = meta.trophies;
   const total = old + gain;
   // the end of the run counts for the challenges that add up over runs; a given-up run only keeps what it already earned
@@ -27,11 +28,16 @@ export function settleRun(meta: Meta, run: RunState, gaveUp = false): Settled {
     .map((t) => t.id);
   const seen = new Set(meta.seen);
   trinkets.forEach((id) => seen.add(id));
-  const next: Meta = { ...chk.meta, trophies: total, runs: meta.runs + 1, wins: meta.wins + (won ? 1 : 0), bestAct: Math.max(meta.bestAct, won ? 3 : run.act + 1), seen: [...seen] };
+  const next: Meta = { ...chk.meta, trophies: total, runs: meta.runs + 1, wins: meta.wins + (won ? 1 : 0), bestAct: Math.max(meta.bestAct, won ? 3 : run.act + 1), seen: [...seen], best: bestWith(meta, run.diff, won ? 3 : run.act + 1, won) };
   run.opened = bodies;
-  run.end = { won, trophies: gain, total, unlockedBodies: bodies, unlockedTrinkets: trinkets, progress: { ...next.progress }, ...(gaveUp ? { gaveUp: true } : {}) };
+  run.end = { won, trophies: gain, trophyMul: diffOf(run.diff).trophyMul, total, unlockedBodies: bodies, unlockedTrinkets: trinkets, progress: { ...next.progress }, ...(gaveUp ? { gaveUp: true } : {}) };
   return { meta: next, run };
 }
+
+const bestWith = (meta: Meta, diff: Difficulty, act: number, won: boolean): Meta['best'] => {
+  const old = meta.best[diff];
+  return { ...meta.best, [diff]: { act: Math.max(old.act, act), wins: old.wins + (won ? 1 : 0) } };
+};
 
 /** Ends a running run as given up: no trophies, a run in the count, and no screen left to resume. */
 export function giveUpRun(meta: Meta, run: RunState): Settled {
@@ -41,7 +47,7 @@ export function giveUpRun(meta: Meta, run: RunState): Settled {
   return settleRun(meta, run, true);
 }
 
-/** What the next run starts with after a restart: the same vehicle, driver and paint (Söndagsåkare stays in the meta). */
-export function restartPick(run: RunState): { body: RunState['car']['body']; driver: NonNullable<RunState['car']['style']['driver']>; paint: string } {
-  return { body: run.car.body, driver: run.car.style.driver ?? 'human', paint: run.car.style.paint };
+/** What the next run starts with after a restart: the same vehicle, driver and paint (the difficulty stays as the meta default). */
+export function restartPick(run: RunState): { diff: Difficulty; body: RunState['car']['body']; driver: NonNullable<RunState['car']['style']['driver']>; paint: string } {
+  return { diff: run.diff, body: run.car.body, driver: run.car.style.driver ?? 'human', paint: run.car.style.paint };
 }

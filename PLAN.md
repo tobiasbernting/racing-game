@@ -67,7 +67,7 @@ the same theme never plays exactly the same.
 paint/liveries. A run summary screen shows the trinket build and the funniest stat ("Studsade 47 gånger").
 
 **Polish**: big juicy feedback (screen shake, confetti, quack sounds), a seed shown for a run, pause,
-volume, and a "Söndagsåkare" mode (easy mode, save key `calm`) toggle that gives 5 hearts and slower AI.
+volume, and the difficulty choice on the pick screen (Söndagsåkare, Normal, Hård, Ett liv; save key `calm` still reads as Söndagsåkare).
 
 ## Phases (each its own PR, merged when it builds, tests pass and the game runs)
 
@@ -159,6 +159,10 @@ run strong, which is right; the rivals and courses must keep up. Design directio
     and result table; three kickers and a shortcut jump on every course (seeded, tested on every mirror and reverse variant); a balance pass that brought Ram up to Race
     (skrotpant: every fourth wreck gives a heart back, shoving in Blandat and Blodbad, a Blodbad Ingrid) with the numbers in `balance.test.ts`; looks for the five mods
     that showed nothing. Heat levels are still undecided and not built.
+
+13. **Four difficulties**: chosen on the pick screen and remembered: 🛋️ Söndagsåkare (5 hearts, gentle rivals), 🏁 Normal (3), 🔥 Hård (2 hearts, hearts cost
+    50 % more, boss wins heal nothing, Skrotpant every 6th wreck, 1,5× trophies) and 💀 Ett liv (1 heart, no heart purchases or heals, any heart lost ends the run,
+    2× trophies). Badge on the map HUD, race cards and result; best act per difficulty in Skrytlådan. Built (see README, "Fyra svårigheter").
 
 **House rules for all text**: Swedish; no swearing or vulgar words (enforced by src/language.test.ts); toilet
 humour only as an occasional random item, never the focus: the humour is unpredictable chaos.

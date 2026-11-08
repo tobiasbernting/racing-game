@@ -7,6 +7,7 @@ import { HUMAN_FACTOR, type HumanSkill } from '../shared/pace.ts';
 import { healPrice } from './economy.ts';
 import { continueAfterRace, enterNode, submitRace } from './flow.ts';
 import { asRallyResult, playerStats, simulateRace, type PlayerModel } from './racesim.ts';
+import type { Difficulty } from './difficulty.ts';
 import { playRun, profile, type Profile, type Strategy } from './bot.ts';
 import { Rng } from './rng.ts';
 import { costsHeart, heartsLost, newRun, reachable, scrapHearts, type RunState } from './state.ts';
@@ -16,7 +17,7 @@ import { stackCap, trinketById, TRINKETS } from './trinkets.ts';
 import { UPGRADES, available, isUpgrade, partsToNodes, takeNode, upgradeById } from './upgrades.ts';
 import type { RaceKind } from '../shared/kinds.ts';
 
-const winRate = (p: Profile, calm: boolean, runs = 100): number => {
+const winRate = (p: Profile, calm: Difficulty | boolean, runs = 100): number => {
   let w = 0;
   for (let i = 0; i < runs; i++) if (playRun(1000 + i, p, calm).run.status === 'won') w++;
   return w / runs;
@@ -93,6 +94,35 @@ describe('balance (race times, not dice)', { timeout: 60_000 }, () => {
     expect(goodCalm).toBeGreaterThan(0.95);
     expect(poorCalm).toBeGreaterThan(0.5);
     expect(avgCalm).toBeGreaterThan(avgNormal + 0.5);
+  });
+
+  it('Hård is noticeably harder than Normal and Ett liv rare but possible for a strong player', () => {
+    const strategies: Strategy[] = ['race', 'ram', 'mixed'];
+    const rate = (skill: 'poor' | 'average' | 'good' | 'expert', d: Difficulty): number[] => strategies.map((st) => winRate(profile(skill, st), d, 200));
+    const goodNormal = rate('good', 'normal');
+    const goodHard = rate('good', 'hard');
+    const expertHard = rate('expert', 'hard');
+    const averageHard = rate('average', 'hard');
+    const goodOne = rate('good', 'one');
+    const expertOne = rate('expert', 'one');
+    const averageOne = rate('average', 'one');
+    console.log('hard: average', averageHard, 'good', goodHard, 'expert', expertHard, '| one: average', averageOne, 'good', goodOne, 'expert', expertOne, '| normal good', goodNormal);
+    for (let i = 0; i < 3; i++) {
+      // Hård: a good player wins far less than on Normal, a strong one still sometimes does
+      expect(goodHard[i]!).toBeLessThan(goodNormal[i]! - 0.25);
+      expect(goodHard[i]!).toBeLessThan(0.2);
+      expect(expertHard[i]!).toBeGreaterThan(0.08);
+      expect(expertHard[i]!).toBeLessThan(0.5);
+      expect(averageHard[i]!).toBeLessThan(0.03);
+      // Ett liv: rare but possible for a strong player (5 to 25 percent), nearly never for a good one, never for an average one
+      expect(expertOne[i]!).toBeGreaterThan(0.05);
+      expect(expertOne[i]!).toBeLessThan(0.25);
+      expect(goodOne[i]!).toBeLessThan(0.1);
+      expect(averageOne[i]!).toBeLessThan(0.01);
+      // and the ladder holds
+      expect(expertOne[i]!).toBeLessThan(expertHard[i]!);
+      expect(goodOne[i]!).toBeLessThanOrEqual(goodHard[i]!);
+    }
   });
 
   it('the last act is a fight even with a strong build: a strong player does not win every race by a mile, and nobody is ever lapped', () => {

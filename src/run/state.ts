@@ -10,6 +10,7 @@ import type { RaceKind } from '../shared/kinds.ts';
 import type { ArenaId } from '../shared/derby.ts';
 import type { DerbyOutcome } from '../rally/options.ts';
 import { takeNode } from './upgrades.ts';
+import { DIFFS, asDifficulty, type Difficulty } from './difficulty.ts';
 
 export const START_HEARTS = 3;
 export const CALM_HEARTS = 5;
@@ -159,6 +160,8 @@ export type RunStatus = 'running' | 'won' | 'dead';
 export interface RunEnd {
   won: boolean;
   trophies: number;
+  /** What the difficulty multiplied the trophies by (older runs: 1). */
+  trophyMul?: number;
   total: number;
   unlockedBodies: CarBody[];
   unlockedTrinkets: string[];
@@ -171,7 +174,10 @@ export interface RunEnd {
 export interface RunState {
   v: 1;
   seed: number;
+  /** Söndagsåkare (gentle rivals, lenient hearts): always `diff === 'calm'`, kept because the rival scaling reads it. */
   calm: boolean;
+  /** The difficulty chosen for this run (run/difficulty.ts). Older saves have only `calm`. */
+  diff: Difficulty;
   /** The meta trophies when the run began: which trinkets are in the pool. */
   pool: number;
   act: number;
@@ -206,7 +212,9 @@ export interface RunState {
 
 export interface NewRunOpts {
   seed: number;
-  calm: boolean;
+  /** The difficulty; if left out, `calm` decides (Söndagsåkare or Normal). */
+  diff?: Difficulty;
+  calm?: boolean;
   body: CarBody;
   driver: CarDriver;
   paint: string;
@@ -218,8 +226,9 @@ export interface NewRunOpts {
 export function newRun(o: NewRunOpts): RunState {
   const car = newCar(1, o.body, CAR_BODY_NAMES[o.body], o.paint);
   car.style.driver = o.driver;
-  const hearts = o.calm ? CALM_HEARTS : START_HEARTS;
-  const run: RunState = { v: 1, seed: o.seed, calm: o.calm, pool: o.trophies, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], up: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0, log: [], got: [], nodeLost: 0, chal0: { ...(o.progress ?? {}) }, opened: [] };
+  const diff = asDifficulty(o.diff ?? o.calm);
+  const hearts = DIFFS[diff].hearts;
+  const run: RunState = { v: 1, seed: o.seed, calm: diff === 'calm', diff, pool: o.trophies, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], up: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0, log: [], got: [], nodeLost: 0, chal0: { ...(o.progress ?? {}) }, opened: [] };
   // every vehicle starts with a trinket that fits it
   addTrinket(run, kitOf(o.body).trinket, { from: `Startpryl: ${CAR_BODY_NAMES[o.body]}`, node: '' });
   return run;
@@ -248,10 +257,19 @@ export function addTrinket(r: RunState, id: string, src?: { from: string; node: 
   const have = r.trinkets.find((t) => t.id === id);
   if (have) have.n = Math.min(MAX_STACK, stackCap(trinketById(id)), have.n + 1);
   else r.trinkets.push({ id, n: 1 });
+  // a trinket that adds a heart: not in Ett liv, where it pays kronor instead
+  const gift = trinketById(id)?.perk?.maxHearts ?? 0;
+  if (gift > 0 && !DIFFS[r.diff].heartPerks) addKronor(r, HEART_TRINKET_KRONOR * gift);
   const before = r.maxHearts;
-  r.maxHearts = (r.calm ? 5 : 3) + perksOf(r.trinkets).maxHearts;
+  r.maxHearts = maxHeartsOf(r);
   if (r.maxHearts > before) r.hearts += r.maxHearts - before;
 }
+
+/** The most hearts a run can hold: the difficulty's hearts and the trinkets that add one. */
+export const maxHeartsOf = (r: Pick<RunState, 'diff' | 'trinkets'>): number => DIFFS[r.diff].hearts + (DIFFS[r.diff].heartPerks ? perksOf(r.trinkets).maxHearts : 0);
+
+/** What a heart trinket pays in Ett liv, where there are no hearts to add. */
+export const HEART_TRINKET_KRONOR = 60;
 
 /** Adds an upgrade node (and any earlier tier it needs). */
 export function addUp(r: RunState, id: string, src?: { from: string; node: string }): void {
@@ -289,25 +307,26 @@ export function healHeart(r: RunState, n = 1): boolean {
 
 /** Skrotpant: every this many wrecked cars in a run give a lost heart back (a rammer's reward; it never goes past the full hearts). */
 export const SCRAP_PER_HEART = 4;
-/** Hearts that crossing from `before` to `after` takedowns earns. */
-export const scrapHearts = (before: number, after: number): number => Math.max(0, Math.floor(after / SCRAP_PER_HEART) - Math.floor(before / SCRAP_PER_HEART));
+/** Hearts that crossing from `before` to `after` takedowns earns (Hård asks for more wrecks, Ett liv has no Skrotpant: `every` 0). */
+export const scrapHearts = (before: number, after: number, every = SCRAP_PER_HEART): number => (every <= 0 ? 0 : Math.max(0, Math.floor(after / every) - Math.floor(before / every)));
 
 /** Kronor are scaled up in later acts and in calm mode. */
 export const KRONOR_SCALE = [1, 1.3, 1.7] as const;
 export const actScale = (act: number): number => KRONOR_SCALE[Math.min(act, KRONOR_SCALE.length - 1)]!;
 
 /**
- * Hearts a race costs. Normal: the bottom half costs one, not finishing two, and losing a boss race (anything but
- * first, or most points in Blodbad) two. In lugnt läge only a DNF or dead last costs one, bosses included.
+ * Hearts a race costs. Normal (and Hård and Ett liv, which just have fewer hearts to lose): the bottom half costs one,
+ * not finishing two, and losing a boss race (anything but first, or most points in Blodbad) two. In Söndagsåkare only a
+ * DNF or dead last costs one, bosses included. `mode` is a difficulty, or the old true for Söndagsåkare.
  */
-export function heartsLost(place: number, n: number, finished: boolean, calm = false, boss = false): number {
-  if (calm) return !finished || (n > 1 && place >= n) ? 1 : 0;
+export function heartsLost(place: number, n: number, finished: boolean, mode: Difficulty | boolean = false, boss = false): number {
+  if (asDifficulty(mode) === 'calm') return !finished || (n > 1 && place >= n) ? 1 : 0;
   if (!finished) return 2;
   if (n <= 1) return 0;
   if (boss && place > 1) return 2;
   return place > n / 2 ? 1 : 0;
 }
 
-export const costsHeart = (place: number, n: number, finished: boolean, calm = false, boss = false): boolean => heartsLost(place, n, finished, calm, boss) > 0;
+export const costsHeart = (place: number, n: number, finished: boolean, mode: Difficulty | boolean = false, boss = false): boolean => heartsLost(place, n, finished, mode, boss) > 0;
 
 export const validPaint = (p: string): boolean => (CAR_PAINTS as readonly string[]).includes(p);

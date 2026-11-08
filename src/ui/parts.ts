@@ -3,6 +3,7 @@ import { ACTS } from '../run/map.ts';
 import { type RunState } from '../run/state.ts';
 import { RARITY_NAMES, trinketById, type Owned, type TrinketDef } from '../run/trinkets.ts';
 import { btn, el } from './dom.ts';
+import { DIFFS } from '../run/difficulty.ts';
 
 export { ACT_NAMES } from '../run/summary.ts';
 import { ACT_NAMES } from '../run/summary.ts';
@@ -29,6 +30,15 @@ export function trinketIcons(owned: readonly Owned[], max = 16): HTMLElement {
   return row;
 }
 
+/** The difficulty on the status bar of the map and the race cards (Normal shows nothing: it is the way the game is meant). */
+export function diffBadge(run: Pick<RunState, 'diff'>): HTMLElement | null {
+  if (run.diff === 'normal') return null;
+  const d = DIFFS[run.diff];
+  const b = el('span', `rg-diffbadge d-${run.diff}`, `${d.emoji} ${d.name}`);
+  b.title = d.blurb;
+  return b;
+}
+
 /** The strip on top of every run screen: act, hearts, kronor, trinkets, and whatever buttons go on the right. */
 export function statusBar(run: RunState, ...right: (Node | null)[]): HTMLElement {
   return el(
@@ -36,6 +46,7 @@ export function statusBar(run: RunState, ...right: (Node | null)[]): HTMLElement
     'rg-top',
     el('span', 'rg-act', `Akt ${run.act + 1}/${ACTS}`, el('small', null, ` ${ACT_NAMES[Math.min(run.act, ACTS - 1)]}`)),
     hearts(run.hearts, run.maxHearts),
+    diffBadge(run),
     el('span', 'rg-kr', `💰 ${run.kronor} kr`),
     trinketIcons(run.trinkets),
     el('span', 'rg-grow'),

@@ -5,6 +5,7 @@ import { CAR_BODY_NAMES, CAR_DRIVER_EMOJI, CAR_DRIVER_NAMES } from '../shared/na
 import { trinketById } from '../run/trinkets.ts';
 import type { RunEnd, RunState } from '../run/state.ts';
 import { PATH_EMOJI, PATH_NAMES, buildTimeline, buildView, challengesOf, fmtMs, nextUnlock, statView, trophyReasons, verdictOf, type StatCard, type TimelineItem } from '../run/summary.ts';
+import { diffLabel, diffOf } from '../run/difficulty.ts';
 import { btn, el } from './dom.ts';
 import { seedLabel } from './parts.ts';
 
@@ -101,7 +102,7 @@ function buildSection(run: RunState): HTMLElement {
 
 function unlockSection(run: RunState, info: RunEnd): HTMLElement {
   const box = el('section', 'rs-panel rs-unlocks', sectionHead('🏆', 'Troféer och upplåst'));
-  box.append(el('div', 'rs-trophy', `+${info.trophies} 🏆`, el('small', null, ` totalt ${info.total}`)));
+  box.append(el('div', 'rs-trophy', `+${info.trophies} 🏆`, el('small', null, `${info.trophyMul && info.trophyMul !== 1 ? ` (×${String(info.trophyMul).replace('.', ',')} ${diffOf(run.diff).name})` : ''} totalt ${info.total}`)));
   const why = trophyReasons(run, info.won);
   box.append(why.length ? el('ul', 'rs-why', ...why.map((w) => el('li', null, el('span', null, w.text), el('b', null, `+${w.n}`)))) : el('p', 'rs-empty', 'Inga troféer den här gången. Kör minst tre lopp nästa gång.'));
   const unl = [
@@ -149,7 +150,7 @@ export function resultView(run: RunState, info: RunEnd, o: { onAgain(): void; on
     el('span', 'rs-chip', swatch, ' Lack'),
     el('span', 'rs-chip', '⏲️', ` ${run.stats.totalTime > 0 ? fmtMs(run.stats.totalTime) : '–'}`, el('small', null, ' åktid')),
     el('span', 'rs-chip seed', seedLabel(run.seed)),
-    run.calm ? el('span', 'rs-chip calm', '🛋️ Söndagsåkare') : null,
+    run.diff === 'normal' ? null : el('span', `rs-chip diff d-${run.diff}`, diffLabel(run.diff)),
   ];
   const head = el(
     'header',
