@@ -29,8 +29,9 @@ path, as in Tape to Tape / Slay the Spire. Node types:
 - 🛒 **Shop** (Mackens kiosk): buy trinkets, repairs, a reroll.
 - 🔧 **Workshop**: upgrade a part, or swap the vehicle.
 - ❓ **Event**: a silly choice ("En ko blockerar vägen…"), with a risky or safe outcome.
-- 👑 **Boss**: a named rival with a gimmick (Bonden Bengt drives a tractor and drops hay; Älgen Ingrid
-  jumps across the road; Isdrottningen makes the road icy).
+- 👑 **Boss**: a named rival with a gimmick on the road, one picked per act from a pool (phase 16: a rally steward who draws
+  penalty zones, a golfer whose balls bounce, a co-driver with false signs; a footballer, an ice-machine goalkeeper and a bowler;
+  a world champion or the joker Kapten Kanin on the moon). The first three (Sura Bengt, Ingrid, Frost-Frida) were replaced.
 
 **Lives, not instant death**: the run has ❤️ hearts (start 3). Finishing in the bottom places or a DNF
 costs a heart; 0 hearts ends the run. Forgiving but with stakes.
@@ -56,14 +57,14 @@ onFinish, onPickup, raceStart modifiers…), so trinkets stay data + a few funct
 **Vehicles** (unlock between runs, each plays differently): the old hatch/buggy/pickup/coupe/monster
 cars, plus **fyrhjuling** (ATV: twitchy, jumps well), **motorcykel** (lean, fast, falls off on big hits),
 **moped** (slow, very nimble, has a basket, the funny one), **traktor** (slow, unstoppable), and maybe
-a **soffa på hjul**. Stats: speed, grip, handling, weight, toughness. Drivers stay the farm animals.
+a **soffa på hjul**. Stats: speed, grip, handling, weight, toughness. Drivers are people in helmets (phase 16 removed the animals); you drive as yourself.
 
 **Courses**: the existing farm/forest/ice/beach/city/meadow/mountain themes, plus new ones that act
 themes pick from (e.g. act 1 countryside, act 2 wild: desert/volcano/swamp, act 3 crazy: candy land,
 the moon (low gravity), a kitchen with giant cereal). Procedural variation per node from a seed so
 the same theme never plays exactly the same.
 
-**Between runs (meta)**: 🏆 trophies from runs are a score and medals are achievements (since phase 14 nothing is locked: every vehicle and talisman is open from the start); drivers,
+**Between runs (meta)**: 🏆 trophies from runs are a score and medals are achievements (since phase 14 nothing is locked: every vehicle and talisman is open from the start); helmet and
 paint/liveries. A run summary screen shows the trinket build and the funniest stat ("Studsade 47 gånger").
 
 **Polish**: big juicy feedback (screen shake, confetti, quack sounds), a seed shown for a run, pause,
@@ -83,7 +84,7 @@ volume, and the difficulty choice on the pick screen (Söndagsåkare, Normal, H�
    sizes, performance on low quality, juice, balancing, run summary.
 
 5. **Rebrand**: the voice for an adult and a 10-year-old (Tape to Tape style): new names and lines for all trinkets,
-   twelve named rivals with trash talk and overtake taunts, meaner bosses, sharper events, a dark neon arcade look,
+   twelve named rivals (twenty-one friendly rally and sports puns since phase 16) with trash talk and overtake taunts, meaner bosses, sharper events, a dark neon arcade look,
    fart and burp sounds with a green gas cloud, trinket triggers shown by a pulsing icon instead of a centred pop-up.
    Ids and save keys are unchanged.
 
@@ -169,7 +170,20 @@ run strong, which is right; the rivals and courses must keep up. Design directio
     and old vehicle unlocks migrate into medals); trophies stay as a score. **Seed codes** like `KOSSA-4821` (word + four digits), a collapsed "🌱 Frö" field on the car pick,
     the code with a copy button on the map and result, and a test that two different metas give identical runs for one code. **20 new talismans** (72 in all: ability tricks,
     weather, coin flips, derby and ramps) and two new combos. **Pop-ups** in the upper middle of the screen for talismans, abilities, passives and boosts (setting Mitten/Hörnet/Av).
-    A compact car pick for a phone held upright. Built (see README, "Talismaner, medaljer och frökoder"). A follow-up removes the animal driver picker and renames the rivals.
+    A compact car pick for a phone held upright. Built (see README, "Talismaner, medaljer och frökoder"). 
+
+16. **Everyone is a person in a helmet** (owner decisions after a playtest with his ten-year-old):
+    - **No animals.** `CarDriver` is only `human`; every driver, player and rival, wears a helmet and race overalls with a helmet design of their own in their livery colours
+      (eight patterns, `CarStyle.helmet` / `helmetColor`; Kapten Kanin is a person in a costume helmet with long ears). Old animal drivers in saves read as a person with the default helmet.
+    - **Rivals are friendly puns** on famous rally drivers and sports stars (21: nine Swedish rally greats, twelve from the world, all three driving styles, each with nickname, trash talk, taunt, livery, helmet and initials).
+      The pre-race collector cards get a drawn SVG helmet portrait with the rival's colours and initials, and a green "Du" card first.
+    - **New bosses**, a pool per act, one picked by the seed: 🏁 Tävlingsledaren Torsten (penalty zones, a time penalty), ⛳ Golf-Göran (bouncing golf balls), 🗺️ Tina Kartörner (false signs, a flipped minimap),
+      ⚽ Fotbolls-Freddie (giant footballs across the road), 🏒 Målvakten Mats (an ice strip behind his ice machine), 🎳 Bowling-Berit (bowling balls down the road, pins), and in act 3 🏆 Världsmästaren
+      (Sébastien Loebsedel or Stig Blomgrus: perfect line, nitro on every straight, plus a gimmick borrowed from another boss) or 🚀 Kapten Kanin on the moon. Sura Bengt, Ingrid Ingenväjning and Frost-Frida are gone;
+      the medals that named them became "beat an act 1 boss" and "beat an act 2 boss" with the old progress migrated.
+    - **You drive as yourself**: the driver picker is gone; "Vad heter du?" on the first launch and in Inställningar (max 16 characters, filtered by the language rules), a deterministic rally name suggestion
+      (Turbo-Tobbe, Grus-Greta, Sladd-Sam, Lukas Lättfot) with a 🎲 button, the name in the standings, HUD, result, collector card and title, and a helmet pattern and colour next to the paint. Per device in the meta.
+    Built (see README, "Alla är människor i hjälm"). Heat levels are still undecided.
 
 **House rules for all text**: Swedish; no swearing or vulgar words (enforced by src/language.test.ts); toilet
 humour only as an occasional random item, never the focus: the humour is unpredictable chaos.

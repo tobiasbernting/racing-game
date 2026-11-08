@@ -1,5 +1,5 @@
 // Galna Rallyt: a little 3D racing game round the farm (and six other courses). Laps against farm
-// animals in rally cars: countdown lights, live positions, a minimap, confetti at the end.
+// people in helmets in rally cars: countdown lights, live positions, a minimap, confetti at the end.
 //
 // A race is opened with RallyOptions (options.ts): the course, the rules (laps, computer cars, difficulty,
 // time of day, rain, damage, nitro, pickups) and the player's car. It reports the outcome through
@@ -141,7 +141,7 @@ interface Runner {
   me: boolean;
 }
 
-/** The skill of each grid slot; the names and faces come from the cast (shared/rivals.ts). */
+/** The skill of each grid slot; the names and helmets come from the cast (shared/rivals.ts). */
 const ROSTER: { name: string; skill: number; power: number; bias: number; wobble: number }[] = [
   { name: '', skill: 0.93, power: 1.0, bias: 0.3, wobble: 0.4 },
   { name: '', skill: 0.91, power: 0.98, bias: -0.6, wobble: 0.8 },

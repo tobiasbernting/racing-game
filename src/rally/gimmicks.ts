@@ -88,12 +88,12 @@ export class Gimmicks {
   private said = new Set<string>();
   /** Time penalty in ms the player has picked up (the race adds it to the finish time). */
   penaltyMs = 0;
-  private readonly golfGeo = new THREE.IcosahedronGeometry(0.5, 1);
+  private readonly golfGeo = new THREE.IcosahedronGeometry(0.7, 1);
   private readonly golfMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.35, flatShading: true, emissive: '#ffffff', emissiveIntensity: 0.55 });
   private readonly footGeo = footballGeometry(1.15);
   private readonly footMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, flatShading: true, emissive: '#444444', emissiveIntensity: 0.35 });
-  private readonly bowlGeo = new THREE.SphereGeometry(0.62, 14, 10);
-  private readonly bowlMat = new THREE.MeshStandardMaterial({ color: '#5a2fb8', roughness: 0.18, metalness: 0.3, emissive: '#3a1a80', emissiveIntensity: 0.6 });
+  private readonly bowlGeo = new THREE.SphereGeometry(0.85, 14, 10);
+  private readonly bowlMat = new THREE.MeshStandardMaterial({ color: '#2a1470', roughness: 0.18, metalness: 0.3, emissive: '#8a4dff', emissiveIntensity: 0.85 });
   private readonly holeGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.06, 8);
   private readonly holeMat = new THREE.MeshBasicMaterial({ color: '#0b0b10' });
 
@@ -151,7 +151,7 @@ export class Gimmicks {
     else {
       const g = new THREE.Group();
       g.add(new THREE.Mesh(this.bowlGeo, this.bowlMat));
-      for (const [x, y, z] of [[0.18, 0.5, 0.2], [-0.05, 0.54, 0.22], [0.1, 0.58, 0.04]] as const) {
+      for (const [x, y, z] of [[0.24, 0.68, 0.27], [-0.07, 0.74, 0.3], [0.13, 0.79, 0.05]] as const) {
         const hole = new THREE.Mesh(this.holeGeo, this.holeMat);
         hole.position.set(x, y, z);
         hole.lookAt(0, 0, 0);
@@ -199,7 +199,6 @@ export class Gimmicks {
   // ---- when each trick fires ----
 
   private fire(dt: number, me: Car | null, boss: Car | null): void {
-    const tr = this.host.track;
     for (const id of this.ids) {
       this.next[id] -= dt;
       if (this.next[id] > 0) continue;
@@ -236,7 +235,6 @@ export class Gimmicks {
           break;
       }
     }
-    void tr;
   }
 
   /** The steward draws a red zone on the road ahead of you and blows the whistle. */
@@ -258,7 +256,7 @@ export class Gimmicks {
     // aim for the player's side of the road when the player is ahead of him
     const aim = me ? clamp(me.proj.d - boss.proj.d, -hw * 0.5, hw * 0.5) : 0;
     const speed = Math.max(8, Math.hypot(boss.vx, boss.vz));
-    this.add({ kind: 'golf', s, d: boss.proj.d, h: 1.4, ds: speed + 16 + this.r() * 10, dd: aim * 0.55 + (this.r() - 0.5) * 7, vh: 9 + this.r() * 3, r: 0.5, life: 10, wind: 0, side: 1, hw });
+    this.add({ kind: 'golf', s, d: boss.proj.d, h: 1.4, ds: speed + 16 + this.r() * 10, dd: aim * 0.55 + (this.r() - 0.5) * 7, vh: 9 + this.r() * 3, r: 0.7, life: 10, wind: 0, side: 1, hw });
     this.host.sound('tock');
     this.say('golf', '⛳ Göran: ”Fore! Huvudet ner!”');
   }
@@ -295,7 +293,7 @@ export class Gimmicks {
     const tr = this.host.track;
     const s = me.proj.s + 150;
     const hw = tr.at(tr.hw, s);
-    this.add({ kind: 'bowling', s, d: (this.r() - 0.5) * (hw - 2.4) * 1.5, h: 0.62, ds: -(24 + this.r() * 7), dd: (this.r() - 0.5) * 1.4, vh: 0, r: 0.62, life: 11, wind: 0, side: 1, hw });
+    this.add({ kind: 'bowling', s, d: (this.r() - 0.5) * (hw - 2.4) * 1.5, h: 0.85, ds: -(24 + this.r() * 7), dd: (this.r() - 0.5) * 1.4, vh: 0, r: 0.85, life: 11, wind: 0, side: 1, hw });
     this.say('bowling', '🎳 Berit: ”Strike! Rulla, lilla klot!”');
     // pins: six in a triangle across a lane, further ahead
     this.pinCount = (this.pinCount ?? 0) + 1;

@@ -612,7 +612,7 @@ export interface CarModel {
 export interface CarModelOpts {
   body: CarBody;
   style: CarStyle;
-  /** The computer cars' animal faces override the style's driver. */
+  /** Always a person in a helmet (the helmet comes from the style). */
   driver?: CarDriver;
   shadowTex: THREE.Texture;
   envMap: THREE.Texture | null;

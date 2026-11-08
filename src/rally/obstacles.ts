@@ -44,9 +44,12 @@ export class Obstacles {
   private readonly coinGeo: THREE.BufferGeometry;
   private readonly coinMat = new THREE.MeshStandardMaterial({ color: '#ffc928', emissive: '#c98a00', emissiveIntensity: 0.55, metalness: 0.6, roughness: 0.3 });
   private readonly zoneGeos: THREE.BufferGeometry[];
-  private readonly zoneMats = [new THREE.MeshStandardMaterial({ color: '#e0201c', roughness: 0.6, emissive: '#a00c08', emissiveIntensity: 0.55 }), new THREE.MeshStandardMaterial({ color: '#fff4e0', roughness: 0.6, emissive: '#fff4e0', emissiveIntensity: 0.3 })];
+  private readonly zoneMats = [new THREE.MeshStandardMaterial({ color: '#e0201c', roughness: 0.6, emissive: '#a00c08', emissiveIntensity: 0.55, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), new THREE.MeshStandardMaterial({ color: '#fff4e0', roughness: 0.6, emissive: '#fff4e0', emissiveIntensity: 0.3, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })];
+  private readonly zoneCone = new THREE.ConeGeometry(0.34, 1.1, 8);
+  private readonly zonePole = new THREE.CylinderGeometry(0.05, 0.05, 3, 6);
+  private readonly zoneFlag = new THREE.BoxGeometry(1.1, 0.7, 0.05);
   private readonly iceGeo: THREE.BufferGeometry;
-  private readonly iceMat = new THREE.MeshStandardMaterial({ color: '#bfeeff', roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.82, emissive: '#6fc8ff', emissiveIntensity: 0.45 });
+  private readonly iceMat = new THREE.MeshStandardMaterial({ color: '#9fe6ff', roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.92, emissive: '#4fc3ff', emissiveIntensity: 0.7 });
   private readonly signGeos: { post: THREE.BufferGeometry; board: THREE.BufferGeometry; arrowShaft: THREE.BufferGeometry; arrowHead: THREE.BufferGeometry };
   private readonly signMats = { post: new THREE.MeshLambertMaterial({ color: '#8a8d95' }), board: new THREE.MeshStandardMaterial({ color: '#1f6fe0', roughness: 0.4, emissive: '#0a3a90', emissiveIntensity: 0.4 }), arrow: new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#ffffff', emissiveIntensity: 0.5 }) };
   private readonly pinGeo: THREE.BufferGeometry;
@@ -158,13 +161,25 @@ export class Obstacles {
       const g = new THREE.Group();
       this.zoneGeos.forEach((geo, i) => {
         const m = new THREE.Mesh(geo, this.zoneMats[i % 2]!);
-        m.position.y = 0.07 + i * 0.012;
+        m.position.y = 0.1 + i * 0.02;
         g.add(m);
       });
       // a white bar across it, like a "no entry" sign
       const bar = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.14, 0.55), this.zoneMats[1]!);
-      bar.position.y = 0.2;
+      bar.position.y = 0.24;
       g.add(bar);
+      // four striped cones round the edge and a flag on a pole, so it shows from far off at the low chase camera
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+        const cone = new THREE.Mesh(this.zoneCone, this.zoneMats[k % 2]!);
+        cone.position.set(Math.cos(a) * 3.1, 0.55, Math.sin(a) * 3.1);
+        g.add(cone);
+      }
+      const pole = new THREE.Mesh(this.zonePole, this.signMats.post);
+      pole.position.set(0, 1.5, 0);
+      const flag = new THREE.Mesh(this.zoneFlag, this.zoneMats[0]!);
+      flag.position.set(0.55, 2.7, 0);
+      g.add(pole, flag);
       g.position.set(x, y, z);
       mesh = g;
     } else if (kind === 'sign') {
@@ -292,6 +307,9 @@ export class Obstacles {
     this.poleGeo?.dispose();
     for (const g of this.zoneGeos) g.dispose();
     for (const m of this.zoneMats) m.dispose();
+    this.zoneCone.dispose();
+    this.zonePole.dispose();
+    this.zoneFlag.dispose();
     this.iceGeo.dispose();
     this.iceMat.dispose();
     for (const g of Object.values(this.signGeos)) g.dispose();

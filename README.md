@@ -3,8 +3,8 @@
 Ett 3D-rallyspel i webbläsaren (three.js): kom först i mål mot en gäng galna förare på tolv banor. Spelet är gjort för en vuxen och en tioåring som spelar tillsammans: absurt, oförutsägbart och bonkers: ingen runda blir den andra lik, det beror på vilka talismaner du råkar få (korvkanoner, flygande kor, plats­byten mitt i farten, en och annan prutt). Det är
 en egen fristående version av rallyt från Lilla Gården och ska bli en roguelite (se [PLAN.md](PLAN.md)).
 Fas 1 var porten (ett lopp på dator, surfplatta och mobil), fas 2 gjorde det till en roguelite: en runda är tre
-akter med varsin förgrenad karta och en boss, och på vägen samlar man galna talismaner. Fas 3 (den här) lägger till
-fem nya fordon, fem nya banor, banor som ser olika ut varje gång, fler talismaner, händelser och en ny boss.
+akter med varsin förgrenad karta och en boss, och på vägen samlar man galna talismaner. Fas 3 lade till
+fem nya fordon, fem nya banor, banor som ser olika ut varje gång, fler talismaner, händelser och en ny boss. Fas 16 (längst ner) gjorde alla förare till människor i hjälm, rivalerna till vänliga ordvitsar på rally- och idrottsstjärnor, och bossarna till en pool per akt med egna trick på vägen.
 
 Styrning: piltangenter/WASD, mellanslag = handbroms, L = nitro, **F = fordonets förmåga** (handkontroll Y), C = kamera, R = tillbaka på vägen,
 Escape = paus, E / Q = växla upp / ned (om du slagit på Manuell växling). Handkontroll (RB / LB växlar) och pekknappar på skärmen
@@ -16,8 +16,8 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
   Skrytlådan (medaljer med framsteg, sedda talismaner, och bästa rundan per svårighet). Svårigheten väljs på bilsidan, inte här; titeln visar bara vad som valdes sist.
 - **Karta**: tre akter (Bondlandet, Vildmarken, Galna stan), fem rader med 2–4 platser och sedan en boss. Platserna är
   🏁 lopp, ⏱️ utmaning (vinn eller skäms, topp 2 i spöregn, mörkerrallyt, slå klockan), 💀 dödslopp, 🛒 Mackens kiosk, 🔧 Skruvhörnan,
-  ❓ helt random och 👑 boss (Sura Bengt med höbalar, Ingrid Ingenväjning som hoppar, Frost-Frida med isig väg, Kapten Kanin på månen).
-  Tolv rivaler med eget skryt och eget hån när de kör om dig (`src/shared/rivals.ts`).
+  ❓ helt random och 👑 boss (en av tre i varje akt, fröet väljer: tävlingsledaren, golfaren och kartläsaren i akt 1, fotbollsspelaren, målvakten och bowlaren i akt 2, en världsmästare eller Kapten Kanin på månen i akt 3, se fas 16).
+  Tjugoen rivaler, vänliga ordvitsar på rally- och idrottsstjärnor, med eget skryt och eget hån när de kör om dig (`src/shared/rivals.ts`).
 - **Hjärtan och kronor**: kommer man sist (nedersta tredjedelen) eller bryter förlorar man ett hjärta; vid 0 är rundan slut.
   Loppen ger kronor (pris + mynt på banan + talismanbonus, skalat per akt) som går till kiosken (talismaner, laga bilen, läka
   hjärta, nya varor) och verkstaden Skruvhörnan (en gratis uppgradering på nivå I eller II, resten för kronor, eller måla om).
@@ -39,7 +39,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
   och ramlar på ett komiskt sätt vid en stor smäll (föraren gör en volt, sen är man på hjulen igen). 🛵 **Moppe**: långsam men
   vig, med korg och en hög ring-ring-klocka (H tutar, och den ringer själv bakom andra bilar). 🚜 **Traktor**: seg, tung och
   oåterkallelig: puttar undan andra bilar och bryr sig knappt om bananskal och höbalar. 🛋️ **Soffbil**: en soffa på hjul med kuddar,
-  lampa och kaffekopp. Förarna (djuren också) sitter ovanpå. Varje fordon har egen motorklang (`audio.ts`) och egen tuta, och
+  lampa och kaffekopp. Förarna sitter ovanpå. Varje fordon har egen motorklang (`audio.ts`) och egen tuta, och
   datorförarna kör dem ibland också.
 - **Banor** (`src/rally/courses-wild.ts`, scenerin i `src/rally/wild.ts`): 🏜️ Öknen (dyner, kaktusar, kamel, oas), 🌋 Vulkanen
   (svart sten, lavasjö, rykande krater), 🍭 Godislandet (klubbor, chokladflod, pepparkakshus), 🌙 Månen (kratrar, stjärnhimmel
@@ -48,8 +48,7 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 - **Variation** (`src/shared/variation.ts`, `src/rally/variant.ts`): från platsens frö (snabbracet får ett eget) kan banan
   speglas och/eller köras åt andra hållet, rekvisitan tätare eller glesare, marken och träden få en nyans, och dag/natt och
   regn väljs (aldrig regn på månen, i köket eller i öknen). Pads, mynt och höbalar placeras också från fröet.
-- **Bossar**: Bonden Bengt kör traktor och släpper höbalar, Älgen Ingrid kör fyrhjuling och hoppar, Isdrottningen gör vägen
-  isig (akt 2 har Ingrid eller Isdrottningen, fröet väljer) och **Kapten Kanin** kör soffa på månen i jättehopp (akt 3).
+- **Bossar**: fas 3 hade Bengt, Ingrid och Frost-Frida. De är borta sedan fas 16; nu väljer fröet en boss ur en pool per akt (se "Alla är människor i hjälm (fas 16)") och **Kapten Kanin** kör fortfarande soffa på månen i jättehopp.
 - **Talismaner för fordonen**: Sidvagn (motorcykel), Turbofläkt (traktor), Ringklocka i guld (moppe), Ångvisslan, Fordonskarusellen
   (byter fordon varje varv) med flera. `buildMods(owned, body)` låter en talisman veta vilket fordon man kör.
 
@@ -78,8 +77,8 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
   boss är antingen 🏁 **Rally** (ren racing, lätt plåtskada, rivalerna håller sig på sin sida), ⚖️ **Blandat** (racing med knuffar:
   några rivaler går på dig men ingen åker ut) eller 💥 **Blodbad** (hälsa, vrak och poäng). Sorten syns som en liten bricka på kartan,
   i teckenförklaringen och på kortet före loppet med en rad om vad den betyder. Ungefär 35 / 40 / 25 % över en runda: mest Rally i
-  akt 1 och mest Blodbad i akt 3. Dödslopp lutar åt Blodbad, "slå klockan" är alltid Rally, och bossarna kör efter humör (Sura Bengt
-  och Kapten Kanin Blodbad, Ingrid Blodbad sedan fas 12 (en älg som aldrig väjer), Frost-Frida Rally).
+  akt 1 och mest Blodbad i akt 3. Dödslopp lutar åt Blodbad, "slå klockan" är alltid Rally, och bossarna kör efter humör (sedan fas 16: Göran, Freddie, Berit och Kapten Kanin Blodbad,
+  Torsten och Mats Blandat, Tina och världsmästarna Rally).
 - **Blodbad**: alla bilar har hälsa (din syns som en stapel nere till höger, rivalernas som små staplar över huvudet). Smällar tar hälsa
   efter hastighet, vikt och rammarkraft (`src/rally/combat.ts`): traktorn och monstertruck puttar, moppen studsar. Vid 0 är bilen
   **vrak**: den vältar, ryker och ligger ute i ca 3 sekunder och är sedan tillbaka på vägen med det mesta av hälsan (ingen blir utslagen
@@ -114,14 +113,14 @@ fungerar också. Pekkontrollerna finns i tre sorter, se "Kontroller och växlar"
 Efter en seger, efter sista hjärtat och efter en omladdning på sista kortet visas `resultView` (`src/ui/result.ts`, siffrorna räknas ut i
 `src/run/summary.ts` och är testade i `summary.test.ts`):
 
-- **Huvud**: stor dom (seger, eller vilken akt och plats du föll på), fordon, förare, lack, frö, total åktid och en bricka för svårigheten (🛋️ Söndagsåkare, 🔥 Hård, 💀 Ett liv).
+- **Huvud**: stor dom (seger, eller vilken akt och plats du föll på), fordon, ditt namn med hjälmen, lack, frö, total åktid och en bricka för svårigheten (🛋️ Söndagsåkare, 🔥 Hård, 💀 Ett liv).
 - **Rundans mest galna siffra** med en rolig rad, sedan 6-10 sifferkort och "Visa alla" för resten. Loppen sparar nu bland annat toppfart,
   längsta sladd, tid i luften och hopp, nitrosekunder, oljefläckar, omkörningar, utlagda fällor, bästa varv och hur ofta varje talisman utlöstes
   (`RaceStats` och `RallyResult`, summeras i `src/run/stats.ts`; toppfart och längsta sladd är maxvärden). Rundan räknar också pallplatser,
   kronor spenderade och åktid. Gamla sparningar laddas med nollor.
 - **Tidslinje**: varje besökt plats i ordning (`RunState.log`) med typ, sort (Rally/Blandat/Blodbad), bana, placering eller poäng, belöning och
   förlorade hjärtan, med aktavskiljare. En horisontell remsa på dator och surfplatta, en lista på mobil.
-- **Bygget**: varje talisman med antal och varifrån den kom ("Vann Sura Bengt", "Köpt i kiosken", "Händelse: …", `RunState.got`), uppgraderingsträden med taget nod för nod och kombona,
+- **Bygget**: varje talisman med antal och varifrån den kom ("Vann Golf-Göran", "Köpt i kiosken", "Händelse: …", `RunState.got`), uppgraderingsträden med taget nod för nod och kombona,
   byggets mix per väg som en stapel ("55 % Ram · 30 % Fuffens · 15 % Race") och fordonets förmåga (`abilityOf`: aktiv förmåga med hur många gånger du använde den, och passiven).
 - **Troféer och upplåst**: varför troféerna blev så många, nya bilar och talismaner, nästa medalj att jaga och de **medaljer** rundan flyttade ("Takedowns i en runda: 6/10", eller "🏅 MEDALJ! Krossmästaren").
 - **Svårighet**: på pekskärmar får rivalerna inte längre någon extra lättnad i normalt läge, bara i Söndagsåkare. Se "Fyra svårigheter" nedan.
@@ -235,7 +234,7 @@ och går in i `playerStats` i `racesim.ts`; rivalernas mod blev lite skarpare me
 | Rundvinnaren | Vinn en runda |
 | Söndagsvinnaren | Vinn en runda på Söndagsåkare |
 | Krossmästaren | Gör 10 takedowns i en runda |
-| Moppen mot Bengt | Slå Sura Bengt med moppen |
+| Moppen mot bossen | Slå akt 1-bossen med moppen |
 | Helt orörd | Vinn akt 2 utan att tappa ett hjärta |
 | … | (och tio till, se `MEDALS`) |
 
@@ -260,8 +259,8 @@ Den gemensamma stilen bor i `src/rally/look.ts` så att fas 10:s tio nya fordon 
   Smuts byggs upp under loppet (`Entrant.dirt` → `CarModel.setWear(dirt, damage)`, snabbare utanför asfalten och i regn), repor och sotfläckar kommer med skadan. I Blandat och
   Blodbad syns skadan som bucklor, spricka i vindrutan, en stötfångare som först lossnar och sedan hänger (från 50, 70, 90 av 100), rök från huven och eld när det är nära slutet
   (`wearOf` i `index.ts`: hälsan i Blodbad, plåten annars). Nitroflammorna är längre och glöder.
-- **Förare**: alla har hjälm med visir eller skyddsglasögon (`helmet`, `driverHead` i `models.ts`) och overall med rand och selar (`overallsColor`): grisen har hjälm, tuppen aviatorglasögon,
-  kon visir och horn ut genom hjälmen. Mopedens och buggyns förare syns tydligast.
+- **Förare**: alla är människor i hjälm med visir (`helmet`, `driverHead` i `models.ts`) och overall med rand och selar (`overallsColor`). Fram till fas 16 fanns djurförare (grisen, tuppen, kon …); de är borta och alla har
+  nu en egen hjälmfärg och ett eget mönster, se fas 16. Mopedens och buggyns förare syns tydligast.
 - **Banorna** (`src/rally/attitude.ts`, ett lager över varje bana, alla former i få ritanrop): däckväggar på ytterkanten av de skarpaste kurvorna, höbalar (lådor på månen och i godislandet)
   med sponsorbanderoller vid start och mål, reklamskyltar för påhittade märken, skrotupplag med vrak, oljefat där några brinner (flammor i en egen shader, rök och på `high` ett
   flimrande ljus), ljustorn vid start och i kurvor, flaggor, handskrivna skyltar och bloss med röd rök bland publiken. Varje bana får sin palett (`PALS`): godis blir slitet godis,
@@ -281,10 +280,10 @@ en starttalisman och en utmaning. Tre nya körkänslor finns i `Feel`: `loose` (
 
 | Fordon | Lutning | Passiv | Aktiv (F) | Nedkylning | Växellåda | Starttalisman | Medalj |
 |---|---|---|---|---|---|---|---|
-| ⚠️ EPA-traktor | Blandat | Spärr 30: topp ca 40 km/h, men inget bromsar (gräs, lera, olja, höbalar) | ⚠️ Gasa på EPA: spärren av, kraftig fartstöt | 8 s | 5, långsam | Pensionärsrabatten | Slå Sura Bengt |
+| ⚠️ EPA-traktor | Blandat | Spärr 30: topp ca 40 km/h, men inget bromsar (gräs, lera, olja, höbalar) | ⚠️ Gasa på EPA: spärren av, kraftig fartstöt | 8 s | 5, långsam | Pensionärsrabatten | Slå en akt 1-boss |
 | 🍦 Glassbil | Blandat | Glassmelodin: bilar inom 15 m saktar ner och en melodi spelas | 🍦 Glasskanon: tre glaskulor landar framför dig och gör vägen hal | 13 s | 4, lat | Lördagsgodiset | Samla 150 mynt i en runda |
 | 🗑️ Sopbil | Ram | Plockar upp: fällor du kör på plockas upp, varje bit ger lite pansar (max 6) | 🗑️ Tömning: en hög skräp bakom dig, större ju mer du plockat | 12 s | 6, tung | Pantmotorn | Samla ihop 12 talismaner i en runda |
-| ❄️ Snöskoter | Race | Allt grepp: full grepp på is, snö och sand | ❄️ Pudersvans: snömoln som gör bilarna bakom blinda och långsamma | 11 s | 3, snabb | Bastu på taket | Slå Frost-Frida |
+| ❄️ Snöskoter | Race | Allt grepp: full grepp på is, snö och sand | ❄️ Pudersvans: snömoln som gör bilarna bakom blinda och långsamma | 11 s | 3, snabb | Bastu på taket | Slå en akt 2-boss |
 | 🏁 Gokart | Race | Sugen i rygg: slipströmmen fylls dubbelt så fort, fullt ger en gratis fartstöt | 🏁 Gokartsladd: en perfekt sladd direkt, ger nitro | 10 s | 4, blixtsnabb | Frityroljan | Sladda i 40 sekunder i en runda |
 | ⛳ Golfbil | Blandat | Tyst som en mus: rivalerna går inte på dig och blockerar dig inte | ⛳ Hole in one: en golfboll slår ledaren i sidan | 15 s | 3, eldrift | Pappas pokal | Kom till akt 2 på Söndagsåkare |
 | 🌿 Åkgräsklippare | Blandat | Gräsälskare: snabbare på gräs än på vägen | 🌿 Gräsklippning: ett gräsregn som klipper bort allt farligt framför dig | 9 s | 4, små | Kon från ovan | Använd förmågan 20 gånger i en runda |
@@ -338,7 +337,7 @@ Fuffens: oljefat, rökgranat, minor på stötfångaren, ett falskt mynt i en tr�
 
 **Bygget** (☰ Paus → 🧰 Bygget, och 🧰 i kartans övre list): bilen på skivspelare med sina mods, byggets mix per väg, och träden som flikar med tagna, öppna och låsta noder (tryck för att läsa; kombofliken visar alla recept). Samma panel är Skruvhörnans butik.
 
-**Ge upp rundan** (☰ Paus → 🏳️ Ge upp rundan, med bekräftelse: "Nej" är förvald, Escape betyder nej): rundan räknas som en runda men ger inga troféer, medaljer av typen "bäst i en runda" behåller det som redan klarats, de som räknas över rundor ("Vinn en runda", "Kör klart 5 rundor") räknar den inte. Sedan väljer du fordon på nytt med samma fordon, förare och lack förvalda. "Ge upp och visa resultatet" visar resultatsidan ("Gav upp i Akt X"). Logiken ligger i src/run/giveup.ts.
+**Ge upp rundan** (☰ Paus → 🏳️ Ge upp rundan, med bekräftelse: "Nej" är förvald, Escape betyder nej): rundan räknas som en runda men ger inga troféer, medaljer av typen "bäst i en runda" behåller det som redan klarats, de som räknas över rundor ("Vinn en runda", "Kör klart 5 rundor") räknar den inte. Sedan väljer du fordon på nytt med samma fordon, hjälm och lack förvalda. "Ge upp och visa resultatet" visar resultatsidan ("Gav upp i Akt X"). Logiken ligger i src/run/giveup.ts.
 Telefon på sidan: bilen till vänster, träden till höger, panelen scrollar inuti; surfplatta stående: bilen överst. Alla knappar är minst 44 px och sidan scrollar aldrig. Resultatskärmen visar träden nod för nod (med varifrån varje kom), fordonets uppgraderingar och de aktiva kombona.
 
 **Sparningar.** `RunState.up` är listan av noder. Äldre sparningar har sex delnivåer (`car.parts`) i stället: vid inläsning blir varje nivå den nod den blev (`PART_LINE`: motor → Motor, däck → Grepp, bromsar → Bromsar, turbo → Nitro, pansar → Pansarplåt, fjädring → Stötdämpare; `partsToNodes`),
@@ -369,7 +368,7 @@ En ramp är en upphöjning av marken i vägens egna koordinater (s längs, d tv�
 betalar som för ett jättehopp (Flygtid, Luftburen, Stuntstjärnan). Alla tolv banor i alla spegel- och bakvända varianter har sina ramper (`ramps.test.ts`). I derbyt ligger ramperna (kickers och pukklar) utspridda på golvet åt alla håll.
 
 **⚖️ Balans** (`src/run/bot.ts`, `racesim.ts`, `balance.test.ts`): Ram låg på 28 % mot Race 58 % i normala rundor. Nu vinner en bra spelare ungefär **43 % med Race, 47 % med Ram och 50 % med Blandat** (före: 58 / 28 / 47; 300 rundor, ± 3 pp). Det som flyttade: **skrotpant** (var fjärde vrakad bil under en runda ger ett förlorat ❤️ tillbaka, aldrig över fulla hjärtan och aldrig på sista andetaget; kortet efter loppet visar räknaren),
-tung stötfångare lönar sig i Blandat och Blodbad (modellen: sekunder per varv för ram och vikt, inte i Rally), Ingrid är en Blodbad-boss, en egen derbymodell i simuleringen (utslagsordning med överlevnad, undvikande och slag; en bra Ram-spelare vinner ett derby ungefär en gång av fyra, en renodlad racer var sjätte) och de långsamma skämtfordonens förmågor får kortare nedkylning (golfbilen 12 s, gräsklipparen 8, limousinen 10, husbilen 11, moppen 8, traktorn 13, sopbilen 10).
+tung stötfångare lönar sig i Blandat och Blodbad (modellen: sekunder per varv för ram och vikt, inte i Rally), bossarna fick Blodbad-humör (sedan fas 16: tre av nio bossar är Rally, två Blandat, fyra Blodbad), en egen derbymodell i simuleringen (utslagsordning med överlevnad, undvikande och slag; en bra Ram-spelare vinner ett derby ungefär en gång av fyra, en renodlad racer var sjätte) och de långsamma skämtfordonens förmågor får kortare nedkylning (golfbilen 12 s, gräsklipparen 8, limousinen 10, husbilen 11, moppen 8, traktorn 13, sopbilen 10).
 Det som hålls: ingen varvas i akt 3, Söndagsåkare går att vinna nästan alltid, ingen fordonsvinnare dominerar.
 
 **Småfixar**: tidslinjens kioskkort och verkstadskort upprepar inte längre sitt namn, "UPPLÅST!"-lappen sitter nere till vänster på resultatskärmen i stället för över chipsen, kortet för platsen där rundan tog slut har läsbar text, och de fem moddar som inte syntes på bilen får en bult-on: Bromsar (röda och gula bromsok på blanka skivor), Nitrolängd (långa blå nitrorör längs sidorna),
@@ -441,4 +440,67 @@ Balanssimulationen (`racesim.ts`, `pace.ts`) räknar Termosen via `abilCd`, Kraf
 
 **Pop-ups mitt på skärmen** (`Hud.pop`): när en talisman utlöses, förmågan används, en passiv slår till eller du får en boost, takedown eller kombo visas en stor emoji och ett kort ord ("KRAFT!", "NITRO!", "TAKEDOWN!") i övre mitten, ovanför bilen och aldrig över vägen framför den: ingen bakgrundsruta, bara kontur och skugga, skalas in och tonas ut på under en sekund. Högst tre åt gången, nyaste närmast horisonten, och varje källa visar sig högst var 2,5:e sekund. Ikonen i remsan uppe till höger pulserar som förut. Inställningar → **Pop-ups: Mitten / Hörnet / Av** (förval Mitten; Hörnet är en liten rad under positionsrutan).
 
-**Bilvalet på mobil**: stående telefon (smal och inte kort) får ett kompakt bilval utan sidscroll: svårighetsraderna överst (Söndagsåkare får plats), bilarna som en sidledes svepbar rad med lean-filtret ovanför, fordonets kort, förare och färg som svepbara rader och längst ner en fotrad med ← Tillbaka, 🌱 Frö och KÖR! som alltid syns. Liggande telefon, surfplatta och dator behåller sina layouter; alla knappar är minst 44 px. Kartans övre list fick plats för alla tre knappar på smala skärmar.
+**Bilvalet på mobil**: stående telefon (smal och inte kort) får ett kompakt bilval utan sidscroll: svårighetsraderna överst (Söndagsåkare får plats), bilarna som en sidledes svepbar rad med lean-filtret ovanför, fordonets kort, hjälm och färg som svepbara rader och längst ner en fotrad med ← Tillbaka, 🌱 Frö och KÖR! som alltid syns. Liggande telefon, surfplatta och dator behåller sina layouter; alla knappar är minst 44 px. Kartans övre list fick plats för alla tre knappar på smala skärmar.
+
+## Alla är människor i hjälm (fas 16)
+
+Ägarens önskemål efter en lekrunda: inga djur bakom ratten, rivalerna är kända rally- och idrottsnamn som vänliga ordvitsar, bossarna hämtas från rally och andra sporter, och du kör som dig själv.
+
+**Inga djur.** `CarDriver` är bara `human` (`CAR_DRIVERS` har en post; gamla sparningar med ko, gris eller kanin läses som människa). `Rival.face` finns inte längre. Alla förare har hjälm med visir och overall, och varje hjälm har ett eget
+**mönster** (`HELMET_DESIGNS`: Rand, Dubbelrand, Rutor, Stjärna, Lågor, Prickar, Blixt, Vingar) och en egen **färg**: `CarStyle.helmet` och `CarStyle.helmetColor` (tom = bilens lack). 3D-hjälmen byggs i `helmet()` i `src/rally/models.ts`, bilderna på korten ritas som SVG i `src/ui/helmet.ts` (`helmetSvg`: kupol, visir med glimt, mönstret och två bokstäver, med axlar i overall som porträtt). Kapten Kanin är en människa i kostym med långa öron på hjälmen (`helmet: 'ears'`, bara för bossar).
+
+**Rivalerna** (`src/shared/rivals.ts`, 21 st, vänliga ordvitsar, aldrig elaka mot den riktiga personen). Varje rival har namn, stil (rammare / racer / blandad), smeknamn, skryt, hån, livré (huvudfärg och dekor), hjälmmönster och initialer. Rally-loppen drar mest racers, Blodbad mest rammare (vikten delas på antalet av varje stil, så att tio racers inte trycker undan sex rammare), och en rival som också är boss (Stig Blomgrus) hoppar över sitt eget lopp.
+Bilens lack är rivalens huvudfärg, eller dekorfärgen om den liknar din (`liveryPaint` i `index.ts`); hjälmen har alltid sina egna färger.
+
+| Grupp | Namn | Stil | Smeknamn | Hjälm | Färger |
+|---|---|---|---|---|---|
+| Svensk rally | Stig Blomgrus | Racer | Den gamle mästaren | Rand | blå / vit |
+| Svensk rally | Björn Waldegrus | Blandad | Safarilegenden | Dubbelrand | sand / svart |
+| Svensk rally | Per Ekgrus | Rammare | Knuffar hellre än han bromsar | Rutor | grön / gul |
+| Svensk rally | Kenneth Grusiksson | Racer | Gasen i botten sedan 1988 | Lågor | röd / vit |
+| Svensk rally | Mattias Eksprång | Rammare | Hoppar först, tittar sen | Stjärna | orange / svart |
+| Svensk rally | Pontus Tidsmand | Racer | Klockan är hans bästa vän | Blixt | turkos / blå |
+| Svensk rally | Oliver Solgrus | Racer | Den unga stjärnan | Vingar | gul / blå |
+| Svensk rally | Johan Kristofferstorque | Rammare | Rallycrossens kung | Prickar | lila / gul |
+| Svensk rally | Harry Kallstart | Blandad | Motorn vaknar sist av alla | Dubbelrand | grå / röd |
+| Världen | Leo Messimotor | Racer | Dribblar mellan bilarna | Rand | ljusblå / vit |
+| Världen | Rovolvodo | Rammare | Volvo i hjärtat, mål i blicken | Stjärna | röd / grön |
+| Världen | Zlatan Grusimović | Rammare | Banan behöver honom, inte tvärtom | Lågor | gul / blå |
+| Världen | Sébastien Ogrus | Racer | Alla vägar leder till pokalen | Rutor | blå / röd |
+| Världen | Kalle Rovanplåt | Racer | Sladdar som på is, varje gång | Vingar | vit / turkos |
+| Världen | Petter Solbergsgrus | Blandad | Ler mest när det smäller | Prickar | rosa / vit |
+| Världen | Usain Boltdragare | Racer | Går på blixtens ström | Blixt | gul / grön |
+| Världen | Serena Williamsväxel | Racer | Slår i nästa växel, och bollen | Dubbelrand | limegrön / lila |
+| Världen | Björn Borgtorque | Blandad | Ishjärta, pannband och fullt drag | Rand | blå / vit |
+| Världen | Ingemar Stenmotor | Blandad | Sicksack som i slalombacken | Rutor | röd / blå |
+| Världen | Tiger Woodsvagn | Rammare | Slår långt, parkerar kort | Lågor | brandgul / svart |
+| Världen | Mika Häkkikinen | Racer | Den flygande finländaren | Vingar | silver / röd |
+
+Fördelningen är 10 racers, 5 blandade och 6 rammare. Ägarens förslag "Sébastien Leopard" blev **Sébastien Ogrus** (Ogier) för att inte krocka med bossen Sébastien Loebsedel. `rivals.test.ts` kollar att alla fält finns, att ingen heter något djur och att allt är snällt och rent.
+
+**Bossarna** (`src/run/plan.ts`, `src/run/map.ts`): en pool per akt, fröet väljer en (`bossFor`, `BOSS_POOL`). Sura Bengt, Ingrid Ingenväjning och Frost-Frida är borta för gott; Kapten Kanin är kvar som den galna jokern (🚀, månen, derby ibland). Varje boss har ett samlarkort med hjälmporträtt, en inledningsreplik, ett fordon och en egen livré, och ett trick byggt av hindersystemen (`src/rally/gimmicks.ts`, `Obstacles`, små modeller för bollar, käglor, skyltar och straffzoner).
+
+| Akt | Boss | Fordon | Sort | Bana | Trick |
+|---|---|---|---|---|---|
+| 1 | 🏁 Tävlingsledaren Torsten | tävlingsbil med ljusramp (pickup, `lightbar`) | Blandat | Gården | 🚩 Straffzoner: visselpipan går och ett rött fält med koner och flagga ritas på vägen, 7-8 s mellan fälten framför dig plus två fasta per varv. Kör du genom bromsas du till 38 % av farten och får **2 sekunder** på måltiden (`penaltyMs`) |
+| 1 | ⛳ Golf-Göran | golfbil | Blodbad | Ängen | ⛳ Golfbollar: han slår ut bollar framför sig som studsar längs vägen (tyngdlag, 74 % studs) och knuffar åt sidan och snurrar den bil de träffar |
+| 1 | 🗺️ Tina Kartörner | rallybil med antenn | Rally | Skogen | 🪧 Falska skyltar: pilskyltar sätts upp framför dig, de flesta vid kanten och var tredje på vägen (en tung skylt som snurrar). Var tredje skylt vänder hon din minikarta upp och ner i 4,5 s. "Vänster fyra, hopp, lita på mig!" |
+| 2 | ⚽ Fotbolls-Freddie | sandbuggy i gräsgrönt | Blodbad | Stranden | ⚽ Jättebollar: en jättefotboll läggs vid vägkanten framför dig och guppar en stund (en sekund att se den), sedan sparkas den tvärs över vägen och slår undan den som är i vägen |
+| 2 | 🏒 Målvakten Mats | ismaskin (traktor med blått skal) | Blandat | Isbanan | 🧊 Isremsa: efter ismaskinen ligger en hal remsa (11 s) som tar greppet och svänger bilen. Hans egen is tar inte honom |
+| 2 | 🎳 Bowling-Berit | limousin i bowlinglila | Blodbad | Fjället | 🎳 Bowlingklot rullar nerför vägen mot dig (24-31 m/s, 150 m framför dig) och var tredje gång ställs sex käglor i en triangel på vägen |
+| 3 | 🏆 Världsmästaren Sébastien Loebsedel | rallybil, perfekt trimmad | Rally | Staden | perfekt linje (`lineUse` 1, bromsar sent), nitro på varje raksträcka (`nitroEvery` 6), plus ett **lånat trick**: ett av de andra bossarnas, valt av noden (`borrowedGimmick`) |
+| 3 | 🏆 Världsmästaren Stig Blomgrus | klassisk rallybil | Rally | Fjället | som Loebsedel; Stig Blomgrus står inte också på startgriden |
+| 3 | 🚀 Kapten Kanin | soffa, öron på hjälmen | Blodbad | Månen | låg tyngdkraft och jättehopp, ibland ett derby (som förut) |
+
+Tricken är data (`RaceTwist.gimmicks`, `GimmickId` i `src/shared/gimmicks.ts`) och körs av `Gimmicks` i loppet: bollarna rör sig i vägens koordinater (s längs, d tvärs, h över vägen), träffarna går tillbaka till loppets egen snurr, skada och ljud (`gimmickHit`), och straffzoner, is, skyltar och käglor är nya sorter i `Obstacles`. I testbygget (`?rallydebug`) visar `window.__rally.gimmicks` vad som ligger på vägen och `window.__app.debugBoss('berit')` hoppar till en viss boss. Bossarnas styrka är trimmad så att balanstesterna håller (Hård-gränsen för en stark spelare gick från 65 till 70 %).
+**Medaljerna** som nämnde bossar byttes: *Tävlingsstoppet* (Slå en akt 1-boss), *Moppen mot bossen* (samma, med moppen) och *Bollbesegraren* (Slå en akt 2-boss) ersätter Bengtbesegraren, Moppen mot Bengt och Fridas frostskräck. `MEDAL_RENAMES` flyttar gamla framsteg (`bengt` blir `boss1`, `bengtMoped` blir `boss1Moped`, `frida` blir `boss2`) när metan läses, och en gammal rundas logg läser Bengt som Torsten, Ingrid som Freddie och Frost-Frida som Mats (`BOSS_RENAMES`).
+
+**Du kör som dig själv.** Förarvalet är borta. Första gången (och i ⚙️ Inställningar → "Du heter") frågar spelet **"Vad heter du?"** (`nameView`): ett textfält på högst 16 tecken, trimmat och rensat från konstiga tecken, filtrerat med samma ordregler som resten av spelet (`src/shared/words.ts`; även siffror för bokstäver och mellanslag räknas, så "k u k" och "p1ss" stoppas med en vänlig rad). Om spelet kan göra ett hyfsat **rallynamn** av namnet föreslår det ett (`src/shared/rallyname.ts`: ett ord på samma bokstav före namnet med streck, eller efter det, alltid samma lista i samma ordning för ett namn): man väljer förslaget eller behåller sitt eget namn, och **🎲 Nytt förslag** går vidare i listan. Finns inget vettigt (för kort, för långt, konstigt) står det "Inget rallynamn passade. Du kör som …".
+Exempel: Tobias → *Turbo-Tobbe*, Lukas → *Lack-Lukas* (och *Lukas Lättfot* i listan), Greta → *Grus-Greta*, Sam → *Sladd-Sam*, Maja → *Motor-Maja*, Hugo → *Hjul-Hugo*, Olle → *Olje-Olle*.
+Namnet (eller rallynamnet) visas i tabellen under loppet, i HUD:en och namnskyltarna, på loppets resultattabell, på kortet före loppet (ett grönt "Du"-kort först i leden), på resultatskärmen och på titeln. Det sparas per enhet i `Meta` (`name`, `alias`, `helmet`, `helmetColor`) och är bara visning: ett frö ger samma runda för alla.
+
+**Hjälmen** ersätter förarvalet på bilvalet: en rad med åtta hjälmmönster (varje knapp visar mönstret i den färg som är vald) och färgraden har två knappar först, **🚗 Bil** och **⛑️ Hjälm**, som väljer om de tolv färgerna målar bilen eller hjälmen (🚗-pricken = hjälmen i bilens färg). Raden tar inte mer plats än förarraden gjorde, så den stående telefonen får fortfarande plats utan scroll. Alla knappar är minst 44 px.
+
+**Migrering.** Gamla sparningar läses utan fel (`cleanMeta`, `cleanCar`): ett gammalt `driver` (ko, kanin …) blir en människa med standardhjälmen (Rand, bilens lack), en meta utan namn frågar efter ett vid nästa start, medaljframstegen flyttas enligt `MEDAL_RENAMES`, och en pågående runda behåller allt men får standardhjälm. `save.test.ts` och `medals.test.ts` testar det.
+
+**Test.** `rallyname.test.ts` (oföränderligt per namn, rent språk i alla förslag, fallback, skräpindata), `rivals.test.ts` (inga djur, ~20 rivaler med alla fält, stilmix), `phase3.test.ts` (bosspoolerna och fröets val, kort och fordon, världsmästarna och det lånade tricket), `gimmicks.test.ts` (varje trick på riktig bana med riktiga hinder), `medals.test.ts` och `save.test.ts` (migreringarna), och `language.test.ts` läser nu ordlistan från `src/shared/words.ts`.
