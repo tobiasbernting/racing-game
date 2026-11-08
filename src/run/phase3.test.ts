@@ -39,8 +39,9 @@ describe('the new vehicles', () => {
     expect(f('moto').mass).toBeLessThan(f('hatch').mass);
     expect(f('tractor').mass).toBeGreaterThan(3 * f('hatch').mass);
     expect(f('moped').top).toBeGreaterThan(0);
-    expect(f('moped').top).toBeLessThan(30);
-    expect(f('tractor').top).toBeLessThan(25);
+    // since the owner's rule that nobody is slow on a straight, the cap sits near 160 km/h for the slow ones
+    expect(f('moped').top).toBeLessThan(55);
+    expect(f('tractor').top).toBeLessThan(55);
     expect(f('moto').top).toBe(0);
     expect(f('moto').lean).toBeGreaterThan(f('moped').lean);
     expect(f('tractor').slip).toBeLessThan(0.5);
@@ -99,7 +100,9 @@ describe('the handling in car.ts', () => {
       track.project(c.x, c.z, c.proj.i, c.proj);
       if (i % 20 === 0 && Math.abs(c.proj.d) > 3) {
         const v = c.speed;
+        const g = c.gear;
         c.place(c.proj.s, 0, ground);
+        c.gear = g;
         c.vx = Math.sin(c.heading) * v;
         c.vz = Math.cos(c.heading) * v;
       }
@@ -108,13 +111,14 @@ describe('the handling in car.ts', () => {
     return top;
   };
 
-  it('the moped and the tractor have a top speed, the motorbike is faster than the car', () => {
+  it('the moped and the tractor have a top speed, nobody is slow on a straight', () => {
     const hatch = topSpeed('hatch');
     expect(topSpeed('moped')).toBeLessThan(CAR_BODY_DEFS.moped.feel.top * 1.06);
     expect(topSpeed('tractor')).toBeLessThan(CAR_BODY_DEFS.tractor.feel.top * 1.06);
     expect(topSpeed('moped')).toBeGreaterThan(15);
-    expect(topSpeed('moto')).toBeGreaterThan(hatch);
-    expect(topSpeed('tractor')).toBeLessThan(hatch * 0.6);
+    expect(topSpeed('moto')).toBeGreaterThan(hatch * 0.85);
+    // nobody is slow on a straight: the tractor reaches at least 85 % of the car
+    expect(topSpeed('tractor')).toBeGreaterThan(hatch * 0.85);
   });
 
   it('a car leans into a bend only when its body does', () => {

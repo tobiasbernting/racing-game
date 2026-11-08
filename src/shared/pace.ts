@@ -36,17 +36,31 @@ export const rivalLap = (course: RallyCourse, r: { skill: number; grip: number; 
 /** Seconds per lap that trinkets with a speed hook give a player who uses them well, per copy (the hooks are capped in the game). */
 export const HOOK_SAVE: Record<string, number> = { kaffekoppen: 0.45, sladdgradde: 0.35, myntturbo: 0.3, tvattbjorn: 0.25, kraftdryck: 0.15, efterklang: 0.1, rampgalning: 0.1 };
 
-/** Lap-time factor of each of the ten newest vehicles against the plain rally car (1), fitted to the real physics in src/rally/bodypace.test.ts. */
-export const BODY_LAP: Partial<Record<CarBody, number>> = {
-  epa: 1.16,
-  icecream: 1.05,
-  garbage: 1.165,
-  // the snowmobile is the plain car's equal on tarmac and well ahead on snow and ice (0.90 on the ice course): the average
-  snowmobile: 1.0,
-  kart: 0.965,
-  golf: 1.23,
-  mower: 1.32,
-  camper: 1.145,
-  limo: 1.12,
-  cart: 1.31,
+/**
+ * Lap-time factor of every vehicle against the plain rally car (1), fitted to the real physics in src/rally/bodypace.test.ts
+ * (the actual car and computer driver on four courses, the burst of the EPA tractor and the rocket of the cart used whenever ready).
+ * Every vehicle is meant to be a real choice: all of them lie within about 3 % of the plain car, and each gets there its own way
+ * (the heavy ones by torque and grip, the grass lovers off the road, the two-wheelers through the bends).
+ */
+export const BODY_LAP: Record<CarBody, number> = {
+  hatch: 1.0,
+  buggy: 0.979,
+  pickup: 0.995,
+  coupe: 1.003,
+  monster: 0.999,
+  atv: 0.976,
+  moto: 0.999,
+  moped: 0.985,
+  tractor: 1.037,
+  sofa: 0.992,
+  epa: 0.987,
+  icecream: 0.993,
+  garbage: 1.03,
+  snowmobile: 0.985,
+  kart: 0.989,
+  golf: 0.972,
+  mower: 0.976,
+  camper: 1.042,
+  limo: 1,
+  cart: 0.992,
 };

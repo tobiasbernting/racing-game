@@ -81,7 +81,7 @@ export const KITS: Record<CarBody, VehicleKit> = {
     'coupe',
     'race',
     'kaffekoppen',
-    { id: 'windTunnel', name: 'Vindtunnel', text: 'Högre topphastighet än alla andra. Bromsa tidigt.' },
+    { id: 'windTunnel', name: 'Vindtunnel', text: 'Slipper luften lite bättre än de andra och drar iväg på raksträckan. Bromsa tidigt.' },
     { id: 'slingshot', name: 'Slipström-snärt', emoji: '🧲', text: 'Precis bakom en bil: du slungas förbi som en gummisnodd.', cooldown: 10, ai: 'speed', save: 0.2 },
   ),
   monster: kit(
@@ -110,7 +110,7 @@ export const KITS: Record<CarBody, VehicleKit> = {
     'race',
     'ringklocka',
     { id: 'slim', name: 'Smal som en planka', text: 'Bilar missar dig, och halka och höbalar stör knappt.' },
-    { id: 'dodge', name: 'Väj!', emoji: '💨', text: 'En sekund oberörbar. Åk rakt genom bilar, fällor och allt.', cooldown: 8, ai: 'speed', save: 0.03 },
+    { id: 'dodge', name: 'Väj!', emoji: '💨', text: 'En sekund oberörbar. Åk rakt genom bilar, fällor och allt.', cooldown: 6, ai: 'speed', save: 0.12 },
   ),
   tractor: kit(
     'tractor',
@@ -130,8 +130,8 @@ export const KITS: Record<CarBody, VehicleKit> = {
     'epa',
     'mixed',
     'kuponghafte',
-    { id: 'limiter', name: 'Spärr 30', text: 'Inte fortare än 30 på skylten (ungefär 40 på riktigt). Men gräs, lera, sand, olja och höbalar bromsar dig inte.' },
-    { id: 'epaBurst', name: 'Gasa på EPA', emoji: '⚠️', text: 'Spärren åker av en stund: en rejäl fartstöt förbi allt som står på skylten.', cooldown: 8, ai: 'speed', save: 0.3 },
+    { id: 'limiter', name: 'Spärr 30', text: 'Skylten säger 30, men motorn håller inte med: spärren sitter högt och släpper helt på gräset. Gräs, lera, sand, olja och höbalar bromsar dig inte.' },
+    { id: 'epaBurst', name: 'Gasa på EPA', emoji: '⚠️', text: 'Spärren åker av en lång stund: en rejäl fartstöt förbi allt som står på skylten.', cooldown: 6, ai: 'speed', save: 0.05 },
   ),
   icecream: kit(
     'icecream',
@@ -166,7 +166,7 @@ export const KITS: Record<CarBody, VehicleKit> = {
     'mixed',
     'guldpokal',
     { id: 'silent', name: 'Tyst som en mus', text: 'Eldrift: ingen hör dig komma. Rivalerna går inte på dig och försöker inte blockera dig.' },
-    { id: 'holeInOne', name: 'Hole in one', emoji: '⛳', text: 'Slår iväg en golfboll som träffar ledaren och knuffar honom åt sidan.', cooldown: 12, ai: 'speed', save: 0 },
+    { id: 'holeInOne', name: 'Hole in one', emoji: '⛳', text: 'Slår iväg en golfboll som träffar ledaren och knuffar honom åt sidan.', cooldown: 10, ai: 'speed', save: 0 },
   ),
   mower: kit(
     'mower',
@@ -194,7 +194,7 @@ export const KITS: Record<CarBody, VehicleKit> = {
     'race',
     'raketkorv',
     { id: 'wobble', name: 'Skranglig', text: 'Vagnen vinglar slumpmässigt åt sidorna. Det är en kundvagn. Vad väntade du dig?' },
-    { id: 'rocket', name: 'Raketen', emoji: '🛒', text: 'Tänder raketen: gigantisk fart i några sekunder, men den är svår att styra.', cooldown: 15, ai: 'speed', save: 0.3 },
+    { id: 'rocket', name: 'Raketen', emoji: '🛒', text: 'Tänder raketen: gigantisk fart i några sekunder, men den är svår att styra.', cooldown: 7, ai: 'speed', save: 0.05 },
   ),
 };
 
@@ -222,7 +222,7 @@ export const SOFTLAND = { boost: 0.9, strength: 1.3, min: 2.5 };
 
 // ---- phase 10 ----
 /** Gasa på EPA: the limiter comes off (boost lifts the top speed with it) and a thrust along the nose takes it up to the cap (m/s). */
-export const EPA_BURST = { boost: 2.4, strength: 2.7, thrust: 6, cap: 24 };
+export const EPA_BURST = { boost: 4, strength: 1.6, thrust: 9, cap: 56 };
 /** Glasskanon: scoops land this far ahead (m) and make the road slippery for a while. */
 export const ICE_CANNON = { range: [16, 26, 36], spread: 2.4 };
 /** Glassmelodin: cars this close (m) slow down; the share of their speed they lose per second; seconds between jingles. */
@@ -246,9 +246,9 @@ export const AWNING = { life: 13 };
 /** VIP-fil: seconds through the cars, and the little push. */
 export const VIP = { seconds: 3.2, boost: 1.0, strength: 1.2 };
 /** Raketen: seconds, strength, how hard the steering is to hold, the random kicks to the side, and the thrust (m/s², along the nose) up to a speed cap (m/s). */
-export const ROCKET = { boost: 2.8, strength: 2.5, steer: 0.55, kick: 0.9, thrust: 14, cap: 42 };
+export const ROCKET = { boost: 3.0, strength: 2.5, steer: 0.75, kick: 0.5, thrust: 14, cap: 58 };
 /** Skranglig: the cart's steering noise (share of the wheel). */
-export const WOBBLE = { amp: 0.16 };
+export const WOBBLE = { amp: 0.08 };
 
 /** Uses of the active per lap, for a human who presses it whenever it is ready (never more than two and a half a lap: a driver is busy driving). */
 export const usesPerLap = (lapSeconds: number, cooldown: number): number => Math.min(2.5, lapSeconds / (cooldown + 8));
