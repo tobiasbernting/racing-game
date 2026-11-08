@@ -270,9 +270,9 @@ export const overlaps = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < 
 export function touchHowTo(c: ControlPrefs): string[] {
   const manual = isManual(c, true);
   if (c.scheme === 'easy') {
-    return ['Bilen gasar själv. Du styr med ◀ ▶', '▼ bromsar. Håll kvar för att backa.', '🌀 handbroms. Sladda länge för turbo.', '🔥 nitro (om bilen har turbo) · 🎥 byter kamera', 'Knappen med bilens egen symbol är förmågan. Ringen fylls på, tryck när den lyser gult.', 'Moppen ringer i klockan själv bakom andra bilar. Terror.'];
+    return ['Bilen gasar själv. Du styr med ◀ ▶', '▼ bromsar. Håll kvar för att backa.', '🌀 handbroms. Sladda länge för turbo.', '🔥 nitro (om bilen har turbo). 🎥 uppe vid pausknappen byter kamera: bakom bilen, på huven, långt bakom.', 'Knappen med bilens egen symbol är förmågan. Ringen fylls på, tryck när den lyser gult.', 'Moppen ringer i klockan själv bakom andra bilar. Terror.'];
   }
-  const lines = ['Håll GAS för att köra, släpp för att rulla av. BROMS bromsar och backar.', 'Styr med ◀ ▶. 🌀 är handbroms: sladda länge för turbo.', '🔥 nitro (om bilen har turbo). 🎥 byter kamera, uppe i hörnet.', 'Knappen med bilens egen symbol är förmågan. Ringen fylls på, tryck när den lyser gult.'];
+  const lines = ['Håll GAS för att köra, släpp för att rulla av. BROMS bromsar och backar.', 'Styr med ◀ ▶. 🌀 är handbroms: sladda länge för turbo.', '🔥 nitro (om bilen har turbo). 🎥 uppe vid pausknappen byter kamera: bakom bilen, på huven, långt bakom.', 'Knappen med bilens egen symbol är förmågan. Ringen fylls på, tryck när den lyser gult.'];
   if (manual) lines.push('Växla själv med + och −. Skifta när lampan blir röd för en liten spark. Dra upp eller ned på GAS går också.', 'För tidigt skifte gör motorn seg, för sent studsar den i begränsaren.');
   else lines.push('Växlarna sköter bilen själv.');
   return lines;

@@ -299,13 +299,14 @@ const rally = (ctx: GameContext): GameInstance => {
   const hud = new Hud(ctx.root, track, ctx.dpr, ctx.touch);
   if (derby) hud.setArena(arenaC!.shape.hw);
   // on touch screens the third round button is the camera when there is no nitro (info.ts): no second 🎥 then
-  // with the pedals the camera button lives in the top bar, beside pause (and follows a change of scheme from the pause menu)
+  // otherwise the camera button lives in the top bar, beside pause, in every scheme (easy to find, never under the thumbs)
   let lastPedals: boolean | null = null;
   const placeCamBtn = (pedals: boolean): void => {
     if (pedals === lastPedals) return;
     lastPedals = pedals;
-    hud.camBtn.classList.toggle('show', ctx.touch && (nitroSlots() > 0 || pedals));
-    hud.setCamTop(pedals);
+    const show = ctx.touch && (nitroSlots() > 0 || pedals);
+    hud.camBtn.classList.toggle('show', show);
+    hud.setCamTop(show);
   };
   placeCamBtn(!!ctx.controls?.pedals);
   hud.setTrinkets(mods.items);
