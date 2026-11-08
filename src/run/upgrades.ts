@@ -916,8 +916,10 @@ export function takeNode(ups: string[], id: string): void {
   }
 }
 
-/** A node's price in the workshop, before the act's markup and discounts. */
-export const NODE_PRICE = { 1: 90, 2: 150, 3: 240, cap: 420, car: 130 } as const;
+/** A node's price in the workshop, before the act's markup, the rise per node taken and the discounts. */
+export const NODE_PRICE = { 1: 130, 2: 220, 3: 340, cap: 580, car: 190 } as const;
+/** Every node already in the build makes the next one this much dearer (a full tree of 14 would cost 2.0 times the first). */
+export const NODE_RISE = 0.07;
 export function basePrice(id: string): number {
   const n = NODE_BY_ID.get(id);
   if (!n) return 999;

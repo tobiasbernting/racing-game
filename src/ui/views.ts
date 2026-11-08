@@ -17,14 +17,15 @@ import type { Meta } from '../run/meta.ts';
 import { MEDALS, earned, medalCount, progressText } from '../run/medals.ts';
 import { parseSeedCode, seedLabelOf } from '../run/seedcode.ts';
 import { LEANS, LEAN_EMOJI, LEAN_NAMES, LEAN_TEXT, kitOf, type Lean } from '../shared/abilities.ts';
-import { healPrice, repairPrice, rerollPrice, trinketPrice } from '../run/economy.ts';
+import { healPrice, repairPrice, rerollPrice, trinketPrice, upgradePrice, workshopFree } from '../run/economy.ts';
+import { NODE_RISE } from '../run/upgrades.ts';
 import { EVENTS, choiceAllowed, eventById } from '../run/events.ts';
 import { currentNode, currentPlan } from '../run/flow.ts';
 import { DIFFICULTIES, DIFFS, diffOf, heartRuleText, type Difficulty } from '../run/difficulty.ts';
 import { mapOf, reachable, type RunState, type Screen } from '../run/state.ts';
 import { TRINKETS, trinketById } from '../run/trinkets.ts';
 import { btn, el, plural } from './dom.ts';
-import { upgradeCard, workshopPanel } from './upgrades.ts';
+import { upgradeCard } from './upgrades.ts';
 import { ACT_NAMES, arrowSvg, chip, seedChip, statusBar, trinketCard, trinketIcons } from './parts.ts';
 import { countUp } from './juice.ts';
 import type { Settings } from '../settings.ts';
@@ -717,14 +718,25 @@ export function workshopView(run: RunState, scr: Extract<Screen, { kind: 'worksh
   }
   const repair = btn('rg-btn', `🔧 Laga allt${run.car.damage > 0 ? '' : ' (den är hel)'}`, o.onRepair);
   repair.disabled = scr.used || run.car.damage <= 0;
+  // the shelf: the two or three nodes for sale this visit, as cards that can be told from the talismans of the kiosk
+  const shelf = scr.stock.map((id) => {
+    const taken = run.up.includes(id);
+    const free = workshopFree(run, id);
+    const price = upgradePrice(run, id);
+    const poor = !taken && !free && run.kronor < price;
+    const card = upgradeCard(run, id, { onClick: () => o.onBuy(id), price: taken ? 'Tagen ✔' : free ? 'GRATIS' : `${price} kr`, disabled: taken || poor });
+    if (poor) card.classList.add('poor');
+    if (taken) card.classList.add('sold');
+    return card;
+  });
   return screen(
     'rg-work',
     statusBar(run, btn('rg-icon wide up-leave', scr.used ? 'Klar → karta' : 'Strunt i det', o.onLeave)),
     el(
       'div',
       'rg-workbody',
-      el('div', 'rg-shophead', el('h2', 'rg-h', '🔧 Skruvhörnan'), el('span', 'rg-note', scr.used ? 'Det gratis är taget. Resten kostar kronor.' : 'En billig uppgradering (nivå I eller II) är gratis. Resten kostar.')),
-      workshopPanel(run, o.onBuy),
+      el('div', 'rg-shophead', el('h2', 'rg-h', '🔧 Skruvhörnan'), el('span', 'rg-note', scr.used ? 'Det gratis är taget. Resten kostar kronor, och varje uppgradering du har gör nästa dyrare.' : `Det här hade jag inne idag. En billig (nivå I eller II) är gratis, resten kostar, och varje uppgradering du redan har gör nästa ${Math.round(NODE_RISE * 100)} % dyrare.`)),
+      el('div', 'rg-cards up-cards rg-shelf', ...shelf),
       el('div', 'rg-workrow', repair, el('div', 'rg-paintbox', el('span', 'arc-h', '🎨 Måla om (gratis)'), paints)),
     ),
     foot(go(scr.used ? 'Klar – till kartan' : 'Strunt i det', o.onLeave)),

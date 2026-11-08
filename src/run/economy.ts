@@ -5,7 +5,7 @@ import { kitOf, type Lean } from '../shared/abilities.ts';
 import { Rng } from './rng.ts';
 import { addKronor, addTrinket, addUp, healHeart, type RunState, type Screen, type ShopItem } from './state.ts';
 import { RARITIES, TRINKETS, TRINKET_PRICE, stackCap, trinketById, type Rarity } from './trinkets.ts';
-import { available, basePrice, canTake, lineById, runPerks, treeCount, upgradeById, type TreeId, type UpgradeDef } from './upgrades.ts';
+import { NODE_RISE, available, basePrice, canTake, lineById, runPerks, treeCount, upgradeById, type TreeId, type UpgradeDef } from './upgrades.ts';
 import { KIND_PATH, type RaceKind } from '../shared/kinds.ts';
 import { DIFFS } from './difficulty.ts';
 
@@ -103,9 +103,9 @@ export function upgradeChoices(run: RunState, nodeId: string, source: 'race' | '
   return drawUpgrades(run, rg, 3 + runPerks(run.trinkets, run.up).choices, source, kind);
 }
 
-/** What a node costs in the workshop now: the base price, the act's markup and the discounts. */
+/** What a node costs in the workshop now: the base price, the act's markup, 7 % for every node already in the build, and the discounts. */
 export function upgradePrice(run: RunState, id: string): number {
-  return round5(basePrice(id) * (1 + run.act * 0.15) * (1 - runPerks(run.trinkets, run.up).shopDiscount));
+  return round5(basePrice(id) * (1 + run.act * 0.15) * (1 + NODE_RISE * run.up.length) * (1 - runPerks(run.trinkets, run.up).shopDiscount));
 }
 
 // ---- the shop ----
@@ -120,13 +120,14 @@ export function trinketPrice(run: RunState, id: string): number {
 }
 
 /** A heart costs about one decent race's pay; on the very last heart the kiosk takes a quarter off. */
-export const healPrice = (run: RunState): number => round5(100 * DIFFS[run.diff].healMul * (1 + run.act * 0.15) * (1 - runPerks(run.trinkets, run.up).shopDiscount) * (run.hearts <= 1 ? 0.75 : 1));
+export const healPrice = (run: RunState): number => round5(85 * DIFFS[run.diff].healMul * (1 + run.act * 0.15) * (1 - runPerks(run.trinkets, run.up).shopDiscount) * (run.hearts <= 1 ? 0.75 : 1));
 export const repairPrice = (run: RunState): number => (run.car.damage <= 0 ? 0 : Math.max(5, round5(run.car.damage * 0.7 * (1 - runPerks(run.trinkets, run.up).shopDiscount))));
 export const rerollPrice = (screen: ShopScreen): number => 20 + 15 * screen.rerolls;
 
 export function makeStock(run: RunState, nodeId: string, reroll: number): ShopItem[] {
   const rg = Rng.for(run.seed, nodeId, 'stock', reroll);
-  const n = rg.weighted([3, 4, 5], (k) => (k === 4 ? 4 : 3));
+  // the kiosk stays small: three or four talismans
+  const n = rg.weighted([3, 4], (k) => (k === 3 ? 3 : 2));
   return drawTrinkets(run, rg, n, 'shop').map((id) => ({ id, sold: false }));
 }
 
@@ -180,18 +181,40 @@ export function reroll(run: RunState): BuyResult {
   return 'ok';
 }
 
-// ---- the workshop: one free thing, the rest for kronor, and paint any time ----
+// ---- the workshop: two or three nodes for sale, one of them free, and paint any time ----
 
-/** The free pick of a workshop visit is any node of tier 1 or 2 (not a capstone). */
-export function workshopFree(run: RunState, id: string): boolean {
-  const u = upgradeById(id);
-  return run.screen?.kind === 'workshop' && !run.screen.used && !!u && u.tier <= 2 && !u.cap;
+/** How many nodes Skruvhörnan has on the shelf: two or three, a seeded roll. */
+export const WORKSHOP_STOCK = [2, 3] as const;
+
+/**
+ * The two or three nodes the workshop sells at this visit, drawn from the nodes open to the build (seeded by the run and the
+ * node, so a reload shows the same shelf), from at least two trees, and at least one of them cheap enough to be the free pick.
+ */
+export function workshopStock(run: RunState, nodeId: string): string[] {
+  const rg = Rng.for(run.seed, nodeId, 'workshop');
+  const n = rg.weighted([...WORKSHOP_STOCK], (k) => (k === 3 ? 3 : 2));
+  const ids = drawUpgrades(run, rg, n, 'shop');
+  const cheap = (id: string): boolean => {
+    const u = upgradeById(id);
+    return !!u && u.tier <= 2 && !u.cap;
+  };
+  if (ids.length && !ids.some(cheap)) {
+    const pool = available(run.up, run.car.body).filter((u) => cheap(u.id) && !ids.includes(u.id));
+    if (pool.length) ids[ids.length - 1] = rg.weighted(pool, (u) => nodeWeight(run, u, 'shop')).id;
+  }
+  return ids;
 }
 
-/** Takes a node in the workshop: the free pick once per visit, otherwise for its price. */
+/** The free pick of a workshop visit is a shelf node of tier 1 or 2 (not a capstone), once per visit. */
+export function workshopFree(run: RunState, id: string): boolean {
+  const u = upgradeById(id);
+  return run.screen?.kind === 'workshop' && !run.screen.used && run.screen.stock.includes(id) && !!u && u.tier <= 2 && !u.cap;
+}
+
+/** Takes a node from the shelf: the free pick once per visit, otherwise for its price. */
 export function workshopBuy(run: RunState, id: string): BuyResult {
   const w = run.screen;
-  if (w?.kind !== 'workshop' || !canTake(run.up, id, run.car.body)) return 'nothing';
+  if (w?.kind !== 'workshop' || !w.stock.includes(id) || !canTake(run.up, id, run.car.body)) return 'nothing';
   const free = workshopFree(run, id);
   const price = free ? 0 : upgradePrice(run, id);
   if (run.kronor < price) return 'poor';

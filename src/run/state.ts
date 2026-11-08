@@ -154,7 +154,7 @@ export type Screen =
   | { kind: 'postrace'; nodeId: string; summary: RaceSummary }
   | { kind: 'reward'; nodeId: string; choices: string[]; /** The upgrade cards offered next to the trinkets (node ids). */ ups?: string[]; source: 'race' | 'elite' | 'boss' | 'event' | 'consolation' }
   | { kind: 'shop'; nodeId: string; stock: ShopItem[]; rerolls: number; healed: boolean; repaired: boolean }
-  | { kind: 'workshop'; nodeId: string; used: boolean; note: string }
+  | { kind: 'workshop'; nodeId: string; used: boolean; note: string; /** The two or three nodes Skruvhörnan sells this visit (seeded). */ stock: string[] }
   | { kind: 'event'; nodeId: string; eventId: string; outcome: { text: string; lines: string[] } | null };
 
 export type RunStatus = 'running' | 'won' | 'dead';
@@ -316,7 +316,7 @@ export const SCRAP_PER_HEART = 4;
 export const scrapHearts = (before: number, after: number, every = SCRAP_PER_HEART): number => (every <= 0 ? 0 : Math.max(0, Math.floor(after / every) - Math.floor(before / every)));
 
 /** Kronor are scaled up in later acts and in calm mode. */
-export const KRONOR_SCALE = [1, 1.3, 1.7] as const;
+export const KRONOR_SCALE = [1, 1.2, 1.45] as const;
 export const actScale = (act: number): number => KRONOR_SCALE[Math.min(act, KRONOR_SCALE.length - 1)]!;
 
 /**

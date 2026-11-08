@@ -314,3 +314,10 @@
 .rs-tl.fell { background: #f2c3c8 var(--noise); background-blend-mode: multiply; border-color: var(--ink); box-shadow: 3px 3px 0 var(--spray-r); }
 .rs-tl-top { min-width: 0; }
 .rs-kind { max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Skruvhörnan: the two or three nodes on the shelf, as cards */
+.rg-work .rg-shelf { flex: 0 1 auto; width: 100%; max-width: 960px; margin: 0 auto auto; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.rg-work .rg-shelf .up-card { padding: 20px 14px 14px; gap: 8px; }
+.up-card.sold { opacity: 0.5; }
+.up-card.poor .rg-price { color: #ff8a8a; }
+@media (max-height: 520px) { .rg-work .rg-shelf .up-card { padding: 8px; gap: 2px; } }

@@ -2,7 +2,7 @@
 // so can a throwaway script that wants to know where a build dies. Pure (no DOM, no clock): the dice are seeded.
 import { racePrize, type CarBody } from '../shared/rally.ts';
 import { type HumanSkill } from '../shared/pace.ts';
-import { buyHeart, buyTrinket, trinketPrice, upgradePrice, workshopBuy } from './economy.ts';
+import { buyHeart, buyTrinket, trinketPrice, upgradePrice, workshopBuy, workshopFree } from './economy.ts';
 import { choiceAllowed, EVENTS } from './events.ts';
 import { chooseEvent, continueAfterRace, currentPlan, enterNode, finishNode, pickReward, submitRace } from './flow.ts';
 import { asRallyResult, simulateRace, type PlayerModel } from './racesim.ts';
@@ -126,12 +126,13 @@ export function playRun(seed: number, p: Profile, mode: Difficulty | boolean, pr
       }
       case 'workshop': {
         const c = structuredClone(run);
-        // the free pick first, then whatever the purse allows (keeping a little for the kiosk)
-        const free = nextNode(c, p.strategy, 2);
+        const shelf = (c.screen as Extract<NonNullable<RunState['screen']>, { kind: 'workshop' }>).stock;
+        // the free pick first (the best liked of the cheap ones), then whatever the purse allows (keeping a little for the kiosk)
+        const ranked = [...shelf].sort((a, b) => likeUp(b, p.strategy) - likeUp(a, p.strategy));
+        const free = ranked.find((id) => workshopFree(c, id));
         if (free) workshopBuy(c, free);
-        for (let k = 0; k < 0; k++) {
-          const id = nextNode(c, p.strategy);
-          if (!id || c.kronor < upgradePrice(c, id) + 80) break;
+        for (const id of ranked) {
+          if (c.up.includes(id) || c.kronor < upgradePrice(c, id) + 80) continue;
           workshopBuy(c, id);
         }
         run = finishNode(c);

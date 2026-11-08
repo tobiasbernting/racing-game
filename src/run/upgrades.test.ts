@@ -518,7 +518,7 @@ describe('the offers after a win', () => {
 describe('the workshop and the purse', () => {
   it('Skruvhörnan sells a node for kronor, cheaper with a discount, dearer in later acts', () => {
     const run = fresh('hatch');
-    run.screen = { kind: 'workshop', nodeId: 'x', used: true, note: '' };
+    run.screen = { kind: 'workshop', nodeId: 'x', used: true, note: '', stock: ['race.engine1'] };
     const p0 = upgradePrice(run, 'race.engine1');
     const rich = { ...run, up: ['girig.disc1', 'girig.disc2'] };
     expect(upgradePrice(rich, 'race.engine1')).toBeLessThan(p0);

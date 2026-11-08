@@ -3,7 +3,7 @@
 // save after every step and tests can walk a whole run.
 import type { RallyResult } from '../rally/options.ts';
 import { ACTS, NODE_NAMES, type MapNode } from './map.ts';
-import { drawTrinkets, makeStock, rewardChoices, upgradeChoices } from './economy.ts';
+import { drawTrinkets, makeStock, rewardChoices, upgradeChoices, workshopStock } from './economy.ts';
 import { eventById, pickEventId, resolveChoice } from './events.ts';
 import { BOSS_DEFS, goalMet, planRace, type RacePlan } from './plan.ts';
 import { addRaceStats } from './stats.ts';
@@ -39,7 +39,7 @@ export function enterNode(run: RunState, id: string): RunState {
       r.screen = { kind: 'shop', nodeId: id, stock: makeStock(r, id, 0), rerolls: 0, healed: false, repaired: false };
       break;
     case 'workshop':
-      r.screen = { kind: 'workshop', nodeId: id, used: false, note: '' };
+      r.screen = { kind: 'workshop', nodeId: id, used: false, note: '', stock: workshopStock(r, id) };
       break;
     case 'event':
       r.screen = { kind: 'event', nodeId: id, eventId: pickEventId(r, id), outcome: null };

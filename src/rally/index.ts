@@ -160,7 +160,7 @@ const PALETTE = ['#2f6fe0', '#f4c20d', '#2fa84f', '#8a4fd8', '#ff8a1f', '#e8412c
 const DIFF = { easy: { skill: 0.88, power: 0.96, band: 1.35 }, normal: { skill: 1, power: 1, band: 1 }, hard: { skill: 1.06, power: 1.03, band: 0.6 } } as const;
 
 /** What one coin on the road is worth (before trinkets). */
-const COIN_KR = 1.2;
+const COIN_KR = 0.9;
 /** The least appetite for a fight any computer car has in Blodbad (the racers too go for the hits that are offered). */
 const FIGHT_MIN = 0.5;
 

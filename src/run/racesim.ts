@@ -265,7 +265,7 @@ export function simulateRace(plan: RacePlan, run: RunState, m: PlayerModel, rg: 
   const dealt: Record<string, number> = {};
   if (carnage) {
     // the one who goes for the hits makes them (ram, spikes and mass count); everybody lands a few, and a driver who never fights is marked FEGIS and bleeds
-    const power = (stats.ram - 1) * 1.4 + 0.5 * (stats.mass - 1) + 0.4 * (stats.mass > 2 ? 1 : 0);
+    const power = (stats.ram - 1) * 1.1 + 0.5 * (stats.mass - 1) + 0.4 * (stats.mass > 2 ? 1 : 0);
     // a poor driver misses more of the hits he goes for
     const aim = AIM[m.skill];
     const lam = (0.35 + m.aggression * (1.3 + power) * (0.8 + 0.2 * stats.dmg)) * aim;

@@ -323,7 +323,7 @@ De visas bara för den som kör det fordonet.
 
 **Hur man får dem.** Efter en vinst (och efter dödslopp och bossar) visar belöningsskärmen två flikar: 🛠️ Uppgraderingar (tre kort) och 🎁 Talismaner (tre kort); du tar EN av sex. Tvåan får fortfarande bara ett tröstpris med två skräp-talismaner. Korten dras ur de öppna noderna (`drawUpgrades`
 i `economy.ts`) och lutas av sorten (`KIND_TREE_BIAS`): Blodbad ger Ram (×2,6) och Fuffens (×1,9), Rally ger Race (×2,6) och Stunt (×1,9), Blandat är öppet. Fordonets lutning (Ram/Race) ger en liten extra knuff, ett träd man redan går i kommer upp oftare (så ett bygge får en form), tre kort
-från minst två träd, bossar bjuder oftare på toppar och högre nivåer. Ett kort som väcker en kombo har en stjärna. I **Skruvhörnan** är första uppgraderingen på nivå I eller II gratis; alla noder går att köpa för kronor (`upgradePrice`: 90, 150, 240, topp 420, fordon 130, plus aktens påslag och rabatter), med en flik per träd. Händelser som "tunar bilen" ger en slumpad nod.
+från minst två träd, bossar bjuder oftare på toppar och högre nivåer. Ett kort som väcker en kombo har en stjärna. I **Skruvhörnan** ligger sedan fas 17 bara 2-3 slumpade noder på hyllan: en nivå I eller II är gratis, resten kostar kronor (`upgradePrice`, se tabellen i Fas 17: pengarna). Händelser som "tunar bilen" ger en slumpad nod.
 
 **Kombos** (10 st, `COMBOS`): två saker du äger väcker en kombo, och den visas som en liten "KOMBO!"-lapp i hörnet (aldrig mitt på skärmen) och som en guldkantad ikon först i loppets talisman-remsa.
 Spikmattan (Spikar + Oljeläcka: smällar lämnar olja), Luftburen (Flygtid + Nitro: landningar fyller nitro), Lotterivinsten (Ränta + valfri Kaos-talisman: lott efter varje varv), Eldkastaren (Pruttboost + Chilikorven: en kort eldstråle bakåt, sällsynt),
@@ -334,7 +334,7 @@ Pansarraketen (Stötvåg + Nitro), Sladdmolnet (Rökgranat + Sladd), Dödsförak
 Fuffens: oljefat, rökgranat, minor på stötfångaren, ett falskt mynt i en tråd, hö på taket, trollkarlshatt. Stunt: ramp, rullbur, flaggor, stuntstänger, guldstjärna. Girig: guldlist, en pengasäck, en guldflagga, en guldprydnad. `bodySpecOf` i `models.ts` ger testerna alla kroppars mått:
 `upgrades.test.ts` ritar varje rad på alla tjugo kroppar och kollar att allt sitter nära bilen.
 
-**Bygget** (☰ Paus → 🧰 Bygget, och 🧰 i kartans övre list): bilen på skivspelare med sina mods, byggets mix per väg, och träden som flikar med tagna, öppna och låsta noder (tryck för att läsa; kombofliken visar alla recept). Samma panel är Skruvhörnans butik.
+**Bygget** (☰ Paus → 🧰 Bygget, och 🧰 i kartans övre list): bilen på skivspelare med sina mods, byggets mix per väg, och träden som flikar med tagna, öppna och låsta noder (tryck för att läsa; kombofliken visar alla recept). Skruvhörnan har sedan fas 17 en egen hylla med kort.
 
 **Ge upp rundan** (☰ Paus → 🏳️ Ge upp rundan, med bekräftelse: "Nej" är förvald, Escape betyder nej): rundan räknas som en runda men ger inga troféer, medaljer av typen "bäst i en runda" behåller det som redan klarats, de som räknas över rundor ("Vinn en runda", "Kör klart 5 rundor") räknar den inte. Sedan väljer du fordon på nytt med samma fordon, hjälm och lack förvalda. "Ge upp och visa resultatet" visar resultatsidan ("Gav upp i Akt X"). Logiken ligger i src/run/giveup.ts.
 Telefon på sidan: bilen till vänster, träden till höger, panelen scrollar inuti; surfplatta stående: bilen överst. Alla knappar är minst 44 px och sidan scrollar aldrig. Resultatskärmen visar träden nod för nod (med varifrån varje kom), fordonets uppgraderingar och de aktiva kombona.
@@ -517,3 +517,23 @@ Reglerna är gjorda om så att den som slåss vinner och den som kryssar runt f�
 - **Syns på skärmen**: "+12" (poäng) stiger över bilen du träffar, ett litet rött "−6" över dig när du blir träffad, poängtavlan visar poäng per bil (🐔 vid FEGIS), och under platsen ligger dina vrak 💥, din skada 🔨 och dina poäng. Resultatkortet räknar upp: "= 42 för skada + 2 vrak × 20 = 40 + 14 för 2:a plats".
 - **Simuleringen** (`racesim.ts`) modellerar träffar och skada (en dålig förare träffar färre), en tyst förare får FEGIS-straff, och derbyt rangordnar på poäng. Boten (`bot.ts`) kör Race med aggressionen 0,6, Ram 1 och Blandat 0,5. Se balanstesterna.
 - Dev-krokar: `__rallyDebug.strike(n, 'rear'|'side'|'front', fart)` och `still(n)`.
+
+## Fas 17: pengarna (ekonomin)
+
+Ägaren tog hela uppgraderingsträdet. Nu kostar noderna mer, stiger i pris för varje nod man har, och Skruvhörnan säljer bara det som står på hyllan.
+
+| | Förut | Nu |
+|---|---|---|
+| Loppspris per placering (1:a, 2:a, 3:a ...) | 200 / 140 / 100 / 70 / 50 / 40 / 35 / 30 kr | 160 / 112 / 80 / 56 / 40 / 32 / 28 / 24 kr |
+| Aktskalning av kronor (akt 1 / 2 / 3) | 1 / 1,3 / 1,7 | 1 / 1,2 / 1,45 |
+| Myntets värde | 1,2 kr | 0,9 kr |
+| Uppgraderingsnod, nivå I / II / III / topp / fordon | 90 / 150 / 240 / 420 / 130 kr | 130 / 220 / 340 / 580 / 190 kr |
+| Prisökning per nod man redan har | ingen | +7 % per nod (`NODE_RISE`; 14 noder = dubbelt) |
+| Skruvhörnan säljer | hela trädet | 2 eller 3 slumpade noder (seedade), en av dem gratis (nivå I eller II) |
+| Kioskens varor | 3-5 talismaner | 3 eller 4 talismaner |
+| Talismanpris (Skräp / Grym / Legendarisk) | 70 / 130 / 230 | 80 / 150 / 260 |
+| Hjärta i kiosken | 100 kr | 85 kr (loppen betalar mindre) |
+
+Hyllan (`workshopStock`) dras med samma frö som annars (rundans frö + platsen), från noderna som är öppna i bygget, från minst två träd, med minst en som är billig nog att vara gratis. Den ligger i `Screen.workshop.stock`; en sparad runda från före hyllan får samma hylla beräknad vid laddning.
+Skruvhörnan visar korten (🛠️ Uppgradering, med trädets färg och ikon) i stället för hela trädet; att titta på hela trädet görs på Bygget. Målet är att en bra runda slutar med ungefär en tredjedel till hälften av ett träd plus några sidonoder
+(botten tar i snitt 12 noder varav 6-8 i största trädet) och aldrig ett fullt träd (`balance.test.ts`, "the economy").

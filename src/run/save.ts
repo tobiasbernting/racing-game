@@ -10,7 +10,7 @@ import { asDifficulty, isDifficulty, type Difficulty } from './difficulty.ts';
 import { emptyRunStats, maxHeartsOf, validPaint, type Acquired, type NodeLog, type RunEnd, type RunState, type Screen } from './state.ts';
 import { MAX_STACK, isTrinket, type Owned } from './trinkets.ts';
 import { isRaceKind } from '../shared/kinds.ts';
-import { partOfChoice } from './economy.ts';
+import { partOfChoice, workshopStock } from './economy.ts';
 import { PART_LINE, isItemId, isUpgrade, nodeId as upNodeId, partsToNodes, takeNode, tierOf, upgradeById } from './upgrades.ts';
 import { eventById } from './events.ts';
 
@@ -107,8 +107,12 @@ function cleanScreen(raw: unknown, act: number, seed: number, ups: readonly stri
       if (!stock.length) return null;
       return { kind: 'shop', nodeId, stock, rerolls: num(raw.rerolls, 0, 99, 0), healed: raw.healed === true, repaired: raw.repaired === true };
     }
-    case 'workshop':
-      return { kind: 'workshop', nodeId, used: raw.used === true, note: typeof raw.note === 'string' ? raw.note.slice(0, 20) : '' };
+    case 'workshop': {
+      // a visit saved before the shelf existed gets one now (the same one every time: it is seeded by the run and the node)
+      let stock = upIds(raw.stock).slice(0, 3);
+      if (!stock.length) stock = workshopStock({ seed, act, up: [...ups], car: { body }, trinkets: [] } as unknown as RunState, nodeId);
+      return { kind: 'workshop', nodeId, used: raw.used === true, note: typeof raw.note === 'string' ? raw.note.slice(0, 20) : '', stock };
+    }
     case 'event': {
       if (typeof raw.eventId !== 'string' || !eventById(raw.eventId)) return null;
       const o = raw.outcome;

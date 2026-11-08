@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { RallyResult } from '../rally/options.ts';
-import { buyHeart, buyRepair, buyTrinket, healPrice, makeStock, reroll, rerollPrice, trinketPrice, upgradePrice, workshopBuy, workshopFree, workshopRepair } from './economy.ts';
+import { buyHeart, buyRepair, buyTrinket, healPrice, makeStock, reroll, rerollPrice, trinketPrice, upgradePrice, workshopBuy, workshopFree, workshopRepair, workshopStock } from './economy.ts';
+import { canTake, upgradeById } from './upgrades.ts';
 import { EVENTS, resolveChoice } from './events.ts';
 import { backToMap, chooseEvent, continueAfterRace, enterNode, finishNode, pickReward, submitRace } from './flow.ts';
-import { ACTS, type MapNode } from './map.ts';
+import { ACTS, allNodes, type MapNode } from './map.ts';
 import { goalMet, planRace, targetTimeMs } from './plan.ts';
 import { Rng } from './rng.ts';
 import { CALM_HEARTS, START_HEARTS, costsHeart, heartsLost, mapOf, newRun, ownedN, reachable, type RunState } from './state.ts';
@@ -82,7 +83,7 @@ describe('kronor', () => {
     expect(run.stats.kronorEarned).toBe(130);
     const act2 = { ...fresh(), act: 1 };
     const later = submitRace(goTo(act2, 'race'), result({ kronor: 100 }));
-    expect(later.kronor).toBe(130);
+    expect(later.kronor).toBe(120);
   });
 
   it('calm mode pays a quarter more, and the Golden Egg half again', () => {
@@ -306,7 +307,7 @@ describe('the workshop', () => {
   it('one cheap upgrade (tier I or II) is free, once; the rest cost kronor and need their earlier tiers', () => {
     const run = fresh();
     run.kronor = 0;
-    run.screen = { kind: 'workshop', nodeId: 'x', used: false, note: '' };
+    run.screen = { kind: 'workshop', nodeId: 'x', used: false, note: '', stock: ['race.engine1', 'race.engine2', 'race.cap1'] };
     expect(workshopFree(run, 'race.engine1')).toBe(true);
     expect(workshopFree(run, 'race.cap1')).toBe(false);
     expect(workshopBuy(run, 'race.engine2')).toBe('nothing');
@@ -325,6 +326,53 @@ describe('the workshop', () => {
     // a node already taken, or the other vehicle's, cannot be bought
     expect(workshopBuy(run, 'race.engine2')).toBe('nothing');
     expect(workshopBuy(run, 'car.tractor1')).toBe('nothing');
+  });
+
+  it('sells only the two or three nodes on its shelf, the same ones for the same seed and visit, from more than one tree and with one cheap enough to be free', () => {
+    const sizes = new Set<number>();
+    for (let seed = 1; seed <= 150; seed++) {
+      const run = newRun({ seed, calm: false, body: 'hatch', paint: '#e8412c' });
+      const a = workshopStock(run, `n${seed}`);
+      expect(workshopStock(run, `n${seed}`)).toEqual(a);
+      sizes.add(a.length);
+      expect(a.length).toBeGreaterThanOrEqual(2);
+      expect(a.length).toBeLessThanOrEqual(3);
+      expect(new Set(a).size).toBe(a.length);
+      expect(a.some((id) => (upgradeById(id)?.tier ?? 9) <= 2 && !upgradeById(id)?.cap)).toBe(true);
+      for (const id of a) expect(canTake(run.up, id, run.car.body)).toBe(true);
+      if (a.length >= 3) expect(new Set(a.map((id) => upgradeById(id)!.tree)).size).toBeGreaterThanOrEqual(2);
+    }
+    expect([...sizes].sort()).toEqual([2, 3]);
+    // a node that is not on the shelf cannot be bought, however open it is
+    const run = fresh();
+    run.kronor = 5000;
+    run.screen = { kind: 'workshop', nodeId: 'x', used: false, note: '', stock: ['race.engine1', 'ram.plates1'] };
+    expect(workshopBuy(run, 'race.grip1')).toBe('nothing');
+    expect(workshopBuy(run, 'ram.plates1')).toBe('ok');
+    expect(run.up).toEqual(['ram.plates1']);
+  });
+
+  it('entering a workshop puts a shelf on the screen, a visit saved without one gets the same shelf back', () => {
+    const run0 = fresh();
+    const nodes = allNodes(mapOf(run0));
+    const ws = nodes.find((n) => n.type === 'workshop')!;
+    run0.at = nodes.find((n) => n.next.includes(ws.id))?.id ?? null;
+    const entered = enterNode(run0, ws.id);
+    expect(entered.screen?.kind).toBe('workshop');
+    const shelf = entered.screen?.kind === 'workshop' ? entered.screen.stock : [];
+    expect(shelf.length).toBeGreaterThanOrEqual(2);
+    expect(shelf.length).toBeLessThanOrEqual(3);
+    expect(workshopStock(entered, entered.screen!.nodeId)).toEqual(shelf);
+  });
+
+  it('every node already in the build makes the next one 7 percent dearer', () => {
+    const run = fresh();
+    const p0 = upgradePrice(run, 'race.engine1');
+    const three = { ...run, up: ['ram.plates1', 'ram.plates2', 'fuffens.oil1'] };
+    expect(upgradePrice(three, 'race.engine1')).toBeGreaterThan(p0 * 1.15);
+    expect(upgradePrice(three, 'race.engine1')).toBeLessThan(p0 * 1.3);
+    const ten = { ...run, up: Array.from({ length: 10 }, (_, i) => `x${i}`) };
+    expect(upgradePrice(ten, 'race.engine1')).toBeGreaterThan(p0 * 1.5);
   });
 });
 
