@@ -26,9 +26,12 @@ const CSS = `
 .rl-times b { font-weight: 800; }
 .rl-board { list-style: none; margin: 0; padding: calc(5px * var(--s)) calc(10px * var(--s)); font-size: calc(13px * var(--s)); line-height: 1.5; }
 .rl-board li { display: flex; align-items: center; gap: calc(6px * var(--s)); white-space: nowrap; }
+.rl-nm { overflow: hidden; text-overflow: ellipsis; max-width: calc(150px * var(--s)); }
 .rl-board li.me { font-weight: 900; color: #ffe27a; }
 .rl-board li.done { opacity: 0.75; }
 .rl-dot { width: calc(10px * var(--s)); height: calc(10px * var(--s)); border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.8); flex: none; }
+.rl-map { transition: transform 0.45s; }
+.rl-map.flipped { transform: rotate(180deg); }
 .rl-map { position: absolute; right: max(calc(12px * var(--s)), env(safe-area-inset-right)); top: max(calc(62px * var(--s)), 54px);
   width: calc(156px * var(--s)); height: calc(156px * var(--s)); }
 .rl-speedo { position: absolute; right: max(calc(16px * var(--s)), env(safe-area-inset-right)); bottom: max(calc(12px * var(--s)), env(safe-area-inset-bottom));
@@ -216,7 +219,7 @@ export class Hud {
   private times: HTMLElement;
   private board: HTMLElement;
   private boardKey = '';
-  private map: HTMLCanvasElement;
+  map: HTMLCanvasElement;
   private mapBase: HTMLCanvasElement | null = null;
   /** Half the floor's width when the race is a derby in an arena (0 = a road). */
   private arenaHw = 0;
@@ -624,7 +627,7 @@ export class Hud {
     if (key === this.boardKey) return;
     this.boardKey = key;
     this.board.innerHTML = order
-      .map((r, i) => `<li class="${r.me ? 'me' : ''} ${r.done ? 'done' : ''}"><span>${i + 1}.</span><span class="rl-dot" style="background:${r.color}"></span>${escape(r.name)}${r.done ? ' 🏁' : ''}${r.out ? ' 💥' : ''}${r.tag !== undefined ? `<small>${escape(r.tag)}</small>` : r.pts !== undefined ? `<small>${r.pts} p</small>` : ''}</li>`)
+      .map((r, i) => `<li class="${r.me ? 'me' : ''} ${r.done ? 'done' : ''}"><span>${i + 1}.</span><span class="rl-dot" style="background:${r.color}"></span><span class="rl-nm">${escape(r.name)}</span>${r.done ? ' 🏁' : ''}${r.out ? ' 💥' : ''}${r.tag !== undefined ? `<small>${escape(r.tag)}</small>` : r.pts !== undefined ? `<small>${r.pts} p</small>` : ''}</li>`)
       .join('');
   }
 
@@ -868,6 +871,14 @@ export class Hud {
   wrongWay(on: boolean): void {
     this.wrong.classList.toggle('show', on);
   }
+
+  /** The minimap turns upside down for a few seconds (the co-driver's map held the wrong way up). */
+  flipMap(sec: number): void {
+    this.map.classList.add('flipped');
+    window.clearTimeout(this.flipTimer);
+    this.flipTimer = window.setTimeout(() => this.map.classList.remove('flipped'), sec * 1000);
+  }
+  private flipTimer = 0;
 
   /** A small line under the position box that fades by itself (never in the middle of the screen). */
   toast(text: string, cls = ''): void {

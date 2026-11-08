@@ -102,7 +102,7 @@ describe('the ten new vehicles', () => {
 
   it('start a run with their own starting trinket', () => {
     for (const b of NEW) {
-      const r = newRun({ seed: 3, calm: false, body: b, driver: 'human', paint: '#e8412c' });
+      const r = newRun({ seed: 3, calm: false, body: b, paint: '#e8412c' });
       expect(r.trinkets.map((t) => t.id)).toContain(kitOf(b).trinket);
     }
   });
@@ -145,7 +145,7 @@ describe('the ten new vehicles', () => {
 
   it('show up on the result screen with their own ability, passive and lean', () => {
     for (const b of NEW) {
-      const r = newRun({ seed: 3, calm: false, body: b, driver: 'human', paint: '#e8412c' });
+      const r = newRun({ seed: 3, calm: false, body: b, paint: '#e8412c' });
       const a = abilityOf(r);
       expect(a.name).toBe(kitOf(b).active.name);
       expect(a.passive.name).toBe(kitOf(b).passive.name);
@@ -158,7 +158,7 @@ describe('the ten new vehicles', () => {
     for (const b of NEW) expect(MEDALS.filter((c) => c.body === b)).toHaveLength(1);
     expect(MEDALS).toHaveLength(15);
     // the golf cart: reach act 2 on Söndagsåkare; the camper: just play five runs; the mower: press the button
-    const calm = newRun({ seed: 1, calm: true, body: 'hatch', driver: 'human', paint: '#e8412c' });
+    const calm = newRun({ seed: 1, calm: true, body: 'hatch', paint: '#e8412c' });
     calm.act = 1;
     expect(medalFor('golf')!.measure(calm)).toBe(1);
     calm.calm = false;
@@ -167,7 +167,7 @@ describe('the ten new vehicles', () => {
     expect(medalFor('camper')!.goal).toBeLessThanOrEqual(5);
     expect(medalFor('mower')!.goal).toBeLessThanOrEqual(20);
     // the rest measure what they say
-    const r = newRun({ seed: 1, calm: false, body: 'hatch', driver: 'human', paint: '#e8412c' });
+    const r = newRun({ seed: 1, calm: false, body: 'hatch', paint: '#e8412c' });
     r.stats.coins = 150;
     r.stats.driftSeconds = 41.5;
     r.stats.kronorSpent = 900;

@@ -1,9 +1,9 @@
 // Saving: the run in progress (after every node) and the meta progress, in localStorage. Versioned; every
 // access is wrapped because storage can be missing, full or blocked; anything unreadable becomes "no save"
 // (run) or fresh progress (meta) instead of an error.
-import { CAR_DRIVERS, CAR_PARTS, isCarPart, PART_MAX_LEVEL, defaultStyle, emptyParts, isCarBody, newCar, type CarBody, type CarDriver, type GarageCar } from '../shared/rally.ts';
+import { CAR_PARTS, CAR_PAINTS, isCarPart, isHelmetDesign, PART_MAX_LEVEL, defaultStyle, emptyParts, isCarBody, newCar, type CarBody, type GarageCar } from '../shared/rally.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
-import { ACTS, BOSSES, NODE_TYPES, findNode, actMap, type BossId, type NodeType } from './map.ts';
+import { ACTS, BOSSES, BOSS_RENAMES, NODE_TYPES, findNode, actMap, type BossId, type NodeType } from './map.ts';
 import { cleanMeta, defaultMeta, type Meta } from './meta.ts';
 import { MEDALS } from './medals.ts';
 import { asDifficulty, isDifficulty, type Difficulty } from './difficulty.ts';
@@ -34,7 +34,11 @@ function cleanCar(raw: unknown): GarageCar {
     const v = st[k];
     if (v !== undefined && typeof v === typeof base[k] && (typeof v !== 'object' || (Array.isArray(v) === Array.isArray(base[k]) && v !== null))) style[k] = v;
   }
-  car.style.driver = typeof st.driver === 'string' && (CAR_DRIVERS as readonly string[]).includes(st.driver) ? (st.driver as CarDriver) : 'human';
+  // an older save had animals behind the wheel: every driver is a person in a helmet now, with the default helmet
+  car.style.driver = 'human';
+  if (!isHelmetDesign(car.style.helmet) && car.style.helmet !== 'ears') car.style.helmet = 'stripe';
+  if (car.style.helmet === 'ears') car.style.helmet = 'stripe';
+  if (car.style.helmetColor && !(CAR_PAINTS as readonly string[]).includes(car.style.helmetColor)) car.style.helmetColor = '';
   const parts = isObj(o.parts) ? o.parts : {};
   for (const p of CAR_PARTS) car.parts[p] = num(parts[p], 0, PART_MAX_LEVEL, 0);
   car.damage = num(o.damage, 0, 100, 0);
@@ -170,7 +174,7 @@ function cleanLog(raw: unknown): NodeLog[] {
       lost: num(x.lost, 0, 9, 0),
       goalMet: typeof x.goalMet === 'boolean' ? x.goalMet : undefined,
       takedowns: optNum(x.takedowns, 0, 99),
-      boss: typeof x.boss === 'string' && (BOSSES as readonly string[]).includes(x.boss) ? (x.boss as BossId) : undefined,
+      boss: typeof x.boss === 'string' ? ((BOSSES as readonly string[]).includes(x.boss) ? (x.boss as BossId) : BOSS_RENAMES[x.boss]) : undefined,
     });
   }
   return out;

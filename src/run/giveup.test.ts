@@ -6,7 +6,7 @@ import { newRun, type RunState } from './state.ts';
 import { verdictOf } from './summary.ts';
 
 const run = (o: Partial<{ calm: boolean; body: 'hatch' | 'moped'; paint: string }> = {}): RunState => {
-  const r = newRun({ seed: 7, calm: o.calm ?? false, body: o.body ?? 'hatch', driver: 'cow', paint: o.paint ?? '#e8412c' });
+  const r = newRun({ seed: 7, calm: o.calm ?? false, body: o.body ?? 'hatch', paint: o.paint ?? '#e8412c' });
   r.act = 1;
   r.stats.bossesBeaten = 1;
   r.stats.races = 5;
@@ -65,9 +65,9 @@ describe('giving a run up', () => {
     expect(v.where).toMatch(/^Gav upp i Akt 2/);
   });
 
-  it('the next run starts with the same vehicle, driver and paint', () => {
+  it('the next run starts with the same vehicle, paint and helmet', () => {
     const r = run({ body: 'moped', paint: '#e8412c' });
-    expect(restartPick(r)).toEqual({ diff: 'normal', body: 'moped', driver: 'cow', paint: '#e8412c' });
+    expect(restartPick(r)).toEqual({ diff: 'normal', body: 'moped', paint: '#e8412c', helmet: 'stripe', helmetColor: '' });
     const m = { ...defaultMeta(), diff: 'calm' as const };
     expect(giveUpRun(m, r).meta.diff).toBe('calm');
   });

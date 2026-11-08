@@ -269,7 +269,7 @@ describe('the sky', () => {
 });
 
 describe('Verktygslådan', () => {
-  const run = () => newRun({ seed: 321, diff: 'normal', body: 'hatch', driver: 'cow', paint: '#e8412c' });
+  const run = () => newRun({ seed: 321, diff: 'normal', body: 'hatch', paint: '#e8412c' });
 
   it('bolts a random upgrade node on at the start of an act, the same one for the same run, never a capstone', () => {
     const a = run();

@@ -1,5 +1,5 @@
 // Swedish names for the things a player picks.
-import type { CarBody, CarDriver, CarPart, RallyCourse } from './rally.ts';
+import type { CarBody, CarPart, RallyCourse } from './rally.ts';
 
 export const CAR_BODY_NAMES: Record<CarBody, string> = {
   hatch: 'Rallybil',
@@ -62,20 +62,6 @@ export const RALLY_COURSE_NAMES: Record<RallyCourse, string> = {
   moon: 'Månen',
   kitchen: 'Köket',
 };
-
-export const CAR_DRIVER_NAMES: Record<CarDriver, string> = {
-  human: 'Du själv',
-  cow: 'Kon',
-  horse: 'Hästen',
-  pig: 'Grisen',
-  rooster: 'Tuppen',
-  sheep: 'Fåret',
-  dog: 'Hunden',
-  cat: 'Katten',
-  rabbit: 'Kaninen',
-};
-
-export const CAR_DRIVER_EMOJI: Record<CarDriver, string> = { human: '🧑', cow: '🐮', horse: '🐴', pig: '🐷', rooster: '🐓', sheep: '🐑', dog: '🐶', cat: '🐱', rabbit: '🐰' };
 
 export const CAR_PART_NAMES: Record<CarPart, string> = {
   engine: 'Motor',

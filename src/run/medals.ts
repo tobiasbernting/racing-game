@@ -27,7 +27,14 @@ export interface Medal {
 }
 
 const won = (r: RunState): boolean => r.status === 'won';
-const bossWon = (r: RunState, boss: string): boolean => r.log.some((l) => l.type === 'boss' && l.boss === boss && l.finished === true && l.place === 1);
+/** The boss of this act (0 = akt 1) beaten: first place in its race. Whoever the seed picked, it is the act's boss. */
+const bossWon = (r: RunState, act: number): boolean => r.log.some((l) => l.type === 'boss' && l.act === act && l.finished === true && l.place === 1);
+
+/**
+ * Medals that were renamed when the bosses changed (Sura Bengt and Frost-Frida left; the act's boss is picked from a pool now).
+ * An old save's progress under the old id counts under the new one.
+ */
+export const MEDAL_RENAMES: Readonly<Record<string, string>> = { bengtMoped: 'boss1Moped', bengt: 'boss1', frida: 'boss2' };
 
 /** Act 2 won without losing a heart in it: the act's boss beaten, and none of its nodes cost one. */
 export function flawlessAct(r: RunState, act: number): boolean {
@@ -40,12 +47,12 @@ export const MEDALS: readonly Medal[] = [
   { id: 'win', name: 'Rundvinnaren', emoji: '🏆', body: 'coupe', title: 'Vinn en runda', label: 'Vunna rundor', goal: 1, mode: 'total', measure: (r) => (won(r) ? 1 : 0) },
   { id: 'calmWin', name: 'Söndagsvinnaren', emoji: '🛋️', body: 'atv', title: 'Vinn en runda på Söndagsåkare', label: 'Vunna rundor på Söndagsåkare', goal: 1, mode: 'total', measure: (r) => (won(r) && r.calm ? 1 : 0) },
   { id: 'takedowns', name: 'Krossmästaren', emoji: '💥', body: 'monster', title: 'Gör 10 takedowns i en runda', label: 'Takedowns i en runda', goal: 10, mode: 'best', measure: (r) => r.stats.takedowns },
-  { id: 'bengtMoped', name: 'Moppen mot Bengt', emoji: '🛵', body: 'moto', title: 'Slå Sura Bengt med moppen', label: 'Sura Bengt slagen med moppen', goal: 1, mode: 'best', measure: (r) => (r.car.body === 'moped' && bossWon(r, 'bengt') ? 1 : 0) },
+  { id: 'boss1Moped', name: 'Moppen mot bossen', emoji: '🛵', body: 'moto', title: 'Slå akt 1-bossen med moppen', label: 'Akt 1-bossen slagen med moppen', goal: 1, mode: 'best', measure: (r) => (r.car.body === 'moped' && bossWon(r, 0) ? 1 : 0) },
   // phase 10: three of these are easy for a ten-year-old (the golf cart on Söndagsåkare, the camper by playing, the mower by pressing the button)
-  { id: 'bengt', name: 'Bengtbesegraren', emoji: '🚜', body: 'epa', title: 'Slå Sura Bengt', label: 'Sura Bengt slagen', goal: 1, mode: 'best', measure: (r) => (bossWon(r, 'bengt') ? 1 : 0) },
+  { id: 'boss1', name: 'Tävlingsstoppet', emoji: '🏁', body: 'epa', title: 'Slå en akt 1-boss (Torsten, Göran eller Tina)', label: 'Akt 1-bossen slagen', goal: 1, mode: 'best', measure: (r) => (bossWon(r, 0) ? 1 : 0) },
   { id: 'coins', name: 'Myntsamlaren', emoji: '🪙', body: 'icecream', title: 'Samla 150 mynt i en runda', label: 'Mynt i en runda', goal: 150, mode: 'best', measure: (r) => r.stats.coins },
   { id: 'hoard', name: 'Talismansamlaren', emoji: '🎒', body: 'garbage', title: 'Samla ihop 12 talismaner i en runda', label: 'Talismaner i väskan', goal: 12, mode: 'best', measure: (r) => r.trinkets.reduce((a, t) => a + t.n, 0) },
-  { id: 'frida', name: 'Fridas frostskräck', emoji: '❄️', body: 'snowmobile', title: 'Slå Frost-Frida', label: 'Frost-Frida slagen', goal: 1, mode: 'best', measure: (r) => (bossWon(r, 'isdrottningen') ? 1 : 0) },
+  { id: 'boss2', name: 'Bollbesegraren', emoji: '⚽', body: 'snowmobile', title: 'Slå en akt 2-boss (Freddie, Mats eller Berit)', label: 'Akt 2-bossen slagen', goal: 1, mode: 'best', measure: (r) => (bossWon(r, 1) ? 1 : 0) },
   { id: 'drift', name: 'Sladdkungen', emoji: '🌀', body: 'kart', title: 'Sladda i 40 sekunder i en runda', label: 'Sekunder i sladd', goal: 40, mode: 'best', measure: (r) => Math.floor(r.stats.driftSeconds) },
   { id: 'calmAct2', name: 'Söndagsäventyraren', emoji: '🗺️', body: 'golf', title: 'Kom till akt 2 på Söndagsåkare', label: 'Akt 2 nådd på Söndagsåkare', goal: 1, mode: 'best', measure: (r) => (r.calm && r.act >= 1 ? 1 : 0) },
   { id: 'abilityUses', name: 'Knappnötaren', emoji: '🔘', body: 'mower', title: 'Använd fordonets förmåga 20 gånger i en runda', label: 'Förmågor i en runda', goal: 20, mode: 'best', measure: (r) => r.stats.abilityUses },

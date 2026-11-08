@@ -615,6 +615,13 @@ export class RallyAudio {
     tone(this.a, this.out, 600, 0.5, { type: 'sine', to: 1400, vol: 0.06, at: 0.04 });
   }
 
+  /** A steward's whistle: a shrill trilling blast. */
+  whistle(): void {
+    tone(this.a, this.out, 2700, 0.5, { type: 'sine', to: 2500, vol: 0.12 });
+    tone(this.a, this.out, 2640, 0.5, { type: 'square', to: 2440, vol: 0.03 });
+    noiseShot(this.a, this.out, 0.4, { freq: 4200, q: 3, vol: 0.05 });
+  }
+
   /** A springy boing. */
   boing(): void {
     tone(this.a, this.out, 180, 0.35, { type: 'sine', to: 620, vol: 0.16 });

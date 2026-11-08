@@ -1,7 +1,7 @@
 // What a GarageCar does to the handling (body stats and tuning parts), the computer cars' cars, the
 // damage rules, and the player's smoke colour.
 import * as THREE from 'three';
-import { CAR_BODIES, CAR_BODY_DEFS, PART_EFFECTS, defaultStyle, emptyParts, newCar, type CarBody, type CarDecal, type CarDriver, type CarSmoke, type CarStyle, type Feel, type GarageCar } from '../shared/rally.ts';
+import { CAR_BODIES, CAR_BODY_DEFS, PART_EFFECTS, defaultStyle, emptyParts, newCar, type CarBody, type CarDecal, type CarSmoke, type HelmetLook, type CarStyle, type Feel, type GarageCar } from '../shared/rally.ts';
 import { clamp } from './util.ts';
 
 export interface Tune {
@@ -112,9 +112,10 @@ function rivalLook(k: number, paint: string): Pick<CarStyle, 'livery' | 'paint2'
 }
 
 /** A computer car for the online grid and the remote screens: body, colour and number from its slot. */
-export function aiCar(k: number, color: string, driver: CarDriver, body?: CarBody): GarageCar {
+export function aiCar(k: number, color: string, body?: CarBody, helm?: { design: HelmetLook; color: string; trim: string }): GarageCar {
   const c = newCar(-1 - k, body ?? AI_BODIES[k % AI_BODIES.length] ?? 'hatch', '', color);
-  c.style = { ...defaultStyle(color), number: k + 2, driver, ...rivalLook(k, color) };
+  c.style = { ...defaultStyle(color), number: k + 2, ...rivalLook(k, color) };
+  if (helm) c.style = { ...c.style, helmet: helm.design, helmetColor: helm.color, paint2: helm.trim };
   return c;
 }
 

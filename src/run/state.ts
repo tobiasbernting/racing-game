@@ -1,7 +1,7 @@
 // The state of a run in progress, as plain JSON (it is saved after every node), and the small rules on it:
 // hearts, kronor, trinkets and the funny stats. Functions here never touch the DOM or the clock.
 import type { RaceStats } from '../rally/mods.ts';
-import { CAR_PAINTS, newCar, type CarDriver, type CarBody, type GarageCar } from '../shared/rally.ts';
+import { CAR_PAINTS, newCar, type HelmetDesign, type CarBody, type GarageCar } from '../shared/rally.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { ACTS, actMap, findNode, type ActMap, type BossId, type MapNode, type NodeType } from './map.ts';
 import { kitOf } from '../shared/abilities.ts';
@@ -216,15 +216,18 @@ export interface NewRunOpts {
   diff?: Difficulty;
   calm?: boolean;
   body: CarBody;
-  driver: CarDriver;
   paint: string;
+  /** The helmet's pattern and colour ('' = the car's paint). */
+  helmet?: HelmetDesign;
+  helmetColor?: string;
   /** Medal progress now, to tell afterwards what the run moved. Nothing else from the meta goes in: a seed alone decides the run. */
   progress?: Record<string, number>;
 }
 
 export function newRun(o: NewRunOpts): RunState {
   const car = newCar(1, o.body, CAR_BODY_NAMES[o.body], o.paint);
-  car.style.driver = o.driver;
+  if (o.helmet) car.style.helmet = o.helmet;
+  if (o.helmetColor) car.style.helmetColor = o.helmetColor;
   const diff = asDifficulty(o.diff ?? o.calm);
   const hearts = DIFFS[diff].hearts;
   const run: RunState = { v: 1, seed: o.seed, calm: diff === 'calm', diff, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], up: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0, log: [], got: [], nodeLost: 0, chal0: { ...(o.progress ?? {}) }, opened: [] };

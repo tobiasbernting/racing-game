@@ -5,9 +5,9 @@ import { KIND_ARCHETYPE_WEIGHT } from './rivals.ts';
 import { RACE_KINDS } from './kinds.ts';
 
 describe('rival archetypes', () => {
-  it('give every one of the twelve a type, four of each', () => {
-    expect(RIVALS).toHaveLength(12);
-    for (const a of ARCHETYPES) expect(RIVALS.filter((r) => r.type === a)).toHaveLength(4);
+  it('give every one of the twenty-odd a type, with all three styles well represented', () => {
+    expect(RIVALS.length).toBeGreaterThanOrEqual(18);
+    for (const a of ARCHETYPES) expect(RIVALS.filter((r) => r.type === a).length, a).toBeGreaterThanOrEqual(5);
   });
 
   it('a Rally grid is mostly racers and a Blodbad grid mostly rammers, the same seed always giving the same grid', () => {

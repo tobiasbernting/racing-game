@@ -11,7 +11,7 @@ import { abilityOf, allStats, buildMix, buildTimeline, buildView, statView, trop
 import { trophiesFor } from './meta.ts';
 
 const fresh = (): RunState => {
-  const r = newRun({ seed: 7, calm: false, body: 'hatch', driver: 'cow', paint: '#e8412c' });
+  const r = newRun({ seed: 7, calm: false, body: 'hatch', paint: '#e8412c' });
   r.trinkets = [];
   r.got = [];
   return r;

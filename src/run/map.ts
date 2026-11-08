@@ -18,7 +18,7 @@ export const ROWS = 5;
 
 export const CHALLENGES = ['win', 'toptwo', 'night', 'time'] as const;
 export type ChallengeKind = (typeof CHALLENGES)[number];
-export const BOSSES = ['bengt', 'ingrid', 'isdrottningen', 'kanin'] as const;
+export const BOSSES = ['torsten', 'goran', 'tina', 'freddie', 'mats', 'berit', 'loeb', 'stig', 'kanin'] as const;
 export type BossId = (typeof BOSSES)[number];
 
 /**
@@ -80,16 +80,28 @@ const WEIGHTS: Record<number, Partial<Record<NodeType, number>>> = {
 /** Types that may not follow themselves along a path. */
 const NO_REPEAT: ReadonlySet<NodeType> = new Set(['elite', 'shop', 'workshop', 'event']);
 
-/** The kind of race each boss's temper asks for: Bengt on his tractor is Blodbad, Frida is clean racing. */
-export const BOSS_KIND: Record<BossId, RaceKind> = { bengt: 'carnage', ingrid: 'carnage', isdrottningen: 'rally', kanin: 'carnage' };
+/**
+ * The bosses of each act, one of them per run (the seed picks). Act 1 is the rally steward, the golfer and the co-driver;
+ * act 2 the footballer, the ice-machine goalkeeper and the bowler; act 3 the world champion (one of two) or the joker on the moon.
+ */
+export const BOSS_POOL: readonly (readonly BossId[])[] = [
+  ['torsten', 'goran', 'tina'],
+  ['freddie', 'mats', 'berit'],
+  ['loeb', 'stig', 'kanin'],
+];
 
-export const BOSS_COURSE: Record<BossId, RallyCourse> = { bengt: 'farm', ingrid: 'mountain', isdrottningen: 'ice', kanin: 'moon' };
+/** Bosses that were renamed or replaced: an old save's log reads them as the boss that took their place. */
+export const BOSS_RENAMES: Readonly<Record<string, BossId>> = { bengt: 'torsten', ingrid: 'freddie', isdrottningen: 'mats' };
 
-/** The boss of an act: Bengt on the farm, then Ingrid or the Ice Queen (the seed picks), and Captain Rabbit on the moon. */
+/** The kind of race each boss's temper asks for: the co-driver and the champions want a clean rally, the steward and the goalkeeper some shoving, the golfer, footballer and bowler a free-for-all. */
+export const BOSS_KIND: Record<BossId, RaceKind> = { torsten: 'mixed', goran: 'carnage', tina: 'rally', freddie: 'carnage', mats: 'mixed', berit: 'carnage', loeb: 'rally', stig: 'rally', kanin: 'carnage' };
+
+export const BOSS_COURSE: Record<BossId, RallyCourse> = { torsten: 'farm', goran: 'meadow', tina: 'forest', freddie: 'beach', mats: 'ice', berit: 'mountain', loeb: 'city', stig: 'mountain', kanin: 'moon' };
+
+/** The boss of an act: one from the act's pool, picked by the run's seed (the same seed always meets the same boss). */
 export function bossFor(seed: number, act: number): BossId {
-  if (act <= 0) return 'bengt';
-  if (act === 1) return Rng.for(seed, 'boss', act).chance(0.5) ? 'ingrid' : 'isdrottningen';
-  return 'kanin';
+  const pool = BOSS_POOL[Math.max(0, Math.min(BOSS_POOL.length - 1, act))]!;
+  return Rng.for(seed, 'boss', act).pick(pool);
 }
 
 export function generateAct(seed: number, act: number): ActMap {

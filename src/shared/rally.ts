@@ -188,9 +188,17 @@ export type CarExtra = (typeof CAR_EXTRAS)[number];
 export const CAR_HORNS = ['beep', 'tune', 'cow', 'duck', 'train', 'honk'] as const;
 export type CarHorn = (typeof CAR_HORNS)[number];
 
-/** Who sits behind the wheel: you, or one of the farm animals (the AI's faces in models.ts). */
-export const CAR_DRIVERS = ['human', 'cow', 'horse', 'pig', 'rooster', 'sheep', 'dog', 'cat', 'rabbit'] as const;
+/** Who sits behind the wheel: always a person in a helmet and race overalls (older saves had animals; they read as this). */
+export const CAR_DRIVERS = ['human'] as const;
 export type CarDriver = (typeof CAR_DRIVERS)[number];
+
+/** The designs a helmet can wear on top of its colours (the picture of each is drawn in models.ts and ui/helmet.ts). */
+export const HELMET_DESIGNS = ['stripe', 'twin', 'checker', 'star', 'flame', 'dots', 'bolt', 'wing'] as const;
+export type HelmetDesign = (typeof HELMET_DESIGNS)[number];
+/** A helmet only a boss wears (the joker's long ears). */
+export type HelmetLook = HelmetDesign | 'ears';
+export const isHelmetDesign = (v: unknown): v is HelmetDesign => typeof v === 'string' && (HELMET_DESIGNS as readonly string[]).includes(v);
+export const HELMET_NAMES: Record<HelmetDesign, string> = { stripe: 'Rand', twin: 'Dubbelrand', checker: 'Rutor', star: 'Stjärna', flame: 'Lågor', dots: 'Prickar', bolt: 'Blixt', wing: 'Vingar' };
 
 /** Tyre smoke and boost flame colour. */
 export const CAR_SMOKES = ['white', 'rainbow', 'hearts', 'hay', 'pink', 'blue', 'gold'] as const;
@@ -213,6 +221,9 @@ export interface CarStyle {
   /** Underglow colour, shown at night and in tunnels; null for none. */
   glow: string | null;
   driver: CarDriver;
+  /** The pattern on the driver's helmet, and its colour ('' = the car's own paint). */
+  helmet: HelmetLook;
+  helmetColor: string;
   smoke: CarSmoke;
   /** Text on the number plate (≤ 8 characters, cleaned like chat). */
   plate: string;
@@ -254,6 +265,8 @@ export function defaultStyle(paint = '#e8412c'): CarStyle {
     horn: 'beep',
     glow: null,
     driver: 'human',
+    helmet: 'stripe',
+    helmetColor: '',
     smoke: 'white',
     plate: '',
   };

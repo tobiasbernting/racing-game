@@ -3,6 +3,7 @@ import { CAR_BODIES, type CarBody } from '../shared/rally.ts';
 import { LEGACY_BODY_UNLOCK, STARTERS, cleanMeta, defaultMeta, legacyBodies } from './meta.ts';
 import { META_KEY, loadMeta, parseRun, saveMeta } from './save.ts';
 import { newRun, type RunState } from './state.ts';
+import type { BossId } from './map.ts';
 import { MEDALS, earned, medalById, medalCount, medalFor, medalReport, checkMedals, flawlessAct, nextMedal, progressText } from './medals.ts';
 
 class MemoryStorage {
@@ -26,8 +27,8 @@ afterEach(() => {
   delete (globalThis as unknown as { localStorage?: unknown }).localStorage;
 });
 
-const run = (body: CarBody = 'hatch', calm = false): RunState => newRun({ seed: 3, calm, body, driver: 'human', paint: '#e8412c' });
-const bossLog = (r: RunState, act: number, boss: 'bengt' | 'ingrid', place = 1, lost = 0): void => {
+const run = (body: CarBody = 'hatch', calm = false): RunState => newRun({ seed: 3, calm, body, paint: '#e8412c' });
+const bossLog = (r: RunState, act: number, boss: BossId, place = 1, lost = 0): void => {
   r.log.push({ nodeId: `b${act}`, act, row: 5, type: 'boss', title: boss, lost, place, n: 4, finished: place < 9, boss });
 };
 
@@ -51,7 +52,8 @@ describe('the medal list', () => {
     expect(medalFor('coupe')?.title).toBe('Vinn en runda');
     expect(medalById('takedowns')?.title).toContain('10 takedowns');
     expect(MEDALS.some((c) => c.title.includes('Söndagsåkare'))).toBe(true);
-    expect(MEDALS.some((c) => c.title.includes('Sura Bengt'))).toBe(true);
+    expect(MEDALS.some((c) => c.title.includes('akt 1-boss'))).toBe(true);
+    expect(MEDALS.some((c) => /Bengt|Frida/.test(c.title + c.label + c.name))).toBe(false);
     expect(MEDALS.some((c) => c.title.includes('akt 2'))).toBe(true);
   });
 
@@ -62,7 +64,7 @@ describe('the medal list', () => {
 });
 
 /** The steps of the five older challenges (the newer ones count things a plain run does all the time, like carrying its starting trinket). */
-const OLD = ['win', 'calmAct', 'calmWin', 'takedowns', 'bengtMoped', 'flawless2'];
+const OLD = ['win', 'calmAct', 'calmWin', 'takedowns', 'boss1Moped', 'flawless2'];
 const oldSteps = (c: { steps: { id: string }[] }) => c.steps.filter((x) => OLD.includes(x.id));
 
 describe('checking a run against the medals', () => {
@@ -112,27 +114,30 @@ describe('checking a run against the medals', () => {
     expect(m.progress).toEqual({});
   });
 
-  it('Sura Bengt has to fall to the moppe for the motorcykel; any car opens the EPA-traktor', () => {
-    const car = run('hatch');
-    bossLog(car, 0, 'bengt');
-    expect(checkMedals(defaultMeta(), car).earned.map((x) => x.body)).toEqual(['epa']);
+  it('the act 1 boss (whoever the seed picked) has to fall to the moppe for the motorcykel; any car opens the EPA-traktor', () => {
+    for (const boss of ['torsten', 'goran', 'tina'] as const) {
+      const car = run('hatch');
+      bossLog(car, 0, boss);
+      expect(checkMedals(defaultMeta(), car).earned.map((x) => x.body)).toEqual(['epa']);
+    }
     const moppe = run('moped');
-    bossLog(moppe, 0, 'ingrid');
-    expect(checkMedals(defaultMeta(), moppe).earned).toHaveLength(0);
-    bossLog(moppe, 0, 'bengt', 2);
-    expect(checkMedals(defaultMeta(), moppe).earned).toHaveLength(0);
+    // an act 2 boss does not count for the act 1 medals
+    bossLog(moppe, 1, 'freddie');
+    expect(checkMedals(defaultMeta(), moppe).earned.map((x) => x.id).sort()).toEqual(['boss2', 'flawless2']);
+    bossLog(moppe, 0, 'goran', 2);
+    expect(checkMedals(defaultMeta(), moppe).earned.map((x) => x.id).sort()).toEqual(['boss2', 'flawless2']);
     moppe.log.pop();
-    bossLog(moppe, 0, 'bengt', 1);
-    expect(checkMedals(defaultMeta(), moppe).earned.map((x) => x.body).sort()).toEqual(['epa', 'moto']);
+    bossLog(moppe, 0, 'tina', 1);
+    expect(checkMedals(defaultMeta(), moppe).earned.map((x) => x.body).sort()).toEqual(['epa', 'moto', 'snowmobile', 'sofa']);
   });
 
   it('act 2 without losing a heart needs the boss beaten and not one heart gone in the act', () => {
     const r = run();
     r.log.push({ nodeId: 'a', act: 1, row: 1, type: 'race', title: 'x', lost: 0, place: 1, n: 4, finished: true });
     expect(flawlessAct(r, 1)).toBe(false);
-    bossLog(r, 1, 'ingrid', 1, 0);
+    bossLog(r, 1, 'berit', 1, 0);
     expect(flawlessAct(r, 1)).toBe(true);
-    expect(checkMedals(defaultMeta(), r).earned.map((x) => x.body)).toEqual(['sofa']);
+    expect(checkMedals(defaultMeta(), r).earned.map((x) => x.body).sort()).toEqual(['snowmobile', 'sofa']);
     r.log[0]!.lost = 1;
     expect(flawlessAct(r, 1)).toBe(false);
     // hearts lost in act 1 or 3 do not count against act 2
@@ -249,5 +254,32 @@ describe('a save in the medal format', () => {
     saveMeta(first);
     expect(JSON.parse(store.getItem(META_KEY)!).bodies).toBeUndefined();
     expect(Object.keys(loadMeta().progress)).toEqual(['calmWin']);
+  });
+});
+
+describe('the medals that were renamed when the bosses changed', () => {
+  it('old progress under the old ids counts under the new ones, and the old ids are gone', () => {
+    const old = { v: 1, trophies: 4, runs: 2, wins: 0, bestAct: 2, seen: [], medals: 1, progress: { bengt: 1, bengtMoped: 1, frida: 1, takedowns: 4 }, body: 'hatch', paint: '#e8412c' };
+    const m = cleanMeta(old);
+    expect(m.progress.boss1).toBe(1);
+    expect(m.progress.boss1Moped).toBe(1);
+    expect(m.progress.boss2).toBe(1);
+    expect(m.progress.takedowns).toBe(4);
+    expect('bengt' in m.progress).toBe(false);
+    expect('frida' in m.progress).toBe(false);
+    expect(earned(m.progress, medalById('boss1')!)).toBe(true);
+    // the input is left alone, and a larger new value is not lowered by an old one
+    expect(old.progress).toEqual({ bengt: 1, bengtMoped: 1, frida: 1, takedowns: 4 });
+    expect(cleanMeta({ medals: 1, progress: { bengt: 0, boss1: 1 } }).progress.boss1).toBe(1);
+  });
+
+  it('survives a save and load, and an old run log reads the old bosses as the ones that replaced them', () => {
+    const r = run();
+    const raw = JSON.parse(JSON.stringify(r)) as { log: { boss?: string }[] };
+    raw.log.push({ nodeId: 'a0r5c0', act: 0, row: 5, type: 'boss', title: 'Sura Bengt', lost: 0, place: 1, n: 4, finished: true, boss: 'bengt' } as never);
+    raw.log.push({ nodeId: 'a1r5c0', act: 1, row: 5, type: 'boss', title: 'Frost-Frida', lost: 0, place: 1, n: 4, finished: true, boss: 'isdrottningen' } as never);
+    const back = parseRun(raw);
+    expect(back?.log.map((l) => l.boss)).toEqual(['torsten', 'mats']);
+    expect(MEDALS.some((c) => c.id === 'bengt' || c.id === 'frida')).toBe(false);
   });
 });

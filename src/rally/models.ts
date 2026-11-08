@@ -2,7 +2,7 @@
 // animals, spectators, fences and the cars. Every model is one vertex-coloured geometry (or a few).
 import * as THREE from 'three';
 import { addUpgradeLook } from './modlook.ts';
-import { CAR_BODY_DEFS, defaultStyle, type CarBody, type CarDriver, type CarSpoiler, type CarStyle, type CarWheels, type DecalSlot } from '../shared/rally.ts';
+import { CAR_BODY_DEFS, defaultStyle, type CarBody, type CarDriver, type HelmetLook, type CarSpoiler, type CarStyle, type CarWheels, type DecalSlot } from '../shared/rally.ts';
 import { Geo, mat } from './geo.ts';
 import { hullGeometry, outlineMaterial, outlineMesh } from './look.ts';
 import { ATLAS, paintCar, paintCrack, paintDamage, paintPlate, REGION_KIND, type DecalSpot, type PaintLayout, type Region, type RegionSizes } from './style.ts';
@@ -488,23 +488,70 @@ export function person(): { shirt: THREE.BufferGeometry; rest: THREE.BufferGeome
 
 // ---- the cars ----
 
-/** Who drives: you or a farm animal (the computer cars' faces). */
+/** Who drives: always a person in a helmet and race overalls. */
 export type Driver = CarDriver;
 
-/** The colour of the driver's race overalls: the second paint colour, darkened, for a person; dark denim for the animals. */
-export function overallsColor(who: Driver, style: CarStyle): string {
-  if (who !== 'human') return '#2b3347';
+/** The colour of the driver's race overalls: the second paint colour, darkened. */
+export function overallsColor(_who: Driver, style: CarStyle): string {
   const c = new THREE.Color(style.paint2);
   return '#' + c.lerp(new THREE.Color('#111318'), 0.45).getHexString();
 }
+
+/** The colour of a driver's helmet: its own, or the car's paint. */
+export const helmetColorOf = (style: Pick<CarStyle, 'paint' | 'helmetColor'>): string => style.helmetColor || style.paint;
 
 /**
  * A race helmet over a head: a painted dome, a stripe over the top and either a dark visor or a pair of goggles.
  * (y, z) is the dome's centre, (rx, ry, rz) its radii.
  */
-export function helmet(g: Geo, color: string, accent: string, y: number, z: number, rx: number, ry: number, rz: number, front: 'visor' | 'goggles' | 'none' = 'visor'): void {
+export function helmet(g: Geo, color: string, accent: string, y: number, z: number, rx: number, ry: number, rz: number, front: 'visor' | 'goggles' | 'none' = 'visor', design: HelmetLook = 'stripe'): void {
   g.sphere(1, color, 0, y, z, rx, ry, rz, 10, 8);
-  g.box(rx * 0.14, ry * 0.1, rz * 1.9, accent, 0, y + ry * 0.96, z);
+  const top = y + ry * 0.96;
+  switch (design) {
+    case 'twin':
+      for (const sx of [-1, 1]) g.box(rx * 0.1, ry * 0.1, rz * 1.9, accent, sx * rx * 0.2, y + ry * 0.93, z);
+      break;
+    case 'checker':
+      for (let k = -4; k <= 4; k++) g.box(rx * 0.22, ry * 0.1, rz * 0.2, k % 2 ? accent : '#15171c', 0, top - Math.abs(k) * ry * 0.03, z + k * rz * 0.2);
+      break;
+    case 'star':
+      for (const sx of [-1, 1]) {
+        g.box(rx * 0.06, ry * 0.5, rz * 0.12, accent, sx * rx * 0.97, y + ry * 0.2, z - rz * 0.1);
+        g.box(rx * 0.06, ry * 0.12, rz * 0.5, accent, sx * rx * 0.97, y + ry * 0.2, z - rz * 0.1);
+        g.box(rx * 0.06, ry * 0.4, rz * 0.1, accent, sx * rx * 0.97, y + ry * 0.2, z - rz * 0.1, Math.PI / 4);
+        g.box(rx * 0.06, ry * 0.4, rz * 0.1, accent, sx * rx * 0.97, y + ry * 0.2, z - rz * 0.1, -Math.PI / 4);
+      }
+      g.box(rx * 0.14, ry * 0.1, rz * 1.9, accent, 0, top, z);
+      break;
+    case 'flame':
+      for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) g.box(rx * 0.06, ry * 0.12, rz * (0.8 - k * 0.2), accent, sx * rx * 0.97, y - ry * 0.15 + k * ry * 0.22, z + rz * (0.1 - k * 0.1), -0.25 * k);
+      g.box(rx * 0.14, ry * 0.1, rz * 1.9, accent, 0, top, z);
+      break;
+    case 'dots':
+      for (const sx of [-1, 1]) for (let k = 0; k < 4; k++) g.ball(rz * 0.1, accent, sx * rx * (0.96 - k * 0.07), y + ry * (0.1 + (k % 2) * 0.3), z + rz * (0.3 - k * 0.22));
+      break;
+    case 'bolt':
+      for (const sx of [-1, 1]) {
+        g.box(rx * 0.06, ry * 0.4, rz * 0.12, accent, sx * rx * 0.97, y + ry * 0.38, z + rz * 0.08, 0.6);
+        g.box(rx * 0.06, ry * 0.4, rz * 0.12, accent, sx * rx * 0.97, y + ry * 0.04, z - rz * 0.08, 0.6);
+      }
+      g.box(rx * 0.14, ry * 0.1, rz * 1.9, accent, 0, top, z);
+      break;
+    case 'wing':
+      for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) g.box(rx * 0.06, ry * 0.07, rz * (0.7 - k * 0.15), accent, sx * rx * 0.97, y + ry * (0.05 + k * 0.17), z - rz * (0.25 + k * 0.05), 0.05 - k * 0.12);
+      g.box(rx * 0.14, ry * 0.1, rz * 1.9, accent, 0, top, z);
+      break;
+    case 'ears':
+      // the joker's long soft ears standing up from the helmet
+      for (const sx of [-1, 1]) {
+        g.box(rx * 0.3, ry * 1.5, rz * 0.2, color, sx * rx * 0.4, y + ry * 1.5, z - rz * 0.1, 0, 0, sx * 0.14);
+        g.box(rx * 0.16, ry * 1.2, rz * 0.1, accent, sx * rx * 0.4, y + ry * 1.5, z + rz * 0.0, 0, 0, sx * 0.14);
+      }
+      g.box(rx * 0.14, ry * 0.1, rz * 1.9, accent, 0, top, z);
+      break;
+    default:
+      g.box(rx * 0.14, ry * 0.1, rz * 1.9, accent, 0, top, z);
+  }
   if (front === 'visor') {
     g.box(rx * 1.45, ry * 0.42, rz * 0.5, '#0d1016', 0, y + ry * 0.02, z + rz * 0.72);
     g.box(rx * 0.5, ry * 0.07, rz * 0.12, '#8fb8ff', -rx * 0.38, y + ry * 0.14, z + rz * 0.97);
@@ -514,94 +561,12 @@ export function helmet(g: Geo, color: string, accent: string, y: number, z: numb
   }
 }
 
-/** The driver's head, seen through the windows: every one of them in a helmet or goggles. `accent` is the stripe colour. */
-export function driverHead(kind: Driver, color: string, accent = '#f4f4f0'): THREE.BufferGeometry {
+/** The driver's head, seen through the windows: a person in a helmet. `color` is the helmet, `accent` its pattern, `design` which one. */
+export function driverHead(color: string, accent = '#f4f4f0', design: HelmetLook = 'stripe'): THREE.BufferGeometry {
   const g = new Geo();
-  switch (kind) {
-    case 'human':
-      g.sphere(0.17, '#e0b48c', 0, -0.02, 0.02, 1, 1.05, 1.1, 10, 8);
-      helmet(g, color, accent, 0.03, 0, 0.23, 0.22, 0.24, 'visor');
-      g.box(0.3, 0.07, 0.1, '#15171c', 0, -0.17, 0.12);
-      break;
-    case 'cow':
-      g.box(0.34, 0.32, 0.38, WHITE, 0, 0, 0.02);
-      g.box(0.3, 0.18, 0.12, '#e6a8a0', 0, -0.08, 0.24);
-      g.box(0.18, 0.14, 0.05, '#232323', 0.06, 0.08, 0.2);
-      for (const sx of [-1, 1]) {
-        g.box(0.16, 0.06, 0.08, '#232323', sx * 0.24, 0.08, 0);
-        g.cone(0.04, 0.2, 4, '#efe6cf', sx * 0.2, 0.2, 0, 0);
-      }
-      helmet(g, color, accent, 0.1, -0.02, 0.2, 0.15, 0.2, 'goggles');
-      break;
-    case 'pig':
-      g.box(0.36, 0.32, 0.32, '#f2a8b0', 0, 0, 0);
-      g.cyl(0.09, 0.09, 0.08, 8, '#e88c98', 0, -0.03, 0.2, Math.PI / 2);
-      for (const sx of [-1, 1]) g.box(0.1, 0.04, 0.09, '#e4949e', sx * 0.2, 0.1, 0.02, 0.4, 0, sx * 0.9);
-      helmet(g, color, accent, 0.1, -0.02, 0.2, 0.15, 0.19, 'visor');
-      break;
-    case 'sheep':
-      g.box(0.24, 0.28, 0.32, '#2a2622', 0, -0.02, 0.05);
-      g.ball(0.2, '#f2eee2', 0, 0.12, -0.02, 1.1, 0.75, 1.1, 0);
-      for (const sx of [-1, 1]) g.box(0.14, 0.05, 0.07, '#2a2622', sx * 0.16, 0.02, 0);
-      helmet(g, color, accent, 0.19, -0.02, 0.2, 0.13, 0.2, 'goggles');
-      break;
-    case 'rooster':
-      g.ball(0.17, '#f7f3ea', 0, 0, 0);
-      g.box(0.05, 0.14, 0.2, '#e0301e', 0, 0.2, 0);
-      g.cone(0.05, 0.14, 4, '#f2b233', 0, -0.02, 0.2);
-      g.box(0.04, 0.1, 0.05, '#e0301e', 0, -0.13, 0.12);
-      // aviator goggles on a strap, the comb sticking out of the back
-      g.box(0.37, 0.07, 0.35, '#1a1a20', 0, 0.04, 0);
-      for (const sx of [-1, 1]) {
-        g.cyl(0.065, 0.065, 0.06, 8, '#ffb02e', sx * 0.09, 0.05, 0.15, Math.PI / 2);
-        g.cyl(0.075, 0.075, 0.03, 8, '#2b2b33', sx * 0.09, 0.05, 0.135, Math.PI / 2);
-      }
-      g.box(0.05, 0.05, 0.3, accent, 0, 0.19, -0.03);
-      break;
-    case 'horse':
-      g.box(0.26, 0.3, 0.46, '#7a4a2a', 0, 0, 0.08);
-      g.box(0.08, 0.16, 0.3, '#f1ede4', 0, 0.06, 0.16);
-      g.box(0.08, 0.2, 0.3, '#2a1c14', 0, 0.16, -0.12);
-      for (const sx of [-1, 1]) g.box(0.05, 0.12, 0.05, '#7a4a2a', sx * 0.15, 0.2, 0.0);
-      helmet(g, color, accent, 0.12, 0.0, 0.17, 0.15, 0.24, 'goggles');
-      break;
-    case 'dog':
-      g.box(0.3, 0.28, 0.3, '#c8925a', 0, 0, 0);
-      g.box(0.18, 0.14, 0.16, '#e9c9a0', 0, -0.06, 0.2);
-      g.box(0.07, 0.06, 0.05, '#1e1a18', 0, -0.01, 0.29);
-      for (const sx of [-1, 1]) {
-        g.box(0.07, 0.22, 0.12, '#7a5030', sx * 0.18, -0.02, -0.02, 0, 0, sx * 0.25);
-        g.box(0.05, 0.05, 0.02, '#1e1a18', sx * 0.08, 0.06, 0.155);
-      }
-      g.box(0.06, 0.03, 0.08, '#e85a70', 0.02, -0.15, 0.24);
-      helmet(g, color, accent, 0.1, -0.02, 0.2, 0.14, 0.2, 'visor');
-      break;
-    case 'rabbit':
-      // a grey-white rabbit with tall ears, a pink nose and two front teeth
-      g.box(0.32, 0.3, 0.32, '#e8e4dc', 0, 0, 0);
-      g.box(0.2, 0.14, 0.14, '#f4f0ea', 0, -0.07, 0.2);
-      g.box(0.06, 0.05, 0.04, '#e8708a', 0, 0.0, 0.28);
-      g.box(0.04, 0.07, 0.03, '#ffffff', -0.025, -0.1, 0.26);
-      g.box(0.04, 0.07, 0.03, '#ffffff', 0.025, -0.1, 0.26);
-      for (const sx of [-1, 1]) {
-        g.box(0.09, 0.5, 0.06, '#e8e4dc', sx * 0.1, 0.38, -0.02, 0, 0, sx * 0.12);
-        g.box(0.05, 0.4, 0.04, '#f0a0b0', sx * 0.1, 0.38, 0.0, 0, 0, sx * 0.12);
-        g.box(0.05, 0.05, 0.02, '#1e1a18', sx * 0.09, 0.06, 0.165);
-      }
-      helmet(g, color, accent, 0.1, -0.02, 0.19, 0.14, 0.19, 'visor');
-      break;
-    case 'cat':
-      g.box(0.32, 0.26, 0.28, '#f0a050', 0, 0, 0);
-      g.box(0.14, 0.08, 0.06, '#fbe3c8', 0, -0.07, 0.15);
-      g.box(0.05, 0.035, 0.03, '#e8708a', 0, -0.03, 0.18);
-      for (const sx of [-1, 1]) {
-        g.cone(0.07, 0.14, 4, '#f0a050', sx * 0.1, 0.19, 0, Math.PI / 4);
-        g.box(0.05, 0.06, 0.02, '#2a6a3a', sx * 0.07, 0.04, 0.145);
-        g.box(0.12, 0.008, 0.008, '#ffffff', sx * 0.15, -0.06, 0.16);
-      }
-      helmet(g, color, accent, 0.1, -0.02, 0.19, 0.13, 0.17, 'goggles');
-      break;
-  }
+  g.sphere(0.17, '#e0b48c', 0, -0.02, 0.02, 1, 1.05, 1.1, 10, 8);
+  helmet(g, color, accent, 0.03, 0, 0.23, 0.22, 0.24, 'visor', design);
+  g.box(0.3, 0.07, 0.1, '#15171c', 0, -0.17, 0.12);
   return g.build();
 }
 
@@ -647,7 +612,7 @@ export interface CarModel {
 export interface CarModelOpts {
   body: CarBody;
   style: CarStyle;
-  /** The computer cars' animal faces override the style's driver. */
+  /** Always a person in a helmet (the helmet comes from the style). */
   driver?: CarDriver;
   shadowTex: THREE.Texture;
   envMap: THREE.Texture | null;
@@ -1644,7 +1609,7 @@ export function carModel(opts: CarModelOpts): CarModel {
     P.tg.box(0.45, 0.05, 0.27, style.paint2, hx, hy - 0.26, hz - 0.02);
     P.tg.box(0.3, 0.06, 0.1, '#15171c', hx, hy - 0.17, hz + 0.02);
     for (const sx of [-1, 1]) P.tg.box(0.05, 0.3, 0.02, '#15171c', hx + sx * 0.1, hy - 0.3, hz + 0.12);
-    P.tg.addColored(driverHead(who, style.paint, style.paint2), mat(hx, hy, hz));
+    P.tg.addColored(driverHead(helmetColorOf(style), style.paint2, style.helmet), mat(hx, hy, hz));
     P.tg.box(0.08, 0.1, 0.08, '#e8c39e', hx, hy - 0.17, hz);
   }
 
