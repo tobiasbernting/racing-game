@@ -1,7 +1,8 @@
 // Saving: the run in progress (after every node) and the meta progress, in localStorage. Versioned; every
 // access is wrapped because storage can be missing, full or blocked; anything unreadable becomes "no save"
 // (run) or fresh progress (meta) instead of an error.
-import { CAR_PARTS, CAR_PAINTS, isCarPart, isHelmetDesign, PART_MAX_LEVEL, defaultStyle, emptyParts, isCarBody, newCar, type CarBody, type GarageCar } from '../shared/rally.ts';
+import { CAR_PARTS, isCarPart, PART_MAX_LEVEL, emptyParts, isCarBody, newCar, type CarBody, type GarageCar } from '../shared/rally.ts';
+import { cleanStyle, fitStyle } from '../shared/styles.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { ACTS, BOSSES, BOSS_RENAMES, NODE_TYPES, findNode, actMap, type BossId, type NodeType } from './map.ts';
 import { cleanMeta, defaultMeta, type Meta } from './meta.ts';
@@ -24,21 +25,9 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 function cleanCar(raw: unknown): GarageCar {
   const o = isObj(raw) ? raw : {};
   const body = isCarBody(o.body) ? o.body : 'hatch';
-  const st = isObj(o.style) ? o.style : {};
-  const paint = typeof st.paint === 'string' && validPaint(st.paint) ? st.paint : defaultStyle().paint;
-  const car = newCar(1, body, CAR_BODY_NAMES[body], paint);
-  // style fields keep their stored value when it has the right type
-  const base = defaultStyle(paint) as unknown as Record<string, unknown>;
-  const style = car.style as unknown as Record<string, unknown>;
-  for (const k of Object.keys(base)) {
-    const v = st[k];
-    if (v !== undefined && typeof v === typeof base[k] && (typeof v !== 'object' || (Array.isArray(v) === Array.isArray(base[k]) && v !== null))) style[k] = v;
-  }
-  // an older save had animals behind the wheel: every driver is a person in a helmet now, with the default helmet
-  car.style.driver = 'human';
-  if (!isHelmetDesign(car.style.helmet) && car.style.helmet !== 'ears') car.style.helmet = 'stripe';
-  if (car.style.helmet === 'ears') car.style.helmet = 'stripe';
-  if (car.style.helmetColor && !(CAR_PAINTS as readonly string[]).includes(car.style.helmetColor)) car.style.helmetColor = '';
+  const car = newCar(1, body, CAR_BODY_NAMES[body]);
+  // every style field is checked (older saves lack the newer ones: they keep the default look; animals behind the wheel became people)
+  car.style = fitStyle(body, cleanStyle(isObj(o.style) ? o.style : {}, car.style));
   const parts = isObj(o.parts) ? o.parts : {};
   for (const p of CAR_PARTS) car.parts[p] = num(parts[p], 0, PART_MAX_LEVEL, 0);
   car.damage = num(o.damage, 0, 100, 0);

@@ -148,6 +148,8 @@ export function resultView(run: RunState, info: RunEnd, o: { onAgain(): void; on
     'header',
     `rs-head ${v.won ? 'won' : 'lost'}`,
     el('div', 'rs-verdict', el('h1', 'arc-title', v.title), el('p', 'rs-where', v.won ? '🏆 ' : '💀 ', v.where), el('p', 'rs-sub', v.sub)),
+    // the car as the player styled it, on a turntable (the App mounts the 3D view here)
+    el('div', 'arc-preview rs-carbox'),
     el('div', 'rs-chips', ...chips),
   );
   const headline = el(

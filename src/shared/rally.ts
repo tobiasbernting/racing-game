@@ -165,7 +165,9 @@ export const CAR_PAINTS = [
 export const CAR_FINISHES = ['gloss', 'matte', 'metallic'] as const;
 export type CarFinish = (typeof CAR_FINISHES)[number];
 
-export const CAR_LIVERIES = ['none', 'stripe', 'stripes2', 'flames', 'checker', 'dots', 'zigzag', 'stars', 'hearts', 'camo', 'lightning', 'rainbow'] as const;
+export const CAR_LIVERIES = ['none', 'stripe', 'stripes2', 'flames', 'checker', 'dots', 'zigzag', 'stars', 'hearts', 'camo', 'lightning', 'rainbow',
+  // the styling garage: gritty ones
+  'hazard', 'rust', 'splat'] as const;
 export type CarLivery = (typeof CAR_LIVERIES)[number];
 
 /** Stickers. `number` paints the car's number in a roundel; the made-up sponsors (Grusolja, Kaosbensin…) are the default look. */
@@ -182,7 +184,9 @@ export const CAR_SPOILERS = ['none', 'small', 'big', 'wing'] as const;
 export type CarSpoiler = (typeof CAR_SPOILERS)[number];
 
 /** Bolt-on extras (any number of them). */
-export const CAR_EXTRAS = ['roofrack', 'lightbar', 'flag', 'bullbar', 'exhaust2', 'antenna', 'sideskirts', 'snorkel', 'antlers', 'ears', 'horsetail'] as const;
+export const CAR_EXTRAS = ['roofrack', 'lightbar', 'flag', 'bullbar', 'exhaust2', 'antenna', 'sideskirts', 'snorkel', 'antlers', 'ears', 'horsetail',
+  // the styling garage: a roof cone, a rubber duck and a sausage
+  'cone', 'duck', 'korv'] as const;
 export type CarExtra = (typeof CAR_EXTRAS)[number];
 
 export const CAR_HORNS = ['beep', 'tune', 'cow', 'duck', 'train', 'honk'] as const;

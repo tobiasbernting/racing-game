@@ -1,7 +1,8 @@
 // The state of a run in progress, as plain JSON (it is saved after every node), and the small rules on it:
 // hearts, kronor, trinkets and the funny stats. Functions here never touch the DOM or the clock.
 import type { RaceStats } from '../rally/mods.ts';
-import { CAR_PAINTS, newCar, type HelmetDesign, type CarBody, type GarageCar } from '../shared/rally.ts';
+import { newCar, type HelmetDesign, type CarBody, type CarStyle, type GarageCar } from '../shared/rally.ts';
+import { isHex } from '../shared/styles.ts';
 import { CAR_BODY_NAMES } from '../shared/names.ts';
 import { ACTS, actMap, findNode, type ActMap, type BossId, type MapNode, type NodeType } from './map.ts';
 import { kitOf } from '../shared/abilities.ts';
@@ -231,6 +232,8 @@ export interface NewRunOpts {
   /** The helmet's pattern and colour ('' = the car's paint). */
   helmet?: HelmetDesign;
   helmetColor?: string;
+  /** The whole look the player gave this vehicle in the garage (it wins over `paint` and the helmet). */
+  style?: CarStyle;
   /** Medal progress now, to tell afterwards what the run moved. Nothing else from the meta goes in: a seed alone decides the run. */
   progress?: Record<string, number>;
 }
@@ -239,6 +242,7 @@ export function newRun(o: NewRunOpts): RunState {
   const car = newCar(1, o.body, CAR_BODY_NAMES[o.body], o.paint);
   if (o.helmet) car.style.helmet = o.helmet;
   if (o.helmetColor) car.style.helmetColor = o.helmetColor;
+  if (o.style) car.style = structuredClone(o.style);
   const diff = asDifficulty(o.diff ?? o.calm);
   const hearts = DIFFS[diff].hearts;
   const run: RunState = { v: 1, seed: o.seed, calm: diff === 'calm', diff, act: 0, at: null, path: [], hearts, maxHearts: hearts, kronor: 0, trinkets: [], up: [], car, screen: null, stats: emptyRunStats(), status: 'running', nodesDone: 0, log: [], got: [], nodeLost: 0, chal0: { ...(o.progress ?? {}) }, opened: [] };
@@ -344,4 +348,5 @@ export function heartsLost(place: number, n: number, finished: boolean, mode: Di
 
 export const costsHeart = (place: number, n: number, finished: boolean, mode: Difficulty | boolean = false, boss = false): boolean => heartsLost(place, n, finished, mode, boss) > 0;
 
-export const validPaint = (p: string): boolean => (CAR_PAINTS as readonly string[]).includes(p);
+/** A colour the garage can paint with: the palette, or anything the colour picker gives (#rrggbb). */
+export const validPaint = (p: string): boolean => isHex(p);

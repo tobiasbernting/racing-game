@@ -2279,7 +2279,7 @@ const rally = (ctx: GameContext): GameInstance => {
       const dz = e.car.z - c.z;
       if (dx * sinH + dz * cosH > -2 && Math.hypot(dx, dz) < 14) near++;
     }
-    audio.horn(me.body);
+    audio.horn(me.body, opts ? myCar.style.horn : 'beep');
     sparkleAt(c.x + sinH * 1.2, c.y + 1.2, c.z + cosH * 1.2, 3, 0.4);
     mods.bus.honk(near);
   }

@@ -2,7 +2,7 @@
 // changes), the opponents' engines, tyres, gravel, grass, wind, kerbs, bumps, beeps, cheers, a fanfare
 // and a cheerful little music loop.
 import { noise as noiseShot, tone } from '../arcade/sfx.ts';
-import type { CarBody } from '../shared/rally.ts';
+import type { CarBody, CarHorn } from '../shared/rally.ts';
 import { settings } from '../settings.ts';
 import { clamp } from './util.ts';
 
@@ -527,9 +527,40 @@ export class RallyAudio {
   }
 
   /** The horn, one for each vehicle: a beep, a bike's toot, the tractor's moo-horn, and the moped's high ring-ring. */
-  horn(body: CarBody | undefined): void {
+  horn(body: CarBody | undefined, kind: CarHorn = 'beep'): void {
     const a = this.a;
     const out = this.out;
+    // a horn picked in the styling garage replaces the vehicle's own ('beep' is "the vehicle's own")
+    if (kind !== 'beep') {
+      switch (kind) {
+        case 'tune':
+          // the first bars of a cheerful marching tune
+          [523, 523, 523, 698, 880, 698, 523, 698, 880, 1047].forEach((f, i) => tone(a, out, f, i === 9 ? 0.4 : 0.11, { type: 'triangle', vol: 0.08, at: i * 0.13 }));
+          break;
+        case 'cow':
+          tone(a, out, 170, 1.0, { type: 'sawtooth', to: 105, vol: 0.1, attack: 0.1 });
+          tone(a, out, 255, 1.0, { type: 'triangle', to: 160, vol: 0.06, attack: 0.1 });
+          break;
+        case 'duck':
+          for (const at of [0, 0.22]) {
+            tone(a, out, 620, 0.14, { type: 'square', to: 380, vol: 0.06, at });
+            noiseShot(a, out, 0.1, { freq: 1400, q: 1.2, vol: 0.05, at });
+          }
+          break;
+        case 'train':
+          tone(a, out, 349, 1.0, { type: 'sawtooth', vol: 0.08, attack: 0.05 });
+          tone(a, out, 440, 1.0, { type: 'sawtooth', vol: 0.07, attack: 0.05 });
+          tone(a, out, 523, 1.0, { type: 'square', vol: 0.03, attack: 0.05 });
+          break;
+        default:
+          // a goose: two cracked honks
+          for (const at of [0, 0.34]) {
+            tone(a, out, 330, 0.26, { type: 'square', to: 270, vol: 0.07, at, attack: 0.02 });
+            tone(a, out, 345, 0.26, { type: 'sawtooth', to: 280, vol: 0.05, at, attack: 0.02 });
+          }
+      }
+      return;
+    }
     switch (body) {
       case 'moped': {
         // a bicycle bell: two quick rings, each a bright pair of sines with a shimmer

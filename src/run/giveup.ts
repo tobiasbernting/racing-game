@@ -43,8 +43,7 @@ export function giveUpRun(meta: Meta, run: RunState): Settled {
   return settleRun(meta, run, true);
 }
 
-/** What the next run starts with after a restart: the same vehicle, paint and helmet (the difficulty stays as the meta default). */
-export function restartPick(run: RunState): { diff: Difficulty; body: RunState['car']['body']; paint: string; helmet: HelmetDesign; helmetColor: string } {
-  const h = run.car.style.helmet;
-  return { diff: run.diff, body: run.car.body, paint: run.car.style.paint, helmet: h === 'ears' ? 'stripe' : h, helmetColor: run.car.style.helmetColor };
+/** What the next run starts with after a restart: the same vehicle (its look comes from the garage) and difficulty (the meta keeps the default). */
+export function restartPick(run: RunState): { diff: Difficulty; body: RunState['car']['body'] } {
+  return { diff: run.diff, body: run.car.body };
 }

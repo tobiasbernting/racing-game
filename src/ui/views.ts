@@ -1,6 +1,7 @@
 // The run screens, as plain DOM builders: each takes the data and callbacks it needs and returns the
 // element for the card. No state lives here; the App decides what happens on each press.
-import { CAR_BODIES, CAR_PAINTS, HELMET_DESIGNS, HELMET_NAMES, carStars, newCar, type CarBody, type HelmetDesign } from '../shared/rally.ts';
+import { CAR_BODIES, CAR_PAINTS, HELMET_DESIGNS, HELMET_NAMES, carStars, newCar, type CarBody, type CarStyle } from '../shared/rally.ts';
+import type { StyleBook } from '../run/styles.ts';
 import { CAR_BODY_NAMES, CAR_BODY_TEXT, RALLY_COURSE_NAMES } from '../shared/names.ts';
 import { NAME_MAX, displayName, nameOk, nameProblem, suggestRallyName, tidyName } from '../shared/rallyname.ts';
 import { helmetSvg } from './helmet.ts';
@@ -45,6 +46,10 @@ export interface TitleOpts {
   onNew(): void;
   onContinue(): void;
   onQuick(): void;
+  /** The styling garage, on the vehicle picked last. */
+  onGarage(): void;
+  /** How the vehicle picked last looks (the helmet beside the name). */
+  style: CarStyle;
   onCollection(): void;
   onSettings(): void;
   /** A line of help for phones that cannot go fullscreen by themselves (iPhone in Safari). */
@@ -74,7 +79,7 @@ export function titleView(o: TitleOpts): HTMLElement {
     el('h1', 'arc-title', 'Galna Rallyt'),
     el('p', 'arc-sub', 'Ingen runda blir den andra lik. Samla galna talismaner. Krossa bossarna.'),
     el('div', 'rg-deco', ...['🏎️', '🎲', '🌭', '🪩', '⛑️'].map((e) => el('span', null, e))),
-    o.meta.name ? el('div', 'rg-whoami', helmetSvg({ color: o.meta.helmetColor || o.meta.paint, trim: '#f2f2f2', design: o.meta.helmet, cls: 'rg-whoami-h' }), el('span', null, 'Förare: ', el('b', null, displayName(o.meta)))) : null,
+    o.meta.name ? el('div', 'rg-whoami', helmetSvg({ color: o.style.helmetColor || o.style.paint, trim: '#f2f2f2', design: o.style.helmet, cls: 'rg-whoami-h' }), el('span', null, 'Förare: ', el('b', null, displayName(o.meta)))) : null,
     el('div', 'rg-diffnote', `${diffOf(o.meta.diff).emoji} Svårighet: `, el('b', null, diffOf(o.meta.diff).name), el('small', null, ' (välj när du startar en runda)')),
     el('div', 'rg-trophy', `🏆 ${o.meta.trophies}`, el('small', null, o.meta.runs ? ` · ${plural(o.meta.runs, 'runda', 'rundor')} krossade` : ' · inga rundor än. Visa vad du går för.')),
   );
@@ -86,7 +91,7 @@ export function titleView(o: TitleOpts): HTMLElement {
       el('div', 'rg-saveinfo', `Akt ${s.act + 1}/${ACTS} · ${s.hearts}/${s.maxHearts} ❤️ · ${s.kronor} kr · ${plural(s.trinkets.reduce((a, t) => a + t.n, 0), 'talisman', 'talismaner')}`),
     );
   }
-  right.append(el('div', 'rg-newwrap', arrowSvg('rg-arrow'), newBtn), el('div', 'rg-pair', ghost('⚡ Snabbrace', o.onQuick), ghost('📖 Skrytlådan', o.onCollection)), ghost('⚙️ Inställningar', o.onSettings));
+  right.append(el('div', 'rg-newwrap', arrowSvg('rg-arrow'), newBtn), el('div', 'rg-pair', ghost('⚡ Snabbrace', o.onQuick), ghost('🎨 Garaget', o.onGarage)), el('div', 'rg-pair', ghost('📖 Skrytlådan', o.onCollection), ghost('⚙️ Inställningar', o.onSettings)));
   if (o.homeHint) right.append(el('small', 'rg-homehint', 'Fusktips: Dela, sedan Lägg till på hemskärmen. Ingen webbläsarkant.'));
   return screen('rg-title', left, right);
 }
@@ -95,11 +100,8 @@ export function titleView(o: TitleOpts): HTMLElement {
 
 export interface PickSel {
   diff: Difficulty;
+  /** The vehicle; its paint, helmet and the rest of its look come from the garage's StyleBook. */
   body: CarBody;
-  paint: string;
-  /** The helmet's pattern and colour ('' = the car's paint). */
-  helmet: HelmetDesign;
-  helmetColor: string;
   /** A typed seed ("Eget frö"); left out, the run gets a random one. */
   seed?: number;
 }
@@ -123,7 +125,12 @@ export function kitCard(body: CarBody): HTMLElement {
   return el('div', 'rg-kit', ...kids);
 }
 
-export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): void; onStart(s: PickSel): void; onBack(): void }): HTMLElement {
+export function pickView(meta: Meta, sel: PickSel, book: StyleBook, o: { onChange(s: PickSel): void; onStart(s: PickSel): void; onBack(): void; onGarage(): void }): HTMLElement {
+  /** The look of the vehicle picked now (paint and helmet are changed in place here, the garage does the rest). */
+  const look = (): CarStyle => book[sel.body];
+  const restyle = (patch: Partial<CarStyle>): void => {
+    book[sel.body] = { ...look(), ...patch };
+  };
   const bodies = el('div', 'rg-row');
   const helmets = el('div', 'rg-row rg-helmrow');
   const paints = el('div', 'rg-row');
@@ -236,15 +243,15 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
   }
   applyFilterLater = applyFilter;
   // the helmet: eight patterns (each button shows the pattern in the helmet's colour as it is now)
-  const helmBtns: [HTMLElement, HelmetDesign][] = [];
+  const helmBtns: [HTMLElement, (typeof HELMET_DESIGNS)[number]][] = [];
   const drawHelmets = (): void => {
-    for (const [b, d] of helmBtns) b.replaceChildren(helmetSvg({ color: sel.helmetColor || sel.paint, trim: '#f2f2f2', design: d }));
+    for (const [b, d] of helmBtns) b.replaceChildren(helmetSvg({ color: look().helmetColor || look().paint, trim: '#f2f2f2', design: d }));
   };
   for (const d of HELMET_DESIGNS) {
     const x = btn('rg-chipbtn rg-helmbtn', '');
     x.setAttribute('aria-label', `Hjälm: ${HELMET_NAMES[d]}`);
     x.title = HELMET_NAMES[d];
-    pick(x, () => sel.helmet === d, () => (sel.helmet = d));
+    pick(x, () => look().helmet === d, () => restyle({ helmet: d }));
     helmBtns.push([x, d]);
     helmets.append(x);
   }
@@ -268,21 +275,21 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
     const x = btn('rg-swatch', '');
     x.style.background = c;
     x.setAttribute('aria-label', `Bilfärg ${c}`);
-    pick(x, () => sel.paint === c, () => (sel.paint = c));
+    pick(x, () => look().paint === c, () => restyle({ paint: c }));
     swatches.push([x, 'car']);
     paints.append(x);
   }
   // "som bilen": the helmet in the car's own paint
   const same = btn('rg-swatch rg-same', '🚗');
   same.setAttribute('aria-label', 'Hjälmen i bilens färg');
-  pick(same, () => !sel.helmetColor, () => (sel.helmetColor = ''));
+  pick(same, () => !look().helmetColor, () => restyle({ helmetColor: '' }));
   swatches.push([same, 'helmet']);
   paints.append(same);
   for (const c of CAR_PAINTS.slice(0, 12)) {
     const x = btn('rg-swatch', '');
     x.style.background = c;
     x.setAttribute('aria-label', `Hjälmfärg ${c}`);
-    pick(x, () => sel.helmetColor === c, () => (sel.helmetColor = c));
+    pick(x, () => look().helmetColor === c, () => restyle({ helmetColor: c }));
     swatches.push([x, 'helmet']);
     paints.append(x);
   }
@@ -324,10 +331,10 @@ export function pickView(meta: Meta, sel: PickSel, o: { onChange(s: PickSel): vo
       'div',
       'rg-pickbody',
       el('div', 'arc-preview rg-preview'),
-      el('div', 'rg-picks', el('div', 'arc-h rg-subh', `Bil · ${CAR_BODIES.length} fordon`), filterRow, bodies, desc, el('div', 'arc-h rg-subh', 'Hjälm'), helmets, el('div', 'arc-h rg-subh', 'Färg'), paints),
+      el('div', 'rg-picks', el('div', 'arc-h rg-subh', `Bil · ${CAR_BODIES.length} fordon`), filterRow, bodies, desc, el('div', 'arc-h rg-subh', 'Hjälm'), helmets, el('div', 'arc-h rg-subh', 'Färg (mer i 🎨 Styla)'), paints),
     ),
     seedBox,
-    foot(ghost('← Tillbaka', o.onBack), seedLink, start),
+    foot(ghost('← Tillbaka', o.onBack), seedLink, ghost('🎨 Styla', o.onGarage), start),
   );
 }
 

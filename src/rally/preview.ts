@@ -5,7 +5,8 @@
 import { setOutlineScreen } from './look.ts';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import type { GarageCar } from '../shared/rally.ts';
+import type { DecalSlot, GarageCar } from '../shared/rally.ts';
+import { classifyHit, focusPoint, yawToFace, type Hit } from './pick.ts';
 import { blobTex, canvasTex } from './geo.ts';
 import { carModel, type CarModel } from './models.ts';
 
@@ -14,6 +15,10 @@ export interface CarPreview {
   update(car: GarageCar, look?: Record<string, number>): void;
   /** Night view (underglow, lights) on or off. */
   night(on: boolean): void;
+  /** A tap (not a drag) on the car: what part of it was hit. */
+  onPick(cb: ((hit: Hit) => void) | null): void;
+  /** Turns the car so this part faces the camera, and keeps it there a few seconds before the turntable goes on. */
+  focus(what: Hit['kind'] | DecalSlot): void;
   /** The car on the turntable right now (for the lab: nitro flames, damage by hand). */
   readonly model: CarModel | null;
   dispose(): void;
@@ -27,6 +32,8 @@ export interface CarPreviewOpts {
   /** Starting angle (rad); 0 shows the car's left side, π the right. */
   yaw?: number;
   quality?: 'high' | 'low';
+  /** Below 1 the camera comes closer (the garage fills its window with the car). */
+  zoom?: number;
   /** The upgrades on the car (run/upgrades.ts lookOf). */
   look?: Record<string, number>;
 }
@@ -119,6 +126,7 @@ export function mountCarPreview(root: HTMLElement, car: GarageCar, opts: CarPrev
   const shadowTex = blobTex(64, 0.3);
 
   let model: CarModel | null = null;
+  let carHasSpoiler = false;
   let lookKey = '';
   let damage = -1;
   let isNight = false;
@@ -163,14 +171,17 @@ export function mountCarPreview(root: HTMLElement, car: GarageCar, opts: CarPrev
       model.root.traverse((o) => {
         if ((o as THREE.Mesh).isMesh && o.castShadow) o.receiveShadow = false;
       });
+      carHasSpoiler = c.style.spoiler !== 'none';
       model.shadow.position.y = 0.005;
       model.setNight(isNight);
       scene.add(model.root, model.shadow);
       damage = -1;
       // frame the car: bigger bodies step the camera back
       const e = model.extent;
-      target.set(0, e.top * 0.42, 0);
-      dist = Math.max(e.front - e.back, e.halfW * 2.4, e.top * 2) * 2.15 + 0.5;
+      // a rider sits above the roof line the body measures: frame the head too
+      const top = Math.max(e.top, model.rider ? model.riderAt.y + 1.0 : 0);
+      target.set(0, top * 0.44, 0);
+      dist = (Math.max(e.front - e.back, e.halfW * 2.4, top * 2) * 2.15 + 0.5) * (opts.zoom ?? 1);
       frame();
     }
     if (c.damage !== damage) {
@@ -187,10 +198,22 @@ export function mountCarPreview(root: HTMLElement, car: GarageCar, opts: CarPrev
   let dragging = false;
   let lastX = 0;
   let lastT = 0;
+  let downX = 0;
+  let downY = 0;
+  let downT = 0;
+  let moved = 0;
+  let pickCb: ((hit: Hit) => void) | null = null;
+  let want: number | null = null;
+  let holdUntil = 0;
+  const ray = new THREE.Raycaster();
   const down = (e: PointerEvent): void => {
     dragging = true;
-    lastX = e.clientX;
-    lastT = performance.now();
+    want = null;
+    holdUntil = 0;
+    downX = lastX = e.clientX;
+    downY = e.clientY;
+    downT = lastT = performance.now();
+    moved = 0;
     vel = 0;
     canvas.setPointerCapture(e.pointerId);
     canvas.style.cursor = 'grabbing';
@@ -199,14 +222,23 @@ export function mountCarPreview(root: HTMLElement, car: GarageCar, opts: CarPrev
     if (!dragging) return;
     const now = performance.now();
     const d = (e.clientX - lastX) * 0.012;
+    moved = Math.max(moved, Math.hypot(e.clientX - downX, e.clientY - downY));
     yaw += d;
     vel = d / Math.max(0.008, (now - lastT) / 1000);
     lastX = e.clientX;
     lastT = now;
   };
-  const up = (): void => {
+  const up = (e: PointerEvent): void => {
+    const wasDragging = dragging;
     dragging = false;
     canvas.style.cursor = 'grab';
+    // a tap (hardly any movement, quickly): what is under the finger?
+    if (wasDragging && e.type === 'pointerup' && moved < 8 && performance.now() - downT < 600 && pickCb && model) {
+      const r = canvas.getBoundingClientRect();
+      ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+      const hit = ray.intersectObject(model.root, true)[0];
+      if (hit) pickCb(classifyHit(model, model.root.worldToLocal(hit.point.clone()), carHasSpoiler));
+    }
   };
   canvas.addEventListener('pointerdown', down);
   canvas.addEventListener('pointermove', move);
@@ -221,9 +253,25 @@ export function mountCarPreview(root: HTMLElement, car: GarageCar, opts: CarPrev
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     if (!dragging) {
-      // a flick keeps turning and slows down; then the slow showroom spin takes over
-      vel *= Math.exp(-dt * 3);
-      yaw += vel * dt + (opts.spin !== false ? dt * 0.35 : 0);
+      if (want !== null) {
+        // turning to show a part, then holding there a few seconds
+        let dy = (want - yaw) % (Math.PI * 2);
+        if (dy > Math.PI) dy -= Math.PI * 2;
+        if (dy < -Math.PI) dy += Math.PI * 2;
+        yaw += dy * Math.min(1, dt * 6);
+        vel = 0;
+        if (Math.abs(dy) < 0.02) {
+          holdUntil = holdUntil || now + 3500;
+          if (now > holdUntil) {
+            want = null;
+            holdUntil = 0;
+          }
+        }
+      } else {
+        // a flick keeps turning and slows down; then the slow showroom spin takes over
+        vel *= Math.exp(-dt * 3);
+        yaw += vel * dt + (opts.spin !== false ? dt * 0.35 : 0);
+      }
     }
     disc.rotation.y = yaw;
     if (model) {
@@ -239,6 +287,15 @@ export function mountCarPreview(root: HTMLElement, car: GarageCar, opts: CarPrev
     update: show,
     get model() {
       return model;
+    },
+    onPick: (cb) => {
+      pickCb = cb;
+    },
+    focus: (what) => {
+      if (!model) return;
+      const p = focusPoint(model, what);
+      want = yawToFace(p.x, p.z);
+      holdUntil = 0;
     },
     night: (on) => {
       isNight = on;

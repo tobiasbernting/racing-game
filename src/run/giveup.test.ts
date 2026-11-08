@@ -67,7 +67,7 @@ describe('giving a run up', () => {
 
   it('the next run starts with the same vehicle, paint and helmet', () => {
     const r = run({ body: 'moped', paint: '#e8412c' });
-    expect(restartPick(r)).toEqual({ diff: 'normal', body: 'moped', paint: '#e8412c', helmet: 'stripe', helmetColor: '' });
+    expect(restartPick(r)).toEqual({ diff: 'normal', body: 'moped' });
     const m = { ...defaultMeta(), diff: 'calm' as const };
     expect(giveUpRun(m, r).meta.diff).toBe('calm');
   });

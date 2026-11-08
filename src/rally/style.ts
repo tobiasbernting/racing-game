@@ -460,7 +460,7 @@ function drawDecal(g: CanvasRenderingContext2D, d: CarDecal, num: number): void 
 }
 
 /** A sticker with a white border, cached (only the number changes per car). */
-function sticker(d: CarDecal, num: number): HTMLCanvasElement {
+export function sticker(d: CarDecal, num: number): HTMLCanvasElement {
   const key = d === 'number' ? `number:${num}` : d;
   const hit = stickerCache.get(key);
   if (hit) return hit;
@@ -701,6 +701,71 @@ function drawLivery(g: CanvasRenderingContext2D, f: Frame, livery: CarLivery, st
         if (side) g.fillRect(0, wid * 0.38 + i * bw, len, bw);
         else if (top) g.fillRect(0, wid / 2 - 3 * bw + i * bw, len, bw);
         else if (end) g.fillRect(len / 2 - 3 * bw + i * bw, 0, bw, wid);
+      }
+      return;
+    }
+    case 'hazard': {
+      // warning stripes: slanted bars in the second colour on black, in a band along the sides and over the top
+      const band = (a0: number, a1: number, b0: number, b1: number): void => {
+        g.save();
+        g.beginPath();
+        g.rect(a0, b0, a1 - a0, b1 - b0);
+        g.clip();
+        g.fillStyle = '#16171b';
+        g.fillRect(a0, b0, a1 - a0, b1 - b0);
+        g.fillStyle = c2;
+        const h = b1 - b0;
+        for (let a = a0 - h; a < a1 + h; a += 0.28) {
+          g.beginPath();
+          g.moveTo(a, b1);
+          g.lineTo(a + 0.14, b1);
+          g.lineTo(a + 0.14 + h, b0);
+          g.lineTo(a + h, b0);
+          g.closePath();
+          g.fill();
+        }
+        g.restore();
+      };
+      if (side) band(0, len, wid * 0.74, wid * 0.94);
+      else if (top) band(0, len, wid / 2 - 0.17, wid / 2 + 0.17);
+      else if (end) band(0, len, wid * 0.62, wid * 0.86);
+      return;
+    }
+    case 'rust': {
+      // scabs of rust that gather low on the panels and along the edges
+      const n = Math.max(4, Math.round((len * wid) / 0.05));
+      for (let i = 0; i < n; i++) {
+        const a = r() * len;
+        const low = side ? 0.45 + 0.55 * Math.sqrt(r()) : r();
+        const b = low * wid;
+        const rad = 0.03 + r() * 0.09;
+        g.fillStyle = i % 3 === 0 ? 'rgba(92,44,18,0.85)' : i % 3 === 1 ? 'rgba(140,76,32,0.75)' : 'rgba(176,108,52,0.6)';
+        g.beginPath();
+        const k = 6 + Math.floor(r() * 3);
+        for (let j = 0; j < k; j++) {
+          const t = (j * TAU) / k;
+          const rr = rad * (0.55 + r() * 0.7);
+          g.lineTo(a + Math.cos(t) * rr * 1.5, b + Math.sin(t) * rr);
+        }
+        g.closePath();
+        g.fill();
+      }
+      return;
+    }
+    case 'splat': {
+      // paint thrown at the car in the second colour: blobs with a ring of drops, and a few drips running down
+      const n = Math.max(2, Math.round((len * wid) / 0.28));
+      for (let i = 0; i < n; i++) {
+        const a = r() * len;
+        const b = r() * wid;
+        const rad = 0.05 + r() * 0.08;
+        circle(g, a, b, rad, c2);
+        for (let j = 0; j < 7; j++) {
+          const t = r() * TAU;
+          const d = rad * (1.3 + r() * 1.3);
+          circle(g, a + Math.cos(t) * d, b + Math.sin(t) * d, 0.012 + r() * 0.02, c2);
+        }
+        if (side && i % 2 === 0) g.fillRect(a - 0.008, b, 0.016, Math.min(wid - b, 0.1 + r() * 0.2));
       }
       return;
     }

@@ -1,0 +1,89 @@
+/* The styling garage ("Garaget"): a big 3D car and the options. Preview and options sit side by side when the screen is
+   wider than tall, stacked when it is not. Targets are 44px or more, the page never scrolls (the option panel does). */
+
+.gr { gap: 6px; text-align: left; }
+.gr-top { flex: none; display: flex; align-items: center; gap: 8px; min-height: 48px; }
+.gr-title { margin: 0; flex: none; font-family: var(--display, inherit); font-size: clamp(20px, 3.4vw, 30px); font-weight: 400; font-style: italic; text-transform: uppercase; color: var(--neon-y, #ffd23f); text-shadow: 2px 2px 0 var(--neon-p, #ff2e7e); }
+.gr-back { flex: none; min-width: 96px; background: linear-gradient(#fff04d, #ffb800); color: #14100a; border-color: #fff7a8; }
+.gr-who { margin-left: auto; display: flex; gap: 6px; align-items: center; min-width: 0; }
+.gr-step { flex: none; width: 48px; min-height: 48px; border-radius: 8px; border: 2px solid rgba(25, 227, 255, 0.55); background: rgba(10, 12, 28, 0.85); color: #fff; font-size: 18px; font-weight: 800; cursor: pointer; padding: 0; }
+.gr-select { min-height: 48px; min-width: 0; width: clamp(130px, 28vw, 260px); padding: 0 10px; border-radius: 8px; border: 2px solid rgba(25, 227, 255, 0.55); background: #12111f; color: #fff; font: 800 16px/1 inherit; }
+.gr-select:focus-visible, .gr-step:focus-visible, .gr-tab:focus-visible, .gr-act:focus-visible, .gr-decal:focus-visible, .gr-plate:focus-visible { outline: 4px solid #fff; outline-offset: 2px; }
+
+.gr-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.gr-stage { position: relative; flex: 0 0 clamp(210px, 44dvh, 460px); min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.gr-preview { position: relative; flex: 1 1 auto; min-height: 0; border-radius: 14px; overflow: hidden; background: radial-gradient(ellipse at 50% 40%, #3a2b63 0%, #1a1233 70%); border: 2px solid rgba(255, 255, 255, 0.18); touch-action: none; }
+.gr-stagebar { position: absolute; left: 10px; top: 8px; z-index: 2; display: flex; flex-direction: column; gap: 2px; pointer-events: none; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8); }
+.gr-name { font-size: 18px; color: #fff; }
+.gr-hint { font-size: 12px; color: var(--neon-c, #19e3ff); }
+.gr-actions { flex: none; display: flex; gap: 6px; }
+.gr-act { flex: 1 1 0; min-width: 0; min-height: 48px; padding: 4px 6px; border-radius: 8px; border: 2px solid rgba(25, 227, 255, 0.55); background: linear-gradient(180deg, rgba(25, 227, 255, 0.14), rgba(10, 12, 28, 0.85)); color: #fff; font-size: 15px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.gr-act:disabled { opacity: 0.4; cursor: default; }
+.gr-act.warn { background: var(--neon-p, #ff2e7e); border-color: #ffd0e0; }
+.gr-random { background: linear-gradient(#ff6aa8, #ff2e7e); border-color: #ffd0e0; box-shadow: 0 0 14px rgba(255, 46, 126, 0.35); }
+
+.gr-panel { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.gr-tabs { flex: none; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 2px 6px; touch-action: pan-x; }
+.gr-tabs::-webkit-scrollbar { display: none; }
+.gr-tab { flex: none; min-height: 48px; padding: 4px 12px; border-radius: 8px; border: 2px solid rgba(25, 227, 255, 0.4); background: rgba(10, 12, 28, 0.85); color: #fff; font-size: 15px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.gr-tab.on { background: var(--neon-y, #ffd23f); color: #14100a; border-color: #fff7a8; box-shadow: 0 0 14px rgba(255, 229, 0, 0.4); }
+.gr-opts { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; overscroll-behavior: contain; padding: 0 4px 8px 2px; }
+.gr-sec { margin-bottom: 12px; }
+.gr-sech { margin: 0 0 6px; font-size: 12px; text-align: left; }
+.gr-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.gr-chip { min-height: 48px; padding: 4px 12px; font-size: 15px; }
+.gr-chip .gr-lock { display: block; font-size: 11px; opacity: 0.9; color: #ffd23f; }
+.gr-chip:disabled { opacity: 0.6; }
+.gr-swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.gr-sw { flex: none; }
+.gr-custom { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; cursor: pointer; }
+.gr-colorin { width: 44px; height: 44px; padding: 0; border: 2px solid #fff; border-radius: 6px; background: none; cursor: pointer; }
+.gr-decals { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 8px; }
+.gr-decal { position: relative; min-width: 48px; min-height: 56px; aspect-ratio: 1; padding: 4px; border-radius: 10px; border: 2px solid rgba(255, 255, 255, 0.28); background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.gr-decal img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.gr-decal[aria-pressed='true'] { background: var(--neon-y, #ffd23f); border-color: #fff7a8; box-shadow: 0 0 12px rgba(255, 229, 0, 0.5); }
+.gr-decal:disabled { opacity: 0.45; }
+.gr-decal .gr-lock { position: absolute; right: 2px; bottom: 0; font-size: 14px; }
+.gr-number { display: flex; align-items: center; gap: 10px; }
+.gr-stepbtn { min-width: 56px; min-height: 48px; font-size: 22px; }
+.gr-num { min-width: 64px; text-align: center; font-size: 30px; font-weight: 900; color: var(--neon-y, #ffd23f); }
+.gr-note { margin: 4px 0 8px; font-size: 13px; opacity: 0.85; }
+.gr-plate { width: 100%; max-width: 360px; min-height: 52px; padding: 0 14px; border-radius: 8px; border: 3px solid #1c1d22; background: #f4f1e8; color: #15171c; font: 900 24px/1 'Courier New', monospace; text-align: center; text-transform: uppercase; letter-spacing: 0.12em; }
+.gr-plate.bad { border-color: #ff3d3d; background: #ffe0e0; }
+.gr-msg { margin: 6px 0 0; font-size: 13px; opacity: 0.9; }
+.gr-msg.bad { color: #ff9a9a; font-weight: 800; opacity: 1; }
+.gr-withdot { display: inline-flex; align-items: center; gap: 8px; }
+.gr-dot { display: inline-block; width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.7); }
+.gr-helmets { gap: 6px; }
+.gr-helmbtn { width: 84px; min-height: 84px; padding: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.gr-helmbtn svg { width: 52px; height: 52px; }
+.gr-helmbtn small { font-size: 11px; }
+.gr-all { margin-top: 4px; }
+
+/* wider than tall: the car and the options side by side */
+@media (orientation: landscape) {
+  .gr-body { flex-direction: row; gap: 12px; }
+  .gr-stage { flex: 1 1 52%; min-width: 0; }
+  .gr-panel { flex: 1 1 48%; }
+}
+/* a phone held sideways: no room for the title, tighter bars */
+/* room enough: the tabs wrap instead of scrolling sideways */
+@media (min-width: 700px) and (min-height: 640px) {
+  .gr-tabs { flex-wrap: wrap; overflow: visible; }
+}
+@media (max-height: 520px) {
+  .gr-title { display: none; }
+  .gr-top { min-height: 44px; }
+  .gr-select, .gr-step { min-height: 44px; }
+  .gr-step { width: 44px; }
+  .gr-act, .gr-tab { min-height: 44px; }
+  .gr-hint { display: none; }
+  .gr-chip { min-height: 44px; }
+}
+@media (max-width: 520px) {
+  .gr-title { display: none; }
+  .gr-select { width: clamp(110px, 36vw, 200px); }
+  .gr-hint { display: none; }
+  .gr-act { font-size: 13px; padding: 4px 2px; }
+  .gr-chip { font-size: 14px; padding: 4px 9px; }
+}
