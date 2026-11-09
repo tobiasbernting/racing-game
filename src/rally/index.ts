@@ -220,19 +220,19 @@ function archetypeBody(seed: number, k: number, spec: RivalSpec): CarBody {
 
 const nextFrame = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
-/** Test hooks, only in a dev build: ?rallyhelp=0|1 (the comeback help), ?rallylast=<m> (start that far behind), ?rallydebug, ?rallyauto, ?rallyturbo, ?rallyskip, ?rallyat, ?rallycam, ?rallygo, ?rallylaps. */
-const Q = new URLSearchParams(import.meta.env.DEV && typeof location !== 'undefined' ? location.search : '');
-const DEBUG = Q.has('rallydebug');
-const AUTO = Q.has('rallyauto') ? Number(Q.get('rallyauto')) || 0.9 : 0;
-const TURBO = Math.max(1, Math.min(30, Number(Q.get('rallyturbo')) || 1));
-const TONE = Q.get('rallytone');
-const SKIP = Math.max(1, Number(Q.get('rallyskip')) || 1);
-const AT = Q.has('rallyat') ? Number(Q.get('rallyat')) : NaN;
-const CAM0 = Number(Q.get('rallycam')) || 0;
-const GO = Q.has('rallygo');
-const HELP_Q = Q.has('rallyhelp') ? Q.get('rallyhelp') !== '0' : null;
-const LAST_Q = Math.max(0, Number(Q.get('rallylast')) || 0);
-const LAPS_Q = Math.max(1, Math.min(9, Number(Q.get('rallylaps')) || 3));
+/** Test hooks, only in the dev server or a VITE_TEST_HOOKS=1 build: ?rallyhelp=0|1 (the comeback help), ?rallylast=<m> (start that far behind), ?rallydebug, ?rallyauto, ?rallyturbo, ?rallyskip, ?rallyat, ?rallycam, ?rallygo, ?rallylaps. */
+const Q = new URLSearchParams(__TEST_HOOKS__ && typeof location !== 'undefined' ? location.search : '');
+const DEBUG = __TEST_HOOKS__ && Q.has('rallydebug');
+const AUTO = __TEST_HOOKS__ && Q.has('rallyauto') ? Number(Q.get('rallyauto')) || 0.9 : 0;
+const TURBO = __TEST_HOOKS__ ? Math.max(1, Math.min(30, Number(Q.get('rallyturbo')) || 1)) : 1;
+const TONE = __TEST_HOOKS__ ? Q.get('rallytone') : null;
+const SKIP = __TEST_HOOKS__ ? Math.max(1, Number(Q.get('rallyskip')) || 1) : 1;
+const AT = __TEST_HOOKS__ && Q.has('rallyat') ? Number(Q.get('rallyat')) : NaN;
+const CAM0 = __TEST_HOOKS__ ? Number(Q.get('rallycam')) || 0 : 0;
+const GO = __TEST_HOOKS__ && Q.has('rallygo');
+const HELP_Q = __TEST_HOOKS__ && Q.has('rallyhelp') ? Q.get('rallyhelp') !== '0' : null;
+const LAST_Q = __TEST_HOOKS__ ? Math.max(0, Number(Q.get('rallylast')) || 0) : 0;
+const LAPS_Q = __TEST_HOOKS__ ? Math.max(1, Math.min(9, Number(Q.get('rallylaps')) || 3)) : 3;
 
 const rally = (ctx: GameContext): GameInstance => {
   const high = ctx.quality === 'high';
@@ -597,7 +597,7 @@ const rally = (ctx: GameContext): GameInstance => {
     hud.ready();
     hud.setNitro(Math.floor(nitroLeft), nitroSlots(), false);
     hud.setDamage(damageK > 0 ? meE!.damage : null);
-    if (DEBUG) {
+    if ((__TEST_HOOKS__ && DEBUG)) {
       // where the triangles go
       const tally: Record<string, number> = {};
       scene.traverse((o) => {
@@ -631,7 +631,7 @@ const rally = (ctx: GameContext): GameInstance => {
         .map(([k, v]) => `${k}=${Math.round(v)}`);
     }
     // test hooks (dev build only): crash the player's bike, honk, swap the vehicle
-    if (DEBUG) {
+    if ((__TEST_HOOKS__ && DEBUG)) {
       const warp = (at?: number): number => {
         const me = meE!;
         let s = at ?? 0;
@@ -3379,7 +3379,7 @@ const rally = (ctx: GameContext): GameInstance => {
     brain.hurt = e.hp < e.maxHp * 0.3 && !e.fegis;
     brain.think(e.car, foesBuf, dt, raceT < DERBY_WARMUP);
     brain.drive(e.car, track, foesBuf, timeU.value, dt, e.ctl);
-    if (DEBUG && dbgStill.get(e.id)) {
+    if ((__TEST_HOOKS__ && DEBUG) && dbgStill.get(e.id)) {
       e.ctl.throttle = 0;
       e.ctl.brake = 1;
       e.ctl.steer = 0;
@@ -4108,7 +4108,7 @@ const rally = (ctx: GameContext): GameInstance => {
   }
 
   function finishEnd(sc: number, detail: string): void {
-    if (DEBUG) (window as unknown as { __rallyEnd: unknown }).__rallyEnd = { score: sc, detail };
+    if ((__TEST_HOOKS__ && DEBUG)) (window as unknown as { __rallyEnd: unknown }).__rallyEnd = { score: sc, detail };
     // the result card goes over the last frame: leave the picture, not the HUD
     hud.root.style.display = 'none';
     ctx.end(sc, detail);
@@ -4292,7 +4292,7 @@ const rally = (ctx: GameContext): GameInstance => {
     }
     camera.up.copy(up);
     camera.lookAt(camLook);
-    if (DEBUG && dbgCam) {
+    if ((__TEST_HOOKS__ && DEBUG) && dbgCam) {
       // test hook: a fixed camera for screenshots of the scenery
       camera.position.set(dbgCam[0]!, dbgCam[1]!, dbgCam[2]!);
       camera.lookAt(dbgCam[3]!, dbgCam[4]!, dbgCam[5]!);
@@ -4311,7 +4311,7 @@ const rally = (ctx: GameContext): GameInstance => {
   let frameMs = 16;
   let slowT = 0;
   let fastT = 0;
-  const adaptive = !DEBUG || Q.has('rallyadapt');
+  const adaptive = !(__TEST_HOOKS__ && DEBUG) || (__TEST_HOOKS__ && Q.has('rallyadapt'));
   function adapt(): void {
     const now = performance.now();
     const d = lastFrame ? now - lastFrame : 16;
@@ -4404,7 +4404,7 @@ const rally = (ctx: GameContext): GameInstance => {
       renderer.render(scene, camera);
     }
     if (carnage && phase !== 'intro') projectBars();
-    if (DEBUG) {
+    if ((__TEST_HOOKS__ && DEBUG)) {
       const me = player();
       (window as unknown as { __rally: unknown }).__rally = {
         phase,

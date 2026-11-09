@@ -189,8 +189,10 @@ GameContext), `src/run/` (rena regler för rundan: karta, talismaner, ekonomi, h
 och `src/app.ts` (skalet: paus, pekkontroller, flödet mellan skärmar och lopp). Ett lopp startas med `RallyOptions`
 (`src/rally/options.ts`) och rapporterar `RallyResult` via `onDone`.
 
-Dev-bygget har också `window.__rallyDebug` (`ramps()`, `at(s, d, fart)`, `board()` för derbyt, `tumble()`, `honk()`, `swap(kropp)`, `takedown(n)`, `hurt(n, hp)`, `ability()`, `park()`, `freeze()` / `thaw()`, `ahead(n, avstånd, fart)` / `behind(...)` och `hazard(sort, avstånd, sida)`) under ett lopp. För tester finns `window.__app` med `fakeFinish()` (avslutar loppet direkt med ett påhittat resultat), `debugRun()`,
-`debugEnter(typ, sort?)`, `debugDerby(arena?, boss?)` (gör ett dödslopp eller bossen till ett rivningsderby och går in i det) och `debugMeta()`. I dev-bygget finns dessutom `?rallydebug&rallyauto&rallyturbo=30&rallygo` som låter
+**Testkrokar finns bara i dev-servern och i ett testbygge.** Produktionsbygget (`pnpm build`, Docker, Pages) innehåller varken `window.__app`, `__rally*`, `__force*` eller `?rally*`-parametrar. Playwright-skript bygger med `VITE_TEST_HOOKS=1 pnpm build` (eller kör `pnpm dev`) och serverar det med `node server.mjs`. Flaggan `__TEST_HOOKS__` sätts i `vite.config.ts`.
+
+Testbygget har också `window.__rallyDebug` (`ramps()`, `at(s, d, fart)`, `board()` för derbyt, `tumble()`, `honk()`, `swap(kropp)`, `takedown(n)`, `hurt(n, hp)`, `ability()`, `park()`, `freeze()` / `thaw()`, `ahead(n, avstånd, fart)` / `behind(...)` och `hazard(sort, avstånd, sida)`) under ett lopp. För tester finns `window.__app` med `fakeFinish()` (avslutar loppet direkt med ett påhittat resultat), `debugRun()`,
+`debugEnter(typ, sort?)`, `debugDerby(arena?, boss?)` (gör ett dödslopp eller bossen till ett rivningsderby och går in i det) och `debugMeta()`. I testbygget finns dessutom `?rallydebug&rallyauto&rallyturbo=30&rallygo` som låter
 datorn köra bilen i hög hastighet.
 
 ## Deploy
@@ -204,6 +206,15 @@ privat (inställning på GitHub). Containern kör som `node`, lyssnar på 8080 o
 docker build -t racing-game .
 docker run --rm -p 8080:8080 racing-game
 ```
+
+## Publicering
+
+Spelet publiceras på två ställen, båda från samma bygge:
+
+- **GitHub Pages: https://rally.tobiasbernting.se.** `.github/workflows/pages.yml` kör typkontroll, tester och `pnpm build` på push till `main` (och för hand), kopierar `dist/index.html` till `dist/404.html` och deployar `dist/`. `public/CNAME` innehåller domänen; Vites `base` är `/`. Engångsinställning på GitHub: Settings → Pages → Source: **GitHub Actions**, sätt Custom domain till `rally.tobiasbernting.se` och kryssa i **Enforce HTTPS**. DNS: en CNAME-post för `rally` till `tobiasbernting.github.io`.
+- **Hemmaservern:** Docker-imagen enligt Deploy ovan, som förut (`rally.moderskepp.lan`).
+
+Typsnitten följer med i bygget (`@fontsource/*`, SIL Open Font License), så sidan gör inga anrop till andra servrar. Webbmanifestet använder relativa sökvägar och fungerar på båda adresserna. Sparade framsteg ligger i `localStorage` och hör till domänen: på `rally.tobiasbernting.se` och `rally.moderskepp.lan` är de två skilda sparningar.
 
 ## Fordon med förmågor (fas 8)
 

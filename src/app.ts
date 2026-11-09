@@ -129,7 +129,7 @@ export class App {
     if (saved && saved.status !== 'running') this.resumeRun(saved);
     else this.title();
     // so a test (or a curious grown-up) can reach the app
-    (window as unknown as { __app: App }).__app = this;
+    this.installTestHooks();
   }
 
   // ---- state ----
@@ -907,9 +907,9 @@ export class App {
     const plan = currentPlan(run)!;
     const node = currentNode(run)!;
     // dev builds only: a test can force the course of the next race
-    const forced = import.meta.env.DEV ? (window as unknown as { __forceCourse?: RallyCourse }).__forceCourse : undefined;
-    const w = import.meta.env.DEV ? (window as unknown as { __forceTime?: RallyTime; __forceWeather?: RallyWeather }) : {};
-    const sky = { ...(w.__forceTime ? { time: w.__forceTime } : {}), ...(w.__forceWeather ? { weather: w.__forceWeather } : {}) };
+    const forced = __TEST_HOOKS__ ? (window as unknown as { __forceCourse?: RallyCourse }).__forceCourse : undefined;
+    const w = (__TEST_HOOKS__ ? window : {}) as { __forceTime?: RallyTime; __forceWeather?: RallyWeather };
+    const sky = __TEST_HOOKS__ ? { ...(w.__forceTime ? { time: w.__forceTime } : {}), ...(w.__forceWeather ? { weather: w.__forceWeather } : {}) } : {};
     return {
       rules: withSky(forced ? { ...plan.rules, course: forced, ...sky } : { ...plan.rules, ...sky }, run.trinkets, node.boss),
       car: run.car,
@@ -935,79 +935,86 @@ export class App {
     this.commit(submitRace(r, result));
   }
 
-  // ---- hooks for tests (and curious grown-ups): reached through window.__app ----
+  // ---- hooks for tests: reached through window.__app, and only in the dev server or a VITE_TEST_HOOKS=1 build ----
+  private installTestHooks(): void {
+    if (!__TEST_HOOKS__) return;
+    const app = this;
+    const hooks = {
+      /** Ends the race in progress at once with a made-up result (the real race is far too slow to wait for in a software-GL test). */
+      fakeFinish(partial: Partial<RallyResult> = {}): void {
+        if (app.mode !== 'run' || !app.runState || (app.state !== 'playing' && app.state !== 'paused' && app.state !== 'loading')) return;
+        const n = app.opts?.rules.ai ? app.opts.rules.ai + 1 : 4;
+        app.raceDone({ place: 1, n, finished: true, time: 95000, laps: 2, kronor: 120, coins: 10, medal: 'silver', damage: 0, ...partial });
+      },
 
-  /** Ends the race in progress at once with a made-up result (the real race is far too slow to wait for in a software-GL test). */
-  fakeFinish(partial: Partial<RallyResult> = {}): void {
-    if (this.mode !== 'run' || !this.runState || (this.state !== 'playing' && this.state !== 'paused' && this.state !== 'loading')) return;
-    const n = this.opts?.rules.ai ? this.opts.rules.ai + 1 : 4;
-    this.raceDone({ place: 1, n, finished: true, time: 95000, laps: 2, kronor: 120, coins: 10, medal: 'silver', damage: 0, ...partial });
-  }
+      /** The run now, and a way to change it (kronor, hearts…) before the next screen. */
+      debugRun(fn?: (r: RunState) => void): RunState | null {
+        if (app.runState && fn) {
+          const c = structuredClone(app.runState);
+          fn(c);
+          app.commit(c);
+        }
+        return app.runState;
+      },
 
-  /** The run now, and a way to change it (kronor, hearts…) before the next screen. */
-  debugRun(fn?: (r: RunState) => void): RunState | null {
-    if (this.runState && fn) {
-      const c = structuredClone(this.runState);
-      fn(c);
-      this.commit(c);
-    }
-    return this.runState;
-  }
+      /** Puts the run at a node of this type (anywhere on this act's map) and enters it. */
+      debugEnter(type: NodeType, kind?: RaceKind): boolean {
+        if (!app.runState) return false;
+        const r = structuredClone(app.runState);
+        const nodes = allNodes(mapOf(r));
+        const node = nodes.find((n) => n.type === type && (!kind || n.kind === kind)) ?? nodes.find((n) => n.type === type);
+        if (!node) return false;
+        // a test can ask for a kind the map did not roll for this node
+        if (kind && node.type !== 'boss') node.kind = kind;
+        r.screen = null;
+        r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
+        app.commit(enterNode(r, node.id));
+        return true;
+      },
 
-  /** Puts the run at a node of this type (anywhere on this act's map) and enters it. */
-  debugEnter(type: NodeType, kind?: RaceKind): boolean {
-    if (!this.runState) return false;
-    const r = structuredClone(this.runState);
-    const nodes = allNodes(mapOf(r));
-    const node = nodes.find((n) => n.type === type && (!kind || n.kind === kind)) ?? nodes.find((n) => n.type === type);
-    if (!node) return false;
-    // a test can ask for a kind the map did not roll for this node
-    if (kind && node.type !== 'boss') node.kind = kind;
-    r.screen = null;
-    r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
-    this.commit(enterNode(r, node.id));
-    return true;
-  }
+      /** Puts the run at an elite (or the boss) of this act and turns it into a Rivningsderby in this arena, then enters it. */
+      debugDerby(arena: ArenaId = 'bowl', boss = false): boolean {
+        if (!app.runState) return false;
+        const r = structuredClone(app.runState);
+        const nodes = allNodes(mapOf(r));
+        const node = nodes.find((n) => n.type === (boss ? 'boss' : 'elite')) ?? nodes.find((n) => n.type === 'race');
+        if (!node) return false;
+        node.derby = arena;
+        node.kind = 'carnage';
+        r.screen = null;
+        r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
+        app.commit(enterNode(r, node.id));
+        return true;
+      },
 
-  /** Puts the run at an elite (or the boss) of this act and turns it into a Rivningsderby in this arena, then enters it. */
-  debugDerby(arena: ArenaId = 'bowl', boss = false): boolean {
-    if (!this.runState) return false;
-    const r = structuredClone(this.runState);
-    const nodes = allNodes(mapOf(r));
-    const node = nodes.find((n) => n.type === (boss ? 'boss' : 'elite')) ?? nodes.find((n) => n.type === 'race');
-    if (!node) return false;
-    node.derby = arena;
-    node.kind = 'carnage';
-    r.screen = null;
-    r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
-    this.commit(enterNode(r, node.id));
-    return true;
-  }
+      /** Puts the run at the boss of that boss's act and makes it that boss (its course and kind too), then enters it. */
+      debugBoss(id: BossId): boolean {
+        if (!app.runState) return false;
+        const r = structuredClone(app.runState);
+        r.act = BOSS_DEFS[id].act;
+        const nodes = allNodes(mapOf(r));
+        const node = nodes.find((n) => n.type === 'boss');
+        if (!node) return false;
+        node.boss = id;
+        node.course = BOSS_COURSE[id];
+        node.kind = BOSS_KIND[id];
+        node.derby = undefined;
+        r.screen = null;
+        r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
+        app.commit(enterNode(r, node.id));
+        return true;
+      },
 
-  /** Puts the run at the boss of that boss's act and makes it that boss (its course and kind too), then enters it. */
-  debugBoss(id: BossId): boolean {
-    if (!this.runState) return false;
-    const r = structuredClone(this.runState);
-    r.act = BOSS_DEFS[id].act;
-    const nodes = allNodes(mapOf(r));
-    const node = nodes.find((n) => n.type === 'boss');
-    if (!node) return false;
-    node.boss = id;
-    node.course = BOSS_COURSE[id];
-    node.kind = BOSS_KIND[id];
-    node.derby = undefined;
-    r.screen = null;
-    r.at = nodes.find((n) => n.next.includes(node.id))?.id ?? null;
-    this.commit(enterNode(r, node.id));
-    return true;
-  }
-
-  debugMeta(fn?: (m: Meta) => void): Meta {
-    if (fn) {
-      fn(this.meta);
-      saveMeta(this.meta);
-    }
-    return this.meta;
+      debugMeta(fn?: (m: Meta) => void): Meta {
+        if (fn) {
+          fn(app.meta);
+          saveMeta(app.meta);
+        }
+        return app.meta;
+      },
+    };
+    Object.assign(this, hooks);
+    (window as unknown as { __app: App }).__app = this;
   }
 
   // ---- keys and focus ----
