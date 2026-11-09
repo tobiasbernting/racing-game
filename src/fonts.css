@@ -1,0 +1,10 @@
+/* Self-hosted fonts (SIL Open Font License, see each package's LICENSE). latin + latin-ext cover Swedish. */
+@import '@fontsource/racing-sans-one/latin-400.css';
+@import '@fontsource/racing-sans-one/latin-ext-400.css';
+@import '@fontsource/chakra-petch/latin-500.css';
+@import '@fontsource/chakra-petch/latin-700.css';
+@import '@fontsource/chakra-petch/latin-700-italic.css';
+@import '@fontsource/chakra-petch/latin-ext-500.css';
+@import '@fontsource/chakra-petch/latin-ext-700.css';
+@import '@fontsource/chakra-petch/latin-ext-700-italic.css';
+@import '@fontsource/permanent-marker/latin-400.css';

@@ -1,3 +1,4 @@
+import './fonts.css';
 import './style.css';
 import './poster.css';
 import './upgrades.css';
